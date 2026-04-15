@@ -17,10 +17,6 @@
 
 package bisq.offer.mu_sig.draft;
 
-import bisq.account.payment_method.PaymentRail;
-import bisq.account.payment_method.fiat.FiatPaymentRail;
-import bisq.bonded_roles.market_price.MarketBasedAmountConversion;
-import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.AmountConversion;
 import bisq.common.monetary.Fiat;
@@ -29,7 +25,6 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
-import bisq.presentation.formatters.AmountFormatter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -39,56 +34,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 class TradeAmountLimits {
-    static final Fiat MIN_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10, "USD");
-    static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
-
-    // todo
-    static Fiat getMaxTradeAmountInUsd() {
-        return TradeAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
-    }
-
-    static Monetary getMinTradeAmountInBtc(MarketPriceService marketPriceService) {
-        return MarketBasedAmountConversion.usdToBtc(marketPriceService, MIN_TRADE_AMOUNT_IN_USD)
-                .orElseThrow();
-    }
-
-    static Monetary getMaxTradeAmountInBtc(MarketPriceService marketPriceService) {
-        return MarketBasedAmountConversion.usdToBtc(marketPriceService, MAX_TRADE_AMOUNT_IN_USD)
-                .orElseThrow();
-    }
-
-    static Fiat getMaxTradeLimitInUsd(PaymentRail paymentRail) {
-        return getMaxTradeLimitInUsd(paymentRail, MAX_TRADE_AMOUNT_IN_USD);
-    }
-
-    static String getFormattedMaxTradeLimitInUsd(PaymentRail paymentRail) {
-        Fiat maxTradeLimit = getMaxTradeLimitInUsd(paymentRail);
-        return AmountFormatter.formatQuoteAmount(maxTradeLimit);
-    }
-
-    static Fiat getMaxTradeLimitInUsd(PaymentRail paymentRail, Fiat maxTradeLimitByProtocol) {
-        if (paymentRail instanceof FiatPaymentRail fiatPaymentRail) {
-            switch (fiatPaymentRail.getChargebackRisk()) {
-                case VERY_LOW -> {
-                    return maxTradeLimitByProtocol;
-                }
-                case LOW -> {
-                    return maxTradeLimitByProtocol.multiply(0.8);
-                }
-                case MEDIUM -> {
-                    return maxTradeLimitByProtocol.multiply(0.65);
-                }
-                case MODERATE -> {
-                    return maxTradeLimitByProtocol.multiply(0.5);
-                }
-                default -> {
-                    return maxTradeLimitByProtocol.multiply(0d);
-                }
-            }
-        } else {
-            return maxTradeLimitByProtocol;
-        }
-    }
 
     //todo
     static Fiat getUserSpecificLimitInUsdAmount() {

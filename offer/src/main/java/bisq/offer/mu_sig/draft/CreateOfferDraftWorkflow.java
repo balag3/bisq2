@@ -67,6 +67,34 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     @Delegate
     protected CreateOfferDraft createOfferDraft;
 
+    public enum PaymentMethodSelectionStatus {
+        NO_ACCOUNT_AVAILABLE,
+        SINGLE_ACCOUNT_SELECTED,
+        ACCOUNT_SELECTION_REQUIRED
+    }
+
+    public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
+                                               List<Account<?, ?>> accountsRequiringSelection) {
+        public PaymentMethodSelectionResult {
+            checkNotNull(status, "status must not be null");
+            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
+            accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
+        }
+
+        public static PaymentMethodSelectionResult noAccountAvailable() {
+            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of());
+        }
+
+        public static PaymentMethodSelectionResult singleAccountSelected() {
+            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of());
+        }
+
+        public static PaymentMethodSelectionResult accountSelectionRequired(List<Account<?, ?>> accountsRequiringSelection) {
+            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
+            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection);
+        }
+    }
+
     /* --------------------------------------------------------------------- */
     // Construction
     /* --------------------------------------------------------------------- */
@@ -296,6 +324,24 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
     public void clearSelectedAccountByPaymentMethod() {
         clearSelectedAccountByPaymentMethod(true);
+    }
+
+    public PaymentMethodSelectionResult onPaymentMethodSelected(PaymentMethod<?> paymentMethod) {
+        checkNotNull(paymentMethod, "paymentMethod must not be null");
+
+        PaymentMethodSelectionService.PaymentMethodAccountsSelection selection = paymentMethodSelectionService.findAccountsSelection(
+                getAccountsByPaymentMethod(),
+                paymentMethod);
+        if (selection.accountToAutoSelect().isPresent()) {
+            putSelectedAccountByPaymentMethod(paymentMethod, selection.accountToAutoSelect().get());
+            return PaymentMethodSelectionResult.singleAccountSelected();
+        }
+
+        if (!selection.accountsRequiringSelection().isEmpty()) {
+            return PaymentMethodSelectionResult.accountSelectionRequired(selection.accountsRequiringSelection());
+        }
+
+        return PaymentMethodSelectionResult.noAccountAvailable();
     }
 
 

@@ -428,6 +428,47 @@ public class CreateOfferDraftWorkflowTest {
         assertEquals(List.of(true), cookieStore.persistedUseRangeAmountValues);
     }
 
+    @Test
+    public void onPaymentMethodSelectedReturnsNoAccountIfNoneExists() {
+        workflow.initialize(usdBtcMarket);
+        PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+
+        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+
+        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, result.status());
+        assertTrue(result.accountsRequiringSelection().isEmpty());
+        assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
+    }
+
+    @Test
+    public void onPaymentMethodSelectedAutoSelectsIfSingleAccountExists() {
+        workflow.initialize(usdBtcMarket);
+        PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        Account<?, ?> account = createAccount(method);
+        workflow.putAccountsByPaymentMethod(method, List.of(account));
+
+        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+
+        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, result.status());
+        assertTrue(result.accountsRequiringSelection().isEmpty());
+        assertEquals(account, workflow.getSelectedAccountByPaymentMethod().get(method));
+    }
+
+    @Test
+    public void onPaymentMethodSelectedRequiresSelectionIfMultipleAccountsExist() {
+        workflow.initialize(usdBtcMarket);
+        PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        Account<?, ?> account1 = createAccount(method);
+        Account<?, ?> account2 = createAccount(method);
+        workflow.putAccountsByPaymentMethod(method, List.of(account1, account2));
+
+        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+
+        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
+        assertEquals(List.of(account1, account2), result.accountsRequiringSelection());
+        assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
+    }
+
     private static class FakeMarketData implements CreateOfferDraftMarketData {
         private final Map<Market, PriceQuote> priceQuoteByMarket = new HashMap<>();
         private final Map<Market, TradeAmount> defaultTradeAmountByMarket = new HashMap<>();

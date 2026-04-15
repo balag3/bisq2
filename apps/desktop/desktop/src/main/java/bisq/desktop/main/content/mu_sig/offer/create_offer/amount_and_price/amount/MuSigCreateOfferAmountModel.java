@@ -17,34 +17,18 @@
 
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount;
 
-import bisq.account.payment_method.PaymentMethod;
-import bisq.common.market.Market;
-import bisq.common.market.MarketRepository;
-import bisq.common.monetary.Monetary;
-import bisq.common.monetary.PriceQuote;
 import bisq.desktop.common.view.Model;
-import bisq.offer.Direction;
-import bisq.offer.amount.spec.BaseSideAmountSpec;
 import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-
 @Getter
 public class MuSigCreateOfferAmountModel implements Model {
-    @Setter
-    private Direction displayDirection;
-    @Setter
-    private Market market = MarketRepository.getDefaultBtcFiatMarket();
-    private final List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
+    private final BooleanProperty useRangeAmount = new SimpleBooleanProperty();
+
     private final StringProperty amountLimitInfo = new SimpleStringProperty();
     private final StringProperty amountLimitInfoOverlayInfo = new SimpleStringProperty();
     private final BooleanProperty shouldShowAmountLimitInfo = new SimpleBooleanProperty();
@@ -55,37 +39,7 @@ public class MuSigCreateOfferAmountModel implements Model {
     private String amountLimitInfoLink;
     @Setter
     private String linkToWikiText;
-    @Setter
-    private Optional<Monetary> baseSideAmount = Optional.empty();
-    @Setter
-    private Monetary reputationBasedMaxAmount;
-    @Setter
-    private long myReputationScore;
-    private final BooleanProperty isRangeAmountEnabled = new SimpleBooleanProperty();
     private final BooleanProperty isOverlayVisible = new SimpleBooleanProperty();
     private final StringProperty priceTooltip = new SimpleStringProperty();
-    private final ObjectProperty<BaseSideAmountSpec> baseSideAmountSpec = new SimpleObjectProperty<>();
-    private final ObjectProperty<PriceQuote> priceQuote = new SimpleObjectProperty<>();
     private final StringProperty errorMessage = new SimpleStringProperty();
-
-    public void reset() {
-        displayDirection = null;
-        market = MarketRepository.getDefaultBtcFiatMarket();
-        paymentMethods.clear();
-        amountLimitInfo.set(null);
-        amountLimitInfoOverlayInfo.set(null);
-        shouldShowAmountLimitInfo.set(false);
-        shouldShowHowToBuildReputationButton.set(false);
-        shouldShowWarningIcon.set(false);
-        learnMoreVisible.set(false);
-        amountLimitInfoLink = null;
-        linkToWikiText = null;
-        baseSideAmount = Optional.empty();
-        isRangeAmountEnabled.set(false);
-        isOverlayVisible.set(false);
-        priceTooltip.set(null);
-        baseSideAmountSpec.set(null);
-        priceQuote.set(null);
-        errorMessage.set(null);
-    }
 }

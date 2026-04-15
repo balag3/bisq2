@@ -24,6 +24,7 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
 
 import java.util.Optional;
@@ -59,12 +60,12 @@ class TradeAmountConstraintsService {
 
         PriceQuote btcUsdPriceQuote = marketData.getBtcUsdPriceQuote();
 
-        Fiat maxTradeLimitInUsd = TradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
+        Fiat maxTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
                 offerPriceQuote,
                 btcUsdPriceQuote,
                 marketPriceQuote,
-                TradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD,
+                MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD,
                 maxTradeLimitInUsd);
 
         Optional<TradeAmount> userSpecificTradeAmountLimit = TradeAmountLimits.toUserSpecificTradeAmountLimit(direction,

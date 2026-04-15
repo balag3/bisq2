@@ -17,23 +17,19 @@
 
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price;
 
-import bisq.account.payment_method.PaymentMethod;
-import bisq.common.market.Market;
 import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.MuSigCreateOfferAmountController;
 import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.price.MuSigCreateOfferPriceController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
-import bisq.offer.Direction;
-import bisq.offer.amount.spec.BaseSideAmountSpec;
+import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -43,16 +39,21 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountAndPriceView view;
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
+    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
+                                                    CreateOfferDraftWorkflow createOfferDraftWorkflow,
                                                     Region owner,
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
+        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(serviceProvider,
+                createOfferDraftWorkflow,
                 owner,
                 navigationButtonsVisibleHandler,
                 closeAndNavigateToHandler);
         muSigCreateOfferPriceController = new MuSigCreateOfferPriceController(serviceProvider,
+                createOfferDraftWorkflow,
                 owner,
                 navigationButtonsVisibleHandler);
 
@@ -71,6 +72,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
         model.setHeadline(getHeadline());
         model.getIsAmountOverlayVisible().bind(muSigCreateOfferAmountController.getIsOverlayVisible());
         model.getIsPriceOverlayVisible().bind(muSigCreateOfferPriceController.getIsOverlayVisible());
+
     }
 
     @Override
@@ -85,38 +87,13 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     /* --------------------------------------------------------------------- */
 
     public void reset() {
-        muSigCreateOfferAmountController.reset();
         muSigCreateOfferPriceController.reset();
         model.reset();
     }
 
-    public void setDisplayDirection(Direction displayDirection) {
-        muSigCreateOfferAmountController.setDisplayDirection(displayDirection);
-        muSigCreateOfferPriceController.setDisplayDirection(displayDirection);
-        model.setDisplayDirection(displayDirection);
-    }
-
-    public void setMarket(Market market) {
-        muSigCreateOfferAmountController.setMarket(market);
-        muSigCreateOfferPriceController.setMarket(market);
-        model.setMarket(market);
-    }
-
-    public void updateAmountSpecWithPriceSpec(PriceSpec priceSpec) {
-        muSigCreateOfferAmountController.updateBaseSideAmountSpecWithPriceSpec(priceSpec);
-    }
-
-    public ReadOnlyObjectProperty<BaseSideAmountSpec> getBaseSideAmountSpec() {
-        return muSigCreateOfferAmountController.getBaseSideAmountSpec();
-    }
-
-    public void setPaymentMethods(List<PaymentMethod<?>> paymentMethods) {
-        muSigCreateOfferAmountController.setPaymentMethods(paymentMethods);
-    }
 
     public boolean validate() {
-        return muSigCreateOfferAmountController.validate()
-                && muSigCreateOfferPriceController.validate();
+        return muSigCreateOfferPriceController.validate();
     }
 
     public ReadOnlyObjectProperty<PriceSpec> getPriceSpec() {
@@ -124,8 +101,8 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     }
 
     private String getHeadline() {
-        String baseCurrencyCode = model.getMarket().getBaseCurrencyCode();
-        return model.getDisplayDirection().isBuy()
+        String baseCurrencyCode = createOfferDraftWorkflow.getMarket().getBaseCurrencyCode();
+        return createOfferDraftWorkflow.getDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

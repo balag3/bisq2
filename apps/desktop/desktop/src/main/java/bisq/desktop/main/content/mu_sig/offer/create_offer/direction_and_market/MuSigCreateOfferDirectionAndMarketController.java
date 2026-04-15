@@ -20,21 +20,28 @@ package bisq.desktop.main.content.mu_sig.offer.create_offer.direction_and_market
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
+import bisq.common.observable.Pin;
+import bisq.common.util.StringUtils;
 import bisq.desktop.ServiceProvider;
+import bisq.desktop.common.observable.FxBindings;
+import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.components.MarketImageComposition;
 import bisq.desktop.main.content.mu_sig.offer.listing.MarketType;
 import bisq.i18n.Res;
-import bisq.mu_sig.MuSigService;
 import bisq.offer.Direction;
-import bisq.settings.SettingsService;
-import javafx.beans.property.ReadOnlyObjectProperty;
+import bisq.offer.mu_sig.MuSigOfferbookService;
+import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
+import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
 import org.fxmisc.easybind.Subscription;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static bisq.desktop.main.content.mu_sig.offer.create_offer.direction_and_market.MuSigCreateOfferDirectionAndMarketModel.MARKET_ICON_CACHE;
@@ -44,179 +51,115 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigCreateOfferDirectionAndMarketModel model;
     @Getter
     private final MuSigCreateOfferDirectionAndMarketView view;
+    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
     private final Runnable onNextHandler;
     private final MarketPriceService marketPriceService;
-    private final MuSigService muSigService;
-    private final SettingsService settingsService;
-    private Subscription paymentCurrencySearchTextPin, selectedMarketTypePin;
+    private final MuSigOfferbookService muSigOfferbookService;
+    private final Set<Subscription> subscriptions = new HashSet<>();
+    private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
+                                                        CreateOfferDraftWorkflow createOfferDraftWorkflow,
                                                         Runnable onNextHandler) {
+        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
-        muSigService = serviceProvider.getMuSigService();
-        settingsService = serviceProvider.getSettingsService();
+        muSigOfferbookService = serviceProvider.getOfferService().getMuSigOfferService().getMuSigOfferbookService();
 
-        model = new MuSigCreateOfferDirectionAndMarketModel(List.of(new MarketTypeListItem(MarketType.FIAT),
-                new MarketTypeListItem(MarketType.OTHER)));
+        List<MarketTypeListItem> marketTypeListItems = List.of(
+                new MarketTypeListItem(MarketType.FIAT),
+                new MarketTypeListItem(MarketType.OTHER)
+        );
+        model = new MuSigCreateOfferDirectionAndMarketModel(marketTypeListItems);
         view = new MuSigCreateOfferDirectionAndMarketView(model, this);
-        setDisplayDirection(Direction.BUY);
-    }
-
-    public void setMarket(Market market) {
-        model.getSelectedMarket().set(market);
-        model.getTradePairImage().set(MarketImageComposition.getMarketIcons(market, MARKET_ICON_CACHE));
-
-        model.getSelectedMarketTypeListItem().set(market.isCrypto()
-                ? new MarketTypeListItem(MarketType.OTHER)
-                : new MarketTypeListItem(MarketType.FIAT));
-    }
-
-    public ReadOnlyObjectProperty<Direction> getDisplayDirection() {
-        return model.getDisplayDirection();
-    }
-
-    public ReadOnlyObjectProperty<Market> getMarket() {
-        return model.getSelectedMarket();
-    }
-
-    public void reset() {
-        model.reset();
     }
 
     @Override
     public void onActivate() {
-        setDisplayDirection(Direction.BUY);
-
         model.getPaymentCurrencySearchText().set("");
 
-        selectedMarketTypePin = EasyBind.subscribe(model.getSelectedMarketTypeListItem(), listItem -> {
-            if (listItem == null) {
+        pins.add(FxBindings.bind(model.getDirection()).to(createOfferDraftWorkflow.directionObservable()));
+
+        pins.add(createOfferDraftWorkflow.marketObservable().addObserver(market
+                -> UIThread.run(() -> {
+            String baseCurrencyName = market.getBaseCurrencyName();
+            String quoteCurrencyName = market.getQuoteCurrencyName();
+            model.getHeadlineText().set(Res.get("muSig.offer.create.directionAndMarket.headline", baseCurrencyName, quoteCurrencyName));
+            model.getBuyButtonText().set(Res.get("muSig.offer.create.directionAndMarket.buyButton", baseCurrencyName));
+            model.getSellButtonText().set(Res.get("muSig.offer.create.directionAndMarket.sellButton", baseCurrencyName));
+
+            StackPane marketIcons = MarketImageComposition.getMarketIcons(market, MARKET_ICON_CACHE);
+            model.getTradePairImage().set(marketIcons);
+
+            model.getSelectedMarketTypeListItem().set(new MarketTypeListItem(MarketType.from(market)));
+            model.getSelectedMarketListItem().set(findMarketListItem(market).orElse(null));
+        })));
+
+        subscriptions.add(EasyBind.subscribe(model.getSelectedMarketTypeListItem(), selectedMarketTypeListItem -> {
+            if (selectedMarketTypeListItem == null) {
                 return;
             }
 
+            Market selectedMarket = createOfferDraftWorkflow.getMarket();
             List<Market> markets;
-            if (listItem.getMarketType() == MarketType.FIAT) {
+            if (selectedMarketTypeListItem.getMarketType() == MarketType.FIAT) {
                 markets = MarketRepository.getAllFiatMarkets();
             } else {
                 markets = MarketRepository.getAllCryptoAssetMarkets();
             }
-
             List<MarketListItem> items = markets.stream()
-                    .filter(market -> marketPriceService.getMarketPriceByCurrencyMap().containsKey(market))
+                    .filter(marketPriceService::hasMarketPrice)
                     .map(market -> {
-                        long numOffersInMarket = muSigService.getOffers().stream()
-                                .filter(offer -> offer.getMarket().getRelevantCurrencyCode().equals(market.getRelevantCurrencyCode()))
-                                .count();
-                        MarketListItem item = new MarketListItem(market, numOffersInMarket);
-                        if (market.equals(model.getSelectedMarket().get())) {
-                            model.getSelectedMarketListItem().set(item);
-                        }
-                        return item;
+                        // We do not update num offers dynamically as the selection drop down is not expected to
+                        // stay open long
+                        long numOffersInMarket = muSigOfferbookService.getOffersForMarket(market).size();
+                        return new MarketListItem(market, numOffersInMarket);
                     })
                     .collect(Collectors.toList());
             model.getMarketListItems().setAll(items);
+            model.getSelectedMarketListItem().set(findMarketListItem(selectedMarket).orElse(null));
+        }));
 
-        });
-
-        paymentCurrencySearchTextPin = EasyBind.subscribe(model.getPaymentCurrencySearchText(), searchText -> {
-            if (searchText == null || searchText.isEmpty()) {
+        subscriptions.add(EasyBind.subscribe(model.getPaymentCurrencySearchText(), searchText -> {
+            if (StringUtils.isEmpty(searchText)) {
                 model.getFilteredMarketListItems().setPredicate(item -> true);
             } else {
                 String search = searchText.toLowerCase();
                 model.getFilteredMarketListItems().setPredicate(item ->
-                        item != null &&
-                                (item.getDisplayString().toLowerCase().contains(search) ||
-                                        item.getMarket().getQuoteCurrencyDisplayName().toLowerCase().contains(search))
+                        item.getDisplayString().toLowerCase().contains(search)
                 );
             }
-        });
-
-
-        initializeMarketSelection();
+        }));
     }
 
     @Override
     public void onDeactivate() {
-        paymentCurrencySearchTextPin.unsubscribe();
-        selectedMarketTypePin.unsubscribe();
+        subscriptions.forEach(Subscription::unsubscribe);
+        subscriptions.clear();
+        pins.forEach(Pin::unbind);
+        pins.clear();
     }
 
     void onSelectDirection(Direction direction) {
-        setDisplayDirection(direction);
+        createOfferDraftWorkflow.setDirection(direction);
         onNextHandler.run();
     }
 
-    void onMarketListItemClicked(MarketListItem item) {
-        if (item == null || item.equals(model.getSelectedMarketListItem().get())) {
-            return;
-        }
-        setSelectedMarketAndListItem(item.getMarket());
-    }
-
-    void onMarketTypeListItemSelected(MarketTypeListItem listItem) {
-        if (listItem == null || listItem.equals(model.getSelectedMarketTypeListItem().get())) {
-            return;
-        }
-        model.getSelectedMarketTypeListItem().set(listItem);
-
-        updateWithLastSelectedOrDefaultMarket(listItem.getMarketType());
-    }
-
-    private void updateWithLastSelectedOrDefaultMarket(MarketType marketType) {
-        if (marketType == MarketType.FIAT) {
-            setSelectedMarketAndListItem(settingsService.getMuSigLastSelectedFiatMarket().get());
-        } else {
-            setSelectedMarketAndListItem(settingsService.getMuSigLastSelectedOtherMarket().get());
+    void onSelectMarketListItem(MarketListItem item) {
+        if (item != null) {
+            createOfferDraftWorkflow.setMarket(item.getMarket());
         }
     }
 
-    private void setSelectedMarketAndListItem(Market market) {
-        if (market != null) {
-            updateSelectedMarket(market);
-            settingsService.setSelectedMuSigMarket(market);
-            if (market.isBtcFiatMarket()) {
-                settingsService.setMuSigLastSelectedFiatMarket(market);
-            } else {
-                settingsService.setMuSigLastSelectedOtherMarket(market);
-            }
+    void onSelectMarketTypeListItem(MarketTypeListItem listItem) {
+        if (listItem != null) {
+            model.getSelectedMarketTypeListItem().set(listItem);
         }
     }
 
-    private void initializeMarketSelection() {
-        Market market = settingsService.getSelectedMuSigMarket().get();
-        if (market != null) {
-            updateSelectedMarket(market);
-            if (market.isBtcFiatMarket()) {
-                model.getSelectedMarketTypeListItem().set(new MarketTypeListItem(MarketType.FIAT));
-            } else {
-                model.getSelectedMarketTypeListItem().set(new MarketTypeListItem(MarketType.OTHER));
-            }
-        } else {
-            updateWithLastSelectedOrDefaultMarket(MarketType.FIAT);
-        }
-    }
-
-    private void updateSelectedMarket(Market market) {
-        if (market != null) {
-            model.getSelectedMarket().set(market);
-            model.getTradePairImage().set(MarketImageComposition.getMarketIcons(market, MARKET_ICON_CACHE));
-
-            MarketListItem item = model.getMarketListItems().stream()
-                    .filter(m -> m.getMarket().equals(market))
-                    .findAny()
-                    .orElse(null);
-            model.getSelectedMarketListItem().set(item);
-
-            String baseCurrencyName = market.getBaseCurrencyName();
-            model.getHeadlineText().set(Res.get("muSig.offer.create.directionAndMarket.headline",
-                    baseCurrencyName, market.getQuoteCurrencyName()));
-            model.getBuyButtonText().set(Res.get("muSig.offer.create.directionAndMarket.buyButton", baseCurrencyName));
-            model.getSellButtonText().set(Res.get("muSig.offer.create.directionAndMarket.sellButton", baseCurrencyName));
-        }
-    }
-
-    private void setDisplayDirection(Direction direction) {
-        model.getDisplayDirection().set(direction);
+    private Optional<MarketListItem> findMarketListItem(Market market) {
+        return model.getMarketListItems().stream()
+                .filter(m -> m.getMarket().equals(market))
+                .findAny();
     }
 }

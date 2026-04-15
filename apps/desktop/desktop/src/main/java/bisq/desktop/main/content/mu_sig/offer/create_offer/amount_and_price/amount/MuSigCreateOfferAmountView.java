@@ -31,10 +31,15 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
 import org.fxmisc.easybind.Subscription;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Slf4j
 public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmountModel, MuSigCreateOfferAmountController> {
@@ -46,11 +51,11 @@ public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmoun
     private final VBox overlay;
     private final Button learnHowToBuildReputation, closeOverlayButton, fixedAmountButton, rangeAmountButton;
     private final HBox amountLimitInfoHBox, learnHowToBuildReputationBox;
-    private Subscription isRangeAmountEnabledPin, isOverlayVisible;
+    private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigCreateOfferAmountView(MuSigCreateOfferAmountModel model,
                                       MuSigCreateOfferAmountController controller,
-                                      VBox amountSelectionBox) {
+                                      VBox amountComponents) {
         super(new VBox(10), model, controller);
 
         // Amount spec selection
@@ -72,9 +77,9 @@ public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmoun
         amountSpecSelectionBox.getStyleClass().addAll("selection-models", "bisq-text-3");
 
 
-        // Amount input
-        amountSelectionBox.getStyleClass().add("min-amount");
-        HBox amountBox = new HBox(0, amountSelectionBox);
+        // Amount component
+        amountComponents.getStyleClass().add("min-amount");
+        HBox amountBox = new HBox(0, amountComponents);
         amountBox.setAlignment(Pos.BASELINE_LEFT);
         amountBox.getStyleClass().add("amount-box");
 
@@ -94,7 +99,7 @@ public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmoun
         learnMore.setMinWidth(Hyperlink.USE_PREF_SIZE);
 
         amountLimitInfoHBox = new HBox(2.5, warningIcon, amountLimitInfo, learnMore);
-        amountLimitInfoHBox.setAlignment(Pos.CENTER);
+        amountLimitInfoHBox.setAlignment(Pos.CENTER_LEFT);
 
 
         // Amount limit overlay
@@ -138,34 +143,37 @@ public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmoun
         warningIcon.visibleProperty().bind(model.getShouldShowWarningIcon());
         warningIcon.managedProperty().bind(model.getShouldShowWarningIcon());
 
-        isRangeAmountEnabledPin = EasyBind.subscribe(model.getIsRangeAmountEnabled(), isRangeAmountEnabled -> {
+        subscriptions.add(EasyBind.subscribe(model.getUseRangeAmount(), useRangeAmount -> {
             fixedAmountButton.getStyleClass().remove(SELECTED_MODEL_STYLE_CLASS);
             rangeAmountButton.getStyleClass().remove(SELECTED_MODEL_STYLE_CLASS);
-            if (isRangeAmountEnabled) {
+            if (useRangeAmount) {
                 rangeAmountButton.getStyleClass().add(SELECTED_MODEL_STYLE_CLASS);
             } else {
                 fixedAmountButton.getStyleClass().add(SELECTED_MODEL_STYLE_CLASS);
             }
-        });
+        }));
 
-        isOverlayVisible = EasyBind.subscribe(model.getIsOverlayVisible(), isOverlayVisible -> {
+        subscriptions.add(EasyBind.subscribe(model.getIsOverlayVisible(), isOverlayVisible -> {
             if (isOverlayVisible) {
                 root.setOnKeyPressed(controller::onKeyPressedWhileShowingOverlay);
             } else {
                 root.setOnKeyPressed(null);
             }
-        });
+        }));
 
         learnMore.setOnAction(e -> controller.onShowOverlay());
         linkToWiki.setOnAction(e -> controller.onOpenWiki(linkToWiki.getText()));
         learnHowToBuildReputation.setOnAction(e -> controller.onLearnHowToBuildReputation());
         closeOverlayButton.setOnAction(e -> controller.onCloseOverlay());
-        fixedAmountButton.setOnAction(e -> controller.onSelectFixedAmount());
-        rangeAmountButton.setOnAction(e -> controller.onSelectRangeAmount());
+        fixedAmountButton.setOnAction(e -> controller.onSetUseRangeAmount(false));
+        rangeAmountButton.setOnAction(e -> controller.onSetUseRangeAmount(true));
     }
 
     @Override
     protected void onViewDetached() {
+        subscriptions.forEach(Subscription::unsubscribe);
+        subscriptions.clear();
+
         amountLimitInfo.textProperty().unbind();
         amountLimitInfoOverlayInfo.textProperty().unbind();
         learnMore.visibleProperty().unbind();
@@ -176,9 +184,6 @@ public class MuSigCreateOfferAmountView extends View<VBox, MuSigCreateOfferAmoun
         learnHowToBuildReputationBox.managedProperty().unbind();
         warningIcon.visibleProperty().unbind();
         warningIcon.managedProperty().unbind();
-
-        isRangeAmountEnabledPin.unsubscribe();
-        isOverlayVisible.unsubscribe();
 
         learnMore.setOnAction(null);
         linkToWiki.setOnAction(null);

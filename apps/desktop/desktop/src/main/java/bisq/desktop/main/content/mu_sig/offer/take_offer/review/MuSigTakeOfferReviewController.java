@@ -42,6 +42,7 @@ import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
 import bisq.offer.options.OfferOptionUtil;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -88,6 +89,7 @@ public class MuSigTakeOfferReviewController implements Controller {
     private UIScheduler delayedSuccessScheduler;
 
     public MuSigTakeOfferReviewController(ServiceProvider serviceProvider,
+                                          TakeOfferDraftWorkflow takeOfferDraftWorkflow,
                                           Consumer<Boolean> mainButtonsVisibleHandler,
                                           Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
@@ -97,7 +99,7 @@ public class MuSigTakeOfferReviewController implements Controller {
         muSigService = serviceProvider.getMuSigService();
         bannedUserService = serviceProvider.getUserService().getBannedUserService();
 
-        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService());
+        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), takeOfferDraftWorkflow);
         muSigReviewDataDisplay = new MuSigReviewDataDisplay();
 
         model = new MuSigTakeOfferReviewModel();
@@ -107,7 +109,6 @@ public class MuSigTakeOfferReviewController implements Controller {
     public void init(MuSigOffer muSigOffer) {
         model.setMuSigOffer(muSigOffer);
         Market market = muSigOffer.getMarket();
-        priceInput.setMarket(market);
 
         String marketCodes = market.getMarketCodes();
         priceInput.setDescription(Res.get("muSig.offer.taker.review.price.price", marketCodes));

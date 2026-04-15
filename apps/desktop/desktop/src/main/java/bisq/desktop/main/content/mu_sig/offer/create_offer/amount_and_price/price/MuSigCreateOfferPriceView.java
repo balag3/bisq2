@@ -46,6 +46,8 @@ import org.fxmisc.easybind.EasyBind;
 import org.fxmisc.easybind.Subscription;
 
 import java.text.DecimalFormat;
+import java.util.HashSet;
+import java.util.Set;
 
 @Slf4j
 public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceModel, MuSigCreateOfferPriceController> {
@@ -62,7 +64,7 @@ public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceM
     private final Slider slider;
     private final Hyperlink showLearnWhyButton;
     private final ImageView percentagePriceIconGreen, percentagePriceIconGrey, fixedPriceIconGreen, fixedPriceIconGrey;
-    private Subscription percentageFocusedPin, useFixPricePin, isOverlayVisible;
+    private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigCreateOfferPriceView(MuSigCreateOfferPriceModel model,
                                      MuSigCreateOfferPriceController controller,
@@ -170,7 +172,7 @@ public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceM
         percentageInputBox.managedProperty().bind(model.getUseFixPrice().not());
         percentageInputBox.textProperty().bindBidirectional(model.getPercentageInput());
         percentageInputBox.conversionPriceTextProperty().bind(model.getPriceAsString());
-        percentageInputBox.conversionPriceSymbolTextProperty().set(model.getMarket().getMarketCodes());
+        percentageInputBox.conversionPriceSymbolTextProperty().set(model.getMarketCodes().get());
         percentageInputBox.initialize();
         feedbackSentence.textProperty().bind(model.getFeedbackSentence());
         warningIcon.visibleProperty().bind(model.getShouldShowWarningIcon());
@@ -180,18 +182,18 @@ public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceM
         slider.valueProperty().bindBidirectional(model.getPriceSliderValue());
         model.getSliderFocus().bind(slider.focusedProperty());
 
-        percentageFocusedPin = EasyBind.subscribe(percentageInputBox.textInputFocusedProperty(), controller::onPercentageFocused);
+        subscriptions.add(EasyBind.subscribe(percentageInputBox.textInputFocusedProperty(), controller::onPercentageFocused));
 
-        useFixPricePin = EasyBind.subscribe(model.getUseFixPrice(), useFixPrice ->
-                UIScheduler.run(this::updatePriceSpec).after(100));
+        subscriptions.add(EasyBind.subscribe(model.getUseFixPrice(), useFixPrice ->
+                UIScheduler.run(this::updatePriceSpec).after(100)));
 
-        isOverlayVisible = EasyBind.subscribe(model.getIsOverlayVisible(), isOverlayVisible -> {
+        subscriptions.add(EasyBind.subscribe(model.getIsOverlayVisible(), isOverlayVisible -> {
             if (isOverlayVisible) {
                 root.setOnKeyPressed(controller::onKeyPressedWhileShowingOverlay);
             } else {
                 root.setOnKeyPressed(null);
             }
-        });
+        }));
 
         percentagePriceButton.setOnAction(e -> controller.usePercentagePrice());
         fixedPriceButton.setOnAction(e -> controller.useFixedPrice());
@@ -209,6 +211,13 @@ public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceM
 
     @Override
     protected void onViewDetached() {
+        subscriptions.forEach(Subscription::unsubscribe);
+        subscriptions.clear();
+
+        priceInputBox.visibleProperty().unbind();
+        priceInputBox.managedProperty().unbind();
+        percentageInputBox.visibleProperty().unbind();
+        percentageInputBox.managedProperty().unbind();
         percentageInputBox.textProperty().unbindBidirectional(model.getPercentageInput());
         percentageInputBox.conversionPriceTextProperty().unbind();
         percentageInputBox.dispose();
@@ -219,10 +228,6 @@ public class MuSigCreateOfferPriceView extends View<VBox, MuSigCreateOfferPriceM
         warningIcon.managedProperty().unbind();
         slider.valueProperty().unbindBidirectional(model.getPriceSliderValue());
         model.getSliderFocus().unbind();
-
-        percentageFocusedPin.unsubscribe();
-        useFixPricePin.unsubscribe();
-        isOverlayVisible.unsubscribe();
 
         percentagePriceButton.setOnAction(null);
         fixedPriceButton.setOnAction(null);

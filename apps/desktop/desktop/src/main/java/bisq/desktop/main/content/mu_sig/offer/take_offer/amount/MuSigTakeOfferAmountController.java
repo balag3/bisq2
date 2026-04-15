@@ -30,10 +30,11 @@ import bisq.desktop.common.utils.KeyHandlerUtil;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.components.amount_selection.MuSigAmountSelectionController;
 import bisq.i18n.Res;
-import bisq.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.Direction;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
 import bisq.offer.price.PriceUtil;
 import bisq.presentation.formatters.AmountFormatter;
 import bisq.presentation.formatters.PriceFormatter;
@@ -62,13 +63,14 @@ public class MuSigTakeOfferAmountController implements Controller {
     private Subscription baseSideAmountPin, quoteSideAmountPin;
 
     public MuSigTakeOfferAmountController(ServiceProvider serviceProvider,
+                                          TakeOfferDraftWorkflow takeOfferDraftWorkflow,
                                           Consumer<Boolean> navigationButtonsVisibleHandler) {
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         model = new MuSigTakeOfferAmountModel();
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         userIdentityService = serviceProvider.getUserService().getUserIdentityService();
         reputationService = serviceProvider.getUserService().getReputationService();
-        amountSelectionController = new MuSigAmountSelectionController(serviceProvider);
+        amountSelectionController = new MuSigAmountSelectionController(serviceProvider, takeOfferDraftWorkflow);
         view = new MuSigTakeOfferAmountView(model, this, amountSelectionController.getView().getRoot());
     }
 
@@ -191,7 +193,7 @@ public class MuSigTakeOfferAmountController implements Controller {
         PaymentMethodSpec<?> takersPaymentMethodSpec = model.getTakersPaymentMethodSpec();
         if (takersPaymentMethodSpec != null) {
             Fiat maxTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(takersPaymentMethodSpec.getPaymentMethod().getPaymentRail());
-            MonetaryRange tradeAmountLimitsInUsd = new MonetaryRange(MuSigTradeAmountLimits.MIN_USD_TRADE_AMOUNT, maxTradeLimitInUsd);
+            MonetaryRange tradeAmountLimitsInUsd = new MonetaryRange(MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD, maxTradeLimitInUsd);
             amountSelectionController.setTradeAmountLimitsInUsd(tradeAmountLimitsInUsd);
         }
     }
