@@ -84,16 +84,19 @@ class CreateOfferDraftStateEngine {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
 
-        PriceQuote marketPriceQuote = marketData.getMarketPriceQuote(market);
-        PriceQuote priceQuote = fixPrice.orElse(marketPriceQuote);
-
         offerDraft.setMarket(market);
         offerDraft.setDirection(direction);
-        offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        offerDraft.setUseRangeAmount(useRangeAmount);
+
+        // Price
+        PriceQuote marketPriceQuote = marketData.getMarketPriceQuote(market);
+        PriceQuote priceQuote = fixPrice.orElse(marketPriceQuote);
         offerDraft.setUseFixPrice(useFixPrice);
         offerDraft.setPricePercentage(pricePercentage);
+        offerDraft.setPriceQuote(priceQuote);
 
+        // Amount
+        offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+        offerDraft.setUseRangeAmount(useRangeAmount);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
                 priceQuote,
