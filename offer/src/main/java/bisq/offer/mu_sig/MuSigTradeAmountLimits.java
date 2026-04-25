@@ -26,6 +26,7 @@ public class MuSigTradeAmountLimits {
     public static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
 
     public static Fiat getMaxTradeLimitInUsd(PaymentRail paymentRail) {
+       // checkNotNull(paymentRail,"payment rail must not be null");
         Fiat maxTradeLimitByProtocol = MAX_TRADE_AMOUNT_IN_USD;
         if (paymentRail instanceof FiatPaymentRail fiatPaymentRail) {
             switch (fiatPaymentRail.getChargebackRisk()) {

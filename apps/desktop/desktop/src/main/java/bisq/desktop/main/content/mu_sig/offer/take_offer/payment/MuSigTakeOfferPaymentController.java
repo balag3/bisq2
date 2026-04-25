@@ -24,6 +24,7 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.account.payment_method.PaymentMethodSpecUtil;
 import bisq.common.market.Market;
+import bisq.common.observable.Pin;
 import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.utils.KeyHandlerUtil;
 import bisq.desktop.common.view.Controller;
@@ -42,8 +43,10 @@ import org.fxmisc.easybind.EasyBind;
 import org.fxmisc.easybind.Subscription;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -56,12 +59,16 @@ public class MuSigTakeOfferPaymentController implements Controller {
     @Getter
     private final MuSigTakeOfferPaymentView view;
     private final AccountService accountService;
+    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private Subscription paymentMethodWithoutAccountPin, paymentMethodWithMultipleAccountsPin;
+    private final Set<Pin> pins = new HashSet<>();
+    private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigTakeOfferPaymentController(ServiceProvider serviceProvider,
                                            TakeOfferDraftWorkflow takeOfferDraftWorkflow,
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
+        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         accountService = serviceProvider.getAccountService();
 
@@ -150,6 +157,8 @@ public class MuSigTakeOfferPaymentController implements Controller {
                         Res.get("muSig.offer.taker.payment.noAccountOverlay.title",
                                 paymentMethod.getShortDisplayString()));
                 updateShouldShowNoAccountOverlay(true);
+
+
             }
         });
         paymentMethodWithMultipleAccountsPin = EasyBind.subscribe(model.getPaymentMethodWithMultipleAccounts(),
@@ -161,10 +170,22 @@ public class MuSigTakeOfferPaymentController implements Controller {
                         updateShouldShowMultipleAccountsOverlay(true);
                     }
                 });
+
+        subscriptions.add(EasyBind.subscribe(model.getSelectedAccount(), selectedAccount -> {
+            if (selectedAccount != null) {
+                takeOfferDraftWorkflow.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
+            }else{
+                takeOfferDraftWorkflow.clearSelectedAccountByPaymentMethod();
+            }
+        }));
     }
 
     @Override
     public void onDeactivate() {
+        pins.forEach(Pin::unbind);
+        pins.clear();
+        subscriptions.forEach(Subscription::unsubscribe);
+        subscriptions.clear();
         updateShouldShowNoAccountOverlay(false);
         updateShouldShowMultipleAccountsOverlay(false);
 

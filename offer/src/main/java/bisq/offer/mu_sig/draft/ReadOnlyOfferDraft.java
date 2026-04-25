@@ -26,5 +26,5 @@ public abstract class ReadOnlyOfferDraft {
 
     public abstract Market getMarket();
 
-    public abstract Direction getDirection();
+    public abstract Direction getTakersDirection();
 }

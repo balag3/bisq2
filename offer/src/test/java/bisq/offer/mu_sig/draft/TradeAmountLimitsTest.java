@@ -7,14 +7,12 @@ import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
-import bisq.offer.Direction;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TradeAmountLimitsTest {
 
@@ -70,15 +68,12 @@ public class TradeAmountLimitsTest {
         PriceQuote btcFiatPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         Fiat limitUsd = Fiat.fromFaceValue(500.0, "USD");
 
-        // Sell direction should return empty
-        assertTrue(TradeAmountLimits.toUserSpecificTradeAmountLimit(Direction.SELL, market, priceQuote, btcUsdPriceQuote, btcFiatPriceQuote, limitUsd).isEmpty());
 
         // Buy direction
-        Optional<TradeAmount> limit = TradeAmountLimits.toUserSpecificTradeAmountLimit(Direction.BUY, market, priceQuote, btcUsdPriceQuote, btcFiatPriceQuote, limitUsd);
-        assertTrue(limit.isPresent());
+       TradeAmount limit = TradeAmountLimits.toUserSpecificTradeAmountLimit(market, priceQuote, btcUsdPriceQuote, btcFiatPriceQuote, limitUsd);
         // 500 USD -> 500/50000 = 0.01 BTC
-        assertEquals(5000000, limit.get().getQuoteSideAmount().getValue()); // 500.0000 USD
-        assertEquals(1000000, limit.get().getBaseSideAmount().getValue()); // 0.01 BTC
+        assertEquals(5000000, limit.getQuoteSideAmount().getValue()); // 500.0000 USD
+        assertEquals(1000000, limit.getBaseSideAmount().getValue()); // 0.01 BTC
     }
 
     @Test
@@ -116,17 +111,35 @@ public class TradeAmountLimitsTest {
     }
 
     @Test
-    public void testGetClampLimits_UserLimitBelowProtocolMin_UsesProtocolMinAsMax() {
+    public void testGetClampLimits_UserLimitBelowProtocolMin_Throws() {
         TradeAmount min = new TradeAmount(Coin.asBtcFromFaceValue(1.0), Fiat.fromFaceValue(100.0, "USD"));
         TradeAmount max = new TradeAmount(Coin.asBtcFromFaceValue(10.0), Fiat.fromFaceValue(1000.0, "USD"));
         TradeAmountRange protocolLimits = new TradeAmountRange(min, max);
 
         TradeAmount userLimitBelowProtocol = new TradeAmount(Coin.asBtcFromFaceValue(0.5), Fiat.fromFaceValue(50.0, "USD"));
-        TradeAmountRange clampedLimits = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true);
-
-        assertEquals(min, clampedLimits.getMin());
-        assertEquals(min, clampedLimits.getMax());
+        assertThrows(IllegalArgumentException.class,
+                () -> TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true));
     }
+
+    @Test
+    public void testGetClampLimits_SameMinMax_UserLimitBelowThrows_SameAndAboveUseRangeValue() {
+        TradeAmount fixedAmount = new TradeAmount(Coin.asBtcFromFaceValue(1.0), Fiat.fromFaceValue(100.0, "USD"));
+        TradeAmountRange protocolLimits = new TradeAmountRange(fixedAmount, fixedAmount);
+
+        TradeAmount userLimitBelowProtocol = new TradeAmount(Coin.asBtcFromFaceValue(0.5), Fiat.fromFaceValue(50.0, "USD"));
+        assertThrows(IllegalArgumentException.class,
+                () -> TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true));
+
+        TradeAmountRange sameLimitResult = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(fixedAmount), true);
+        assertEquals(fixedAmount, sameLimitResult.getMin());
+        assertEquals(fixedAmount, sameLimitResult.getMax());
+
+        TradeAmount userLimitAboveProtocol = new TradeAmount(Coin.asBtcFromFaceValue(2.0), Fiat.fromFaceValue(200.0, "USD"));
+        TradeAmountRange aboveLimitResult = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitAboveProtocol), true);
+        assertEquals(fixedAmount, aboveLimitResult.getMin());
+        assertEquals(fixedAmount, aboveLimitResult.getMax());
+    }
+
 
     @Test
     public void testToTradeAmountLimitsThrowsIfMinAmountExceedsMaxAmount() {

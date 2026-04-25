@@ -38,10 +38,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Design: converts market, pricing, direction, and payment-rail inputs into a single immutable
  * {@link TradeAmountConstraints} result so callers do not duplicate protocol limit logic.
  */
-class TradeAmountConstraintsService {
+class CreateOfferTradeAmountConstraintsService {
     private final MarketPriceService marketPriceService;
 
-    TradeAmountConstraintsService(MarketPriceService marketPriceService) {
+    CreateOfferTradeAmountConstraintsService(MarketPriceService marketPriceService) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
     }
 
@@ -50,10 +50,10 @@ class TradeAmountConstraintsService {
     /* --------------------------------------------------------------------- */
 
     TradeAmountConstraints compute(Market market,
-                                          Direction direction,
-                                          PriceQuote offerPriceQuote,
-                                          PriceQuote marketPriceQuote,
-                                          PaymentRail paymentRail) {
+                                   Direction direction,
+                                   PriceQuote offerPriceQuote,
+                                   PriceQuote marketPriceQuote,
+                                   PaymentRail paymentRail) {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
         checkNotNull(offerPriceQuote, "offerPriceQuote must not be null");
@@ -63,19 +63,23 @@ class TradeAmountConstraintsService {
         PriceQuote btcUsdPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(usdBitcoinMarket);
 
         Fiat maxTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
+        Fiat minTradeAmountInUsd = MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
                 offerPriceQuote,
                 btcUsdPriceQuote,
                 marketPriceQuote,
-                MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD,
+                minTradeAmountInUsd,
                 maxTradeLimitInUsd);
 
-        Optional<TradeAmount> userSpecificTradeAmountLimit = TradeAmountLimits.toUserSpecificTradeAmountLimit(direction,
-                market,
-                offerPriceQuote,
-                btcUsdPriceQuote,
-                marketPriceQuote,
-                TradeAmountLimits.getUserSpecificLimitInUsdAmount());
-        return new TradeAmountConstraints(tradeAmountLimits, userSpecificTradeAmountLimit);
+        if (direction.isSell()) {
+            return new TradeAmountConstraints(tradeAmountLimits, Optional.empty());
+        } else {
+            TradeAmount userSpecificTradeAmountLimit = TradeAmountLimits.toUserSpecificTradeAmountLimit(market,
+                    offerPriceQuote,
+                    btcUsdPriceQuote,
+                    marketPriceQuote,
+                    TradeAmountLimits.getUserSpecificLimitInUsdAmount());
+            return new TradeAmountConstraints(tradeAmountLimits, Optional.of(userSpecificTradeAmountLimit));
+        }
     }
 }

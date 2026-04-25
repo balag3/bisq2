@@ -44,7 +44,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 class CreateOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
     private final MarketPriceService marketPriceService;
-    private final TradeAmountConstraintsService tradeAmountConstraintsService;
+    private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
     private final Supplier<PaymentRail> selectedPaymentRailSupplier;
     private final Runnable updatePaymentMethodsHandler;
@@ -56,7 +56,7 @@ class CreateOfferDraftStateEngine {
 
     CreateOfferDraftStateEngine(CreateOfferDraft offerDraft,
                                 MarketPriceService marketPriceService,
-                                TradeAmountConstraintsService tradeAmountConstraintsService,
+                                CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                                 AmountMappingService amountMappingService,
                                 Supplier<PaymentRail> selectedPaymentRailSupplier,
                                 Runnable updatePaymentMethodsHandler,
@@ -100,11 +100,12 @@ class CreateOfferDraftStateEngine {
         // Amount
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
         offerDraft.setUseRangeAmount(useRangeAmount);
+        PaymentRail selectedPaymentRail = getSelectedPaymentRail();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
                 priceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                selectedPaymentRail);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
@@ -121,11 +122,11 @@ class CreateOfferDraftStateEngine {
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
         offerDraft.setMarket(market);
-        if (!isDerivedStateInitialized() || offerDraft.getDirection() == null) {
+        if (!isDerivedStateInitialized() || offerDraft.getTakersDirection() == null) {
             return;
         }
 
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         offerDraft.setPriceQuote(marketPriceQuote);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
@@ -192,7 +193,7 @@ class CreateOfferDraftStateEngine {
         applyUseFixPriceChanged(offerDraft.getUseFixPrice());
 
         Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         TradeAmount fixTradeAmount = offerDraft.getFixTradeAmount();
         TradeAmount minTradeAmount = offerDraft.getMinTradeAmount();
         TradeAmount maxTradeAmount = offerDraft.getMaxTradeAmount();
@@ -223,7 +224,7 @@ class CreateOfferDraftStateEngine {
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         if (!isDerivedStateInitialized() || direction == null) {
             return false;
         }
@@ -281,7 +282,7 @@ class CreateOfferDraftStateEngine {
         }
 
         Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
 
@@ -351,7 +352,7 @@ class CreateOfferDraftStateEngine {
 
     private boolean hasPricingContext() {
         return offerDraft.getMarket() != null
-                && offerDraft.getDirection() != null
+                && offerDraft.getTakersDirection() != null
                 && offerDraft.getPriceQuote() != null
                 && isDerivedStateInitialized();
     }

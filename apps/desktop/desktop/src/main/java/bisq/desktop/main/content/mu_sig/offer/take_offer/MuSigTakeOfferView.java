@@ -81,16 +81,15 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
 
         closeButton = BisqIconButton.createIconButton("close");
 
-        HBox hBox = new HBox();
-        hBox.setAlignment(Pos.CENTER);
-        hBox.setStyle("-fx-background-color: -bisq-dark-grey-20");
-        hBox.setMinHeight(TOP_PANE_HEIGHT);
-        hBox.setMaxHeight(TOP_PANE_HEIGHT);
-        hBox.setPadding(new Insets(0, 20, 0, 50));
-        hBox.getChildren().addAll(Spacer.fillHBox(),
+        HBox progressWithCloseBox = new HBox(Spacer.fillHBox(),
                 progressBox,
                 Spacer.fillHBox(),
                 closeButton);
+        progressWithCloseBox.setAlignment(Pos.CENTER);
+        progressWithCloseBox.setStyle("-fx-background-color: -bisq-dark-grey-20");
+        progressWithCloseBox.setMinHeight(TOP_PANE_HEIGHT);
+        progressWithCloseBox.setMaxHeight(TOP_PANE_HEIGHT);
+        progressWithCloseBox.setPadding(new Insets(0, 20, 0, 50));
 
         nextButton = new Button(Res.get("action.next"));
         nextButton.setDefaultButton(true);
@@ -110,7 +109,7 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
 
         VBox.setMargin(buttons, new Insets(0, 0, BUTTON_BOTTOM, 0));
         VBox.setMargin(content, new Insets(0, 40, 0, 40));
-        root.getChildren().addAll(hBox, content, Spacer.fillVBox(), buttons);
+        root.getChildren().addAll(progressWithCloseBox, content, Spacer.fillVBox(), buttons);
 
         viewChangeListener = (observable, oldValue, newValue) -> {
             if (newValue != null) {
@@ -131,23 +130,22 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
                 content.getChildren().clear();
             }
         };
-
         currentIndexListener = (observable, oldValue, newValue) -> applyProgress(newValue.intValue(), true);
     }
 
     @Override
     protected void onViewAttached() {
-        if (model.isPaymentMethodVisible()) {
-            Label paymentMethod = createAndGetProgressLabel(model.getPaymentMethodProgressLabel());
-            progressLabelList.add(0, paymentMethod);
-            progressBox.getChildren().add(0, getHLine());
-            progressBox.getChildren().add(0, paymentMethod);
-        }
         if (model.isAmountVisible()) {
             Label amount = createAndGetProgressLabel(Res.get("muSig.offer.taker.progress.amount"));
-            progressLabelList.add(0, amount);
-            progressBox.getChildren().add(0, getHLine());
-            progressBox.getChildren().add(0, amount);
+            progressLabelList.addFirst(amount);
+            progressBox.getChildren().addFirst(getHLine());
+            progressBox.getChildren().addFirst(amount);
+        }
+        if (model.isPaymentMethodVisible()) {
+            Label paymentMethod = createAndGetProgressLabel(model.getPaymentMethodProgressLabel());
+            progressLabelList.addFirst(paymentMethod);
+            progressBox.getChildren().addFirst(getHLine());
+            progressBox.getChildren().addFirst(paymentMethod);
         }
 
         nextButton.textProperty().bind(model.getNextButtonText());

@@ -1,6 +1,5 @@
 package bisq.offer.mu_sig.draft;
 
-import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.bonded_roles.market_price.MarketPrice;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
@@ -11,50 +10,81 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.amount.spec.QuoteSideRangeAmountSpec;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class TradeAmountConstraintsServiceTest {
+public class TakeOfferTradeAmountConstraintsServiceTest {
 
     @Test
-    public void computeUsesPaymentRailSpecificMaxLimit() {
+    public void computeClampsMaxAmountToStrictLimitWhenOfferMaxExceedsStrictLimit() {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
-        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketPriceService);
+        TakeOfferTradeAmountConstraintsService service = new TakeOfferTradeAmountConstraintsService(marketPriceService);
+        QuoteSideRangeAmountSpec amountSpec = new QuoteSideRangeAmountSpec(
+                Fiat.fromFaceValue(100.0, "USD").getValue(),
+                Fiat.fromFaceValue(5200.0, "USD").getValue());
 
+        Fiat maxTradeLimitInUsd = Fiat.fromFaceValue(5000.0, "USD");
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.BUY,
+                amountSpec,
                 offerPriceQuote,
                 marketPriceQuote,
-                FiatPaymentRail.ACH_TRANSFER);
+                maxTradeLimitInUsd);
 
-        assertEquals(Fiat.fromFaceValue(5000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
-        assertEquals(Fiat.fromFaceValue(4000, "USD"),
-                constraints.userSpecificTradeAmountLimit().orElseThrow().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(100.0, "USD"), constraints.tradeAmountLimits().getMin().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5000.0, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
     }
 
     @Test
-    public void computeWithNoPaymentRailFallsBackToProtocolLimit() {
+    public void computeAcceptsSlightlyHigherAmountWhenStrictClampingIsImpossibleButWithinTolerance() {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
-        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketPriceService);
+        TakeOfferTradeAmountConstraintsService service = new TakeOfferTradeAmountConstraintsService(marketPriceService);
+        QuoteSideRangeAmountSpec amountSpec = new QuoteSideRangeAmountSpec(
+                Fiat.fromFaceValue(5100.0, "USD").getValue(),
+                Fiat.fromFaceValue(5200.0, "USD").getValue());
 
+        Fiat maxTradeLimitInUsd = Fiat.fromFaceValue(5000.0, "USD");
         TradeAmountConstraints constraints = service.compute(market,
-                Direction.SELL,
+                Direction.BUY,
+                amountSpec,
                 offerPriceQuote,
                 marketPriceQuote,
-                null);
+                maxTradeLimitInUsd);
 
-        assertEquals(Fiat.fromFaceValue(10000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
-        assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());
+        assertEquals(Fiat.fromFaceValue(5100.0, "USD"), constraints.tradeAmountLimits().getMin().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5200.0, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
+    }
+
+    @Test
+    public void computeThrowsWhenStrictClampingIsImpossibleAndAmountExceedsTolerance() {
+        Market market = MarketRepository.getUSDBitcoinMarket();
+        PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
+        PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
+        MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
+        TakeOfferTradeAmountConstraintsService service = new TakeOfferTradeAmountConstraintsService(marketPriceService);
+        QuoteSideRangeAmountSpec amountSpec = new QuoteSideRangeAmountSpec(
+                Fiat.fromFaceValue(5300.0, "USD").getValue(),
+                Fiat.fromFaceValue(6000.0, "USD").getValue());
+
+        Fiat maxTradeLimitInUsd = Fiat.fromFaceValue(5000.0, "USD");
+        assertThrows(IllegalStateException.class,
+                () -> service.compute(market,
+                        Direction.BUY,
+                        amountSpec,
+                        offerPriceQuote,
+                        marketPriceQuote,
+                        maxTradeLimitInUsd));
     }
 
     private static class MockMarketPriceService implements MarketPriceService {

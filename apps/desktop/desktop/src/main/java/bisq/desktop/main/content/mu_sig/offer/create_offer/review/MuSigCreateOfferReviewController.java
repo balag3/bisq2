@@ -106,7 +106,7 @@ public class MuSigCreateOfferReviewController implements Controller {
 
     public void prepareForCreateOffer(PriceSpec priceSpec) {
         AmountSpec amountSpec = createOfferDraftWorkflow.getAmountSpec();
-        Direction direction = createOfferDraftWorkflow.getDirection();
+        Direction direction = createOfferDraftWorkflow.getTakersDirection();
         Market market = createOfferDraftWorkflow.getMarket();
         List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
         List<Account<?, ?>> accounts = new ArrayList<>();

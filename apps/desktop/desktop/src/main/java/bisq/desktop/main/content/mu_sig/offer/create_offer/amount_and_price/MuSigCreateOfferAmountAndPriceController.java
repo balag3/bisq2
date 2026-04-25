@@ -101,7 +101,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
 
     private String getHeadline() {
         String baseCurrencyCode = createOfferDraftWorkflow.getMarket().getBaseCurrencyCode();
-        return createOfferDraftWorkflow.getDirection().isBuy()
+        return createOfferDraftWorkflow.getTakersDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

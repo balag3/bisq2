@@ -27,6 +27,12 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
+import bisq.offer.amount.spec.AmountSpec;
+import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.price.PriceUtil;
+import bisq.offer.price.spec.PriceSpec;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -41,10 +47,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * deterministic order, recomputes derived constraints, and keeps draft amount fields/clamp state
  * consistent. The workflow remains a user-facing facade and persistence coordinator.
  */
+@Slf4j
 class TakeOfferDraftStateEngine {
     private final TakeOfferDraft offerDraft;
     private final MarketPriceService marketPriceService;
-    private final TradeAmountConstraintsService tradeAmountConstraintsService;
+    private final TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
     private final Supplier<PaymentRail> selectedPaymentRailSupplier;
     private final Runnable updatePaymentMethodsHandler;
@@ -56,7 +63,7 @@ class TakeOfferDraftStateEngine {
 
     TakeOfferDraftStateEngine(TakeOfferDraft offerDraft,
                               MarketPriceService marketPriceService,
-                              TradeAmountConstraintsService tradeAmountConstraintsService,
+                              TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                               AmountMappingService amountMappingService,
                               Supplier<PaymentRail> selectedPaymentRailSupplier,
                               Runnable updatePaymentMethodsHandler,
@@ -74,46 +81,37 @@ class TakeOfferDraftStateEngine {
     // State transitions
     /* --------------------------------------------------------------------- */
 
-    void initialize(Market market,
-                    Direction direction,
-                    boolean useBaseCurrencyForAmountInput,
-                    boolean useRangeAmount,
-                    boolean useFixPrice,
-                    double pricePercentage,
-                    Optional<PriceQuote> fixPrice) {
-        checkNotNull(market, "market must not be null");
-        checkNotNull(direction, "direction must not be null");
+    void initialize(MuSigOffer muSigOffer,
+                    boolean useBaseCurrencyForAmountInput) {
+        checkNotNull(muSigOffer, "muSigOffer must not be null");
 
-        //offerDraft.setMarket(market);
-        // offerDraft.setDirection(direction);
+        Market market = muSigOffer.getMarket();
+        Direction takersDirection = offerDraft.getTakersDirection();
 
         // Price
-        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        //todo clamp price to limits
-        PriceQuote priceQuote = fixPrice
-                .filter(e -> e.getValue() > 0)
-                .orElse(marketPriceQuote);
-        offerDraft.setUseFixPrice(useFixPrice);
-        offerDraft.setPricePercentage(pricePercentage);
+        PriceSpec priceSpec = muSigOffer.getPriceSpec();
+        PriceQuote priceQuote = PriceUtil.getQuoteOrThrow(marketPriceService, priceSpec, market);
         offerDraft.setPriceQuote(priceQuote);
 
         // Amount
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        offerDraft.setUseRangeAmount(useRangeAmount);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
+        AmountSpec amountSpec = muSigOffer.getAmountSpec();
+
+        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
+                takersDirection,
+                amountSpec,
                 priceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                maxTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
         TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
         offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
-        offerDraft.setMinTradeAmount(clampedDefaultTradeAmount);
-        offerDraft.setMaxTradeAmount(clampedDefaultTradeAmount);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(takersDirection, offerDraft.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
         updatePaymentMethodsHandler.run();
     }
@@ -121,25 +119,27 @@ class TakeOfferDraftStateEngine {
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
         // offerDraft.setMarket(market);
-        if (!isDerivedStateInitialized() || offerDraft.getDirection() == null) {
+        if (!isDerivedStateInitialized() || offerDraft.getTakersDirection() == null) {
             return;
         }
 
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        offerDraft.setPriceQuote(marketPriceQuote);
+        // offerDraft.setPriceQuote(marketPriceQuote);
+        PriceQuote priceQuote = offerDraft.getPriceQuote();
+        AmountSpec amountSpec = offerDraft.getAmountSpec();
+        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
+                amountSpec,
+                priceQuote,
                 marketPriceQuote,
-                marketPriceQuote,
-                getSelectedPaymentRail());
+                maxTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
         TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
         offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
-        offerDraft.setMinTradeAmount(clampedDefaultTradeAmount);
-        offerDraft.setMaxTradeAmount(clampedDefaultTradeAmount);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
@@ -155,12 +155,15 @@ class TakeOfferDraftStateEngine {
 
         Market market = offerDraft.getMarket();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
+        AmountSpec amountSpec = offerDraft.getAmountSpec();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
+        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
+                amountSpec,
                 offerPriceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                maxTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
@@ -168,78 +171,15 @@ class TakeOfferDraftStateEngine {
         return true;
     }
 
-    void applyUseFixPriceChanged(boolean useFixPrice) {
-        offerDraft.setUseFixPrice(useFixPrice);
-
-        PriceQuote priceQuote = offerDraft.getPriceQuote();
-        if (priceQuote != null) {
-            if (useFixPrice) {
-                // offerDraft.setFixPrice(priceQuote);
-            } else {
-                // todo
-                offerDraft.setPricePercentage(0L);
-            }
-        }
-    }
-
-    void applyPriceQuoteChanged(PriceQuote priceQuote) {
-        checkNotNull(priceQuote, "priceQuote must not be null");
-        offerDraft.setPriceQuote(priceQuote);
-        if (!hasPricingContext()) {
-            return;
-        }
-
-        applyUseFixPriceChanged(offerDraft.getUseFixPrice());
-
-        Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getDirection();
-        TradeAmount fixTradeAmount = offerDraft.getFixTradeAmount();
-        TradeAmount minTradeAmount = offerDraft.getMinTradeAmount();
-        TradeAmount maxTradeAmount = offerDraft.getMaxTradeAmount();
-        TradeAmountRange oldClampLimits = getClampLimits(true);
-        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-
-        TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
-                priceQuote,
-                marketPriceQuote,
-                getSelectedPaymentRail());
-        applyTradeAmountConstraints(tradeAmountConstraints);
-
-        TradeAmountRange newClampLimits = getClampLimits(true);
-        if (fixTradeAmount != null) {
-            offerDraft.setFixTradeAmount(toUpdatedPassiveAmount(market, priceQuote, fixTradeAmount, oldClampLimits, newClampLimits));
-        }
-        if (minTradeAmount != null) {
-            offerDraft.setMinTradeAmount(toUpdatedPassiveAmount(market, priceQuote, minTradeAmount, oldClampLimits, newClampLimits));
-        }
-        if (maxTradeAmount != null) {
-            offerDraft.setMaxTradeAmount(toUpdatedPassiveAmount(market, priceQuote, maxTradeAmount, oldClampLimits, newClampLimits));
-        }
-
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
-    }
-
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
         if (!isDerivedStateInitialized() || direction == null) {
             return false;
         }
 
         updateInputAmountLimits(offerDraft.getTradeAmountLimits());
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
-        return true;
-    }
-
-    boolean applyUseRangeAmountChanged(boolean useRangeAmount) {
-        offerDraft.setUseRangeAmount(useRangeAmount);
-        if (!isDerivedStateInitialized()) {
-            return false;
-        }
-
         updateAmountSliderValues();
         return true;
     }
@@ -257,53 +197,39 @@ class TakeOfferDraftStateEngine {
         }
     }
 
-    void setMinTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        offerDraft.setMinTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMinAmountSliderValue();
-        }
-    }
-
-    void setMaxTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        offerDraft.setMaxTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMaxAmountSliderValue();
-        }
-    }
-
     void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
         if (!hasPricingContext()) {
             return;
         }
 
         Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getDirection();
+        Direction direction = offerDraft.getTakersDirection();
+        AmountSpec amountSpec = offerDraft.getAmountSpec();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-
+        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
+                amountSpec,
                 offerPriceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                maxTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         if (offerDraft.getFixTradeAmount() != null) {
             offerDraft.setFixTradeAmount(clampTradeAmount(offerDraft.getFixTradeAmount(), true));
         }
-        if (offerDraft.getMinTradeAmount() != null) {
-            offerDraft.setMinTradeAmount(clampTradeAmount(offerDraft.getMinTradeAmount(), true));
-        }
-        if (offerDraft.getMaxTradeAmount() != null) {
-            offerDraft.setMaxTradeAmount(clampTradeAmount(offerDraft.getMaxTradeAmount(), true));
-        }
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
+    }
+
+    private Fiat evaluateMaxTradeLimitInUsd() {
+        // Initially, the selected payment rail us null, and we use the MAX_TRADE_AMOUNT_IN_USD
+        PaymentRail selectedPaymentRail = getSelectedPaymentRail();
+        return selectedPaymentRail != null
+                ? MuSigTradeAmountLimits.getMaxTradeLimitInUsd(selectedPaymentRail)
+                : MuSigTradeAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
     }
 
     /* --------------------------------------------------------------------- */
@@ -351,7 +277,7 @@ class TakeOfferDraftStateEngine {
 
     private boolean hasPricingContext() {
         return offerDraft.getMarket() != null
-                && offerDraft.getDirection() != null
+                && offerDraft.getTakersDirection() != null
                 && offerDraft.getPriceQuote() != null
                 && isDerivedStateInitialized();
     }
@@ -409,24 +335,10 @@ class TakeOfferDraftStateEngine {
         if (offerDraft.getFixTradeAmount() != null) {
             updateFixAmountSliderValue();
         }
-        if (offerDraft.getMinTradeAmount() != null) {
-            updateMinAmountSliderValue();
-        }
-        if (offerDraft.getMaxTradeAmount() != null) {
-            updateMaxAmountSliderValue();
-        }
     }
 
     private void updateFixAmountSliderValue() {
         setFixAmountSliderValue(toSliderValue(offerDraft.getFixTradeAmount()));
-    }
-
-    private void updateMinAmountSliderValue() {
-        setMinAmountSliderValue(toSliderValue(offerDraft.getMinTradeAmount()));
-    }
-
-    private void updateMaxAmountSliderValue() {
-        setMaxAmountSliderValue(toSliderValue(offerDraft.getMaxTradeAmount()));
     }
 
     private void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> value) {
@@ -439,15 +351,6 @@ class TakeOfferDraftStateEngine {
         offerDraft.setFixAmountSliderValue(sliderValue);
     }
 
-    private void setMinAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        offerDraft.setMinAmountSliderValue(sliderValue);
-    }
-
-    private void setMaxAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        offerDraft.setMaxAmountSliderValue(sliderValue);
-    }
 
     private TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);

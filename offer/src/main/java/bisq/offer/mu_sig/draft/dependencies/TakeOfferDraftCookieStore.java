@@ -18,33 +18,9 @@
 package bisq.offer.mu_sig.draft.dependencies;
 
 import bisq.common.market.Market;
-import bisq.common.monetary.PriceQuote;
-import bisq.offer.Direction;
-
-import java.util.Optional;
 
 public interface TakeOfferDraftCookieStore {
-    void persistDirection(Direction direction);
-
-    Direction getDirection();
-
     boolean getUseBaseCurrencyForAmountInput(Market market);
 
     void persistUseBaseCurrencyForAmountInput(Market market, boolean useBaseCurrencyForAmountInput);
-
-    boolean getUseRangeAmount();
-
-    void persistUseRangeAmount(boolean useRangeAmount);
-
-    boolean getUseFixPrice(Market market);
-
-    void persistUseFixPrice(Market market, boolean useFixPrice);
-
-    double getPricePercentage(Market market);
-
-    void persistPricePercentage(Market market,double pricePercentage);
-
-    Optional<PriceQuote> getFixPrice(Market market);
-
-    void persistFixPrice(Market market, PriceQuote fixPrice);
 }

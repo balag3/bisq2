@@ -26,21 +26,13 @@ import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
-import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
-import bisq.offer.Direction;
-import bisq.offer.amount.spec.AmountSpec;
-import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultTakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.TakeOfferDraftCookieStore;
-import bisq.offer.price.spec.FixPriceSpec;
-import bisq.offer.price.spec.FloatPriceSpec;
-import bisq.offer.price.spec.MarketPriceSpec;
-import bisq.offer.price.spec.PriceSpec;
 import bisq.settings.SettingsService;
 import com.google.common.collect.ImmutableMap;
 import lombok.experimental.Delegate;
@@ -56,7 +48,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * User-facing workflow facade for creating an offer draft.
  * <p>
  * Design: exposes stable UI/API mutation methods and persistence side effects (cookies), while
- * delegating transition ordering and derived-state recalculation to {@link CreateOfferDraftStateEngine}
+ * delegating transition ordering and derived-state recalculation to {@link TakeOfferDraftStateEngine}
  * and isolated domain services.
  */
 @Slf4j
@@ -117,10 +109,10 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
+        checkNotNull(marketPriceService, "marketPriceProvider must not be null");
 
         amountMappingService = new AmountMappingService();
-        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketPriceService,
-                "marketPriceProvider must not be null"));
+        TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService = new TakeOfferTradeAmountConstraintsService(marketPriceService);
         paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
         takeOfferDraft = offerDraft;
@@ -142,24 +134,11 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
         offerDraft.setOffer(muSigOffer);
+
         Market market = muSigOffer.getMarket();
-
-        Direction direction = cookieStore.getDirection();
         boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
-        boolean useRangeAmount = cookieStore.getUseRangeAmount();
-        boolean useFixPrice = cookieStore.getUseFixPrice(market);
-        double pricePercentage = cookieStore.getPricePercentage(market);
-        Optional<PriceQuote> fixPrice = cookieStore.getFixPrice(market);
 
-        stateEngine.initialize(market,
-                direction,
-                useBaseCurrencyForAmountInput,
-                useRangeAmount,
-                useFixPrice,
-                pricePercentage,
-                fixPrice);
-        offerDraft.setUseFixPrice(useFixPrice);
-        offerDraft.setPricePercentage(pricePercentage);
+        stateEngine.initialize(muSigOffer, useBaseCurrencyForAmountInput);
     }
 
 
@@ -172,33 +151,12 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         setFixTradeAmount(tradeAmount);
     }
 
-    public void setMinTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setMaxTradeAmount(tradeAmount);
-    }
-
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
         TradeAmount fixTradeAmount = checkNotNull(getFixTradeAmount(), "fixTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
         setFixTradeAmount(tradeAmount);
     }
 
-    public void setMinTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount minTradeAmount = checkNotNull(getMinTradeAmount(), "minTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(minTradeAmount, sliderValue);
-        setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount maxTradeAmount = checkNotNull(getMaxTradeAmount(), "maxTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(maxTradeAmount, sliderValue);
-        setMaxTradeAmount(tradeAmount);
-    }
 
 
     /* --------------------------------------------------------------------- */
@@ -231,53 +189,6 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         stateEngine.applyMarketChanged(market);
     }
 
-    public void setDirection(Direction direction) {
-        checkNotNull(direction, "Direction must not be null");
-        if (direction.equals(getDirection())) {
-            return;
-        }
-
-        if (stateEngine.applyDirectionChanged(direction)) {
-            cookieStore.persistDirection(direction);
-        }
-    }
-
-    public void setPriceQuote(PriceQuote priceQuote) {
-        checkNotNull(priceQuote, "PriceQuote must not be null");
-        if (priceQuote.equals(getPriceQuote())) {
-            return;
-        }
-        stateEngine.applyPriceQuoteChanged(priceQuote);
-    }
-
-    public void setUseFixPrice(boolean useFixPrice) {
-        if (useFixPrice == getUseFixPrice()) {
-            return;
-        }
-        Market market = getMarket();
-        if (market != null) {
-            cookieStore.persistUseFixPrice(market, useFixPrice);
-        }
-        stateEngine.applyUseFixPriceChanged(useFixPrice);
-    }
-
-   /* public void setPricePercentage(double pricePercentage) {
-        if (Double.compare(pricePercentage, getPricePercentage()) == 0) {
-            return;
-        }
-        offerDraft.setPricePercentage(pricePercentage);
-        cookieStore.persistPricePercentage(pricePercentage);
-    }
-
-    public void setUseFixPrice(PriceQuote fixPriceQuote) {
-        checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");
-        if (getPriceQuote().equals(fixPriceQuote)) {
-            return;
-        }
-        offerDraft.setUseFixPrice(fixPriceQuote);
-        cookieStore.persistPricePercentage(fixPriceQuote);
-    }*/
-
     public void setUseBaseCurrencyForAmountInput(boolean value) {
         if (value == getUseBaseCurrencyForAmountInput()) {
             return;
@@ -294,27 +205,9 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         }
     }
 
-    public void setUseRangeAmount(boolean useRangeAmount) {
-        if (useRangeAmount == getUseRangeAmount()) {
-            return;
-        }
-
-        if (stateEngine.applyUseRangeAmountChanged(useRangeAmount)) {
-            cookieStore.persistUseRangeAmount(useRangeAmount);
-        }
-    }
-
     // Amount state
     public void setFixTradeAmount(TradeAmount tradeAmount) {
         stateEngine.setFixTradeAmount(tradeAmount);
-    }
-
-    public void setMinTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setMaxTradeAmount(tradeAmount);
     }
 
     public void setTradeAmountLimits(TradeAmountRange tradeAmountRange) {
@@ -387,33 +280,6 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         }
 
         return PaymentMethodSelectionResult.noAccountAvailable();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Derived read model
-    /* --------------------------------------------------------------------- */
-
-    public AmountSpec getAmountSpec() {
-        Market market = checkNotNull(getMarket(), "market must not be null");
-        boolean isBtcFiatMarket = market.isBtcFiatMarket();
-        boolean useRangeAmount = getUseRangeAmount();
-        return AmountSpecFactory.createAmountSpec(isBtcFiatMarket,
-                useRangeAmount,
-                getMinTradeAmount(),
-                getMaxTradeAmount(),
-                getFixTradeAmount());
-    }
-
-    public PriceSpec getPriceSpec() {
-        if (getUseFixPrice()) {
-            return new FixPriceSpec(checkNotNull(getPriceQuote(), "priceQuote must not be null"));
-        }
-        double pricePercentage = getPricePercentage();
-        if (pricePercentage == 0d) {
-            return new MarketPriceSpec();
-        }
-        return new FloatPriceSpec(pricePercentage);
     }
 
 

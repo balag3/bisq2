@@ -25,6 +25,7 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
+import bisq.offer.amount.spec.AmountSpec;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
@@ -33,19 +34,12 @@ import java.util.Optional;
 public abstract class ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
 
 
+    public abstract AmountSpec getAmountSpec();
+
     public abstract ReadOnlyObservable<PriceQuote> priceQuoteObservable();
 
     public abstract PriceQuote getPriceQuote();
 
-
-    public abstract ReadOnlyObservable<Boolean> useFixPriceObservable();
-
-    public abstract boolean getUseFixPrice();
-
-
-    public abstract ReadOnlyObservable<Double> pricePercentageObservable();
-
-    public abstract double getPricePercentage();
 
 
     public abstract ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable();
@@ -58,16 +52,6 @@ public abstract class ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
     public abstract TradeAmount getFixTradeAmount();
 
 
-    public abstract ReadOnlyObservable<TradeAmount> minTradeAmountObservable();
-
-    public abstract TradeAmount getMinTradeAmount();
-
-
-    public abstract ReadOnlyObservable<TradeAmount> maxTradeAmountObservable();
-
-    public abstract TradeAmount getMaxTradeAmount();
-
-
     public abstract TradeAmountRange getTradeAmountLimits();
 
     public abstract ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable();
@@ -77,10 +61,6 @@ public abstract class ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
     public abstract ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable();
 
     public abstract Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue();
-
-    public abstract ReadOnlyObservable<Boolean> useRangeAmountObservable();
-
-    public abstract boolean getUseRangeAmount();
 
     public abstract ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
 
@@ -92,13 +72,6 @@ public abstract class ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
 
     public abstract Double getFixAmountSliderValue();
 
-    public abstract ReadOnlyObservable<Double> minAmountSliderValueObservable();
-
-    public abstract Double getMinAmountSliderValue();
-
-    public abstract ReadOnlyObservable<Double> maxAmountSliderValueObservable();
-
-    public abstract Double getMaxAmountSliderValue();
 
 
     public abstract ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable();

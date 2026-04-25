@@ -85,7 +85,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(defaultMarket);
 
         assertEquals(defaultMarket, workflow.getMarket());
-        assertEquals(Direction.SELL, workflow.getDirection());
+        assertEquals(Direction.SELL, workflow.getTakersDirection());
         assertEquals(defaultMarketPriceQuote, workflow.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getFixTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getMinTradeAmount());

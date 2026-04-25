@@ -100,7 +100,7 @@ public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
     }
 
     @Override
-    public Direction getDirection() {
+    public Direction getTakersDirection() {
         return direction.get();
     }
 

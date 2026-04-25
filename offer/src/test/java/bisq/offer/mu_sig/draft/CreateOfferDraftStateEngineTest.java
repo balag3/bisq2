@@ -54,7 +54,7 @@ public class CreateOfferDraftStateEngineTest {
 
         stateEngine = new CreateOfferDraftStateEngine(offerDraft,
                 marketPriceService,
-                new TradeAmountConstraintsService(marketPriceService),
+                new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
                 selectedPaymentRail::get,
                 paymentMethodUpdateCalls::incrementAndGet,
@@ -66,7 +66,7 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true, false, 0, Optional.empty());
 
         assertEquals(usdBtcMarket, offerDraft.getMarket());
-        assertEquals(Direction.SELL, offerDraft.getDirection());
+        assertEquals(Direction.SELL, offerDraft.getTakersDirection());
         assertEquals(usdBtcPriceQuote, offerDraft.getPriceQuote());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getFixTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMinTradeAmount());
@@ -81,7 +81,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertFalse(recalculated);
-        assertEquals(Direction.BUY, offerDraft.getDirection());
+        assertEquals(Direction.BUY, offerDraft.getTakersDirection());
     }
 
     @Test

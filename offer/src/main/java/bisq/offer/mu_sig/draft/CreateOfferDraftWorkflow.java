@@ -116,10 +116,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
+        checkNotNull(marketPriceService, "marketPriceProvider must not be null");
 
         amountMappingService = new AmountMappingService();
-        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketPriceService,
-                "marketPriceProvider must not be null"));
+        CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
         paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
         createOfferDraft = offerDraft;
@@ -229,7 +229,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
     public void setDirection(Direction direction) {
         checkNotNull(direction, "Direction must not be null");
-        if (direction.equals(getDirection())) {
+        if (direction.equals(getTakersDirection())) {
             return;
         }
 

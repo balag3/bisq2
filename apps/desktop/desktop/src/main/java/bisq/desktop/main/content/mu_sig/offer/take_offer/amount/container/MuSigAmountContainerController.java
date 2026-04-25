@@ -65,12 +65,6 @@ public class MuSigAmountContainerController implements Controller {
     public void onActivate() {
         applyDescription();
 
-        pins.add(takeOfferDraftWorkflow.useRangeAmountObservable().addObserver(useRangeAmount -> {
-            UIThread.run(() -> {
-                applyDescription();
-            });
-        }));
-
 
         pins.add(takeOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyDescription);
@@ -78,9 +72,7 @@ public class MuSigAmountContainerController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(muSigFixAmountController.getIsTextInputFocused(),
                 isTextInputFocused -> {
-                    if (!takeOfferDraftWorkflow.getUseRangeAmount()) {
-                        model.getIsTextInputFocused().set(isTextInputFocused);
-                    }
+                    model.getIsTextInputFocused().set(isTextInputFocused);
                 }));
     }
 
@@ -101,11 +93,8 @@ public class MuSigAmountContainerController implements Controller {
 
     private void applyDescription() {
         Market market = takeOfferDraftWorkflow.getMarket();
-        boolean useRangeAmount = takeOfferDraftWorkflow.getUseRangeAmount();
         String code = getCode(market);
-        model.getDescription().set(useRangeAmount
-                ? Res.get("muSig.offer.create.amount.description.range", code)
-                : Res.get("muSig.offer.create.amount.description.fixed", code));
+        model.getDescription().set(Res.get("muSig.offer.create.amount.description.fixed", code));
     }
 
     private String getCode(Market market) {

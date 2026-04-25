@@ -24,7 +24,6 @@ import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
-import bisq.offer.Direction;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -34,10 +33,11 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 class TradeAmountLimits {
+    static long USER_SPECIFIC_LIMIT_IN_USD = 40000;
 
     //todo
     static Fiat getUserSpecificLimitInUsdAmount() {
-        return Fiat.fromFaceValue(4000, "USD");
+        return Fiat.fromFaceValue(USER_SPECIFIC_LIMIT_IN_USD, "USD");
     }
 
     static TradeAmountRange toTradeAmountLimits(Market market,
@@ -76,20 +76,15 @@ class TradeAmountLimits {
         return new TradeAmountRange(minTradeAmount, maxTradeAmount);
     }
 
-    static Optional<TradeAmount> toUserSpecificTradeAmountLimit(Direction direction,
-                                                                Market market,
-                                                                PriceQuote priceQuote,
-                                                                PriceQuote btcUsdPriceQuote,
-                                                                PriceQuote btcFiatPriceQuote,
-                                                                Fiat limitInUsd) {
-        checkNotNull(direction, "direction must not be null");
+    static TradeAmount toUserSpecificTradeAmountLimit(Market market,
+                                                      PriceQuote priceQuote,
+                                                      PriceQuote btcUsdPriceQuote,
+                                                      PriceQuote btcFiatPriceQuote,
+                                                      Fiat limitInUsd) {
         checkNotNull(market, "market must not be null");
         checkNotNull(priceQuote, "priceQuote must not be null");
         checkNotNull(btcUsdPriceQuote, "btcUsdPriceQuote must not be null");
         checkNotNull(limitInUsd, "limitInUsd must not be null");
-        if (direction.isSell()) {
-            return Optional.empty();
-        }
 
         Monetary quoteSideAmount;
         if (market.isBtcFiatMarket()) {
@@ -105,7 +100,7 @@ class TradeAmountLimits {
             quoteSideAmount = AmountConversion.usdToBtc(btcUsdPriceQuote, limitInUsd);
         }
         Monetary minBaseSideMonetary = priceQuote.toBaseSideMonetary(quoteSideAmount);
-        return Optional.of(new TradeAmount(minBaseSideMonetary, quoteSideAmount));
+        return new TradeAmount(minBaseSideMonetary, quoteSideAmount);
     }
 
     static TradeAmount clampTradeAmount(TradeAmountRange tradeAmountLimits,
@@ -144,6 +139,21 @@ class TradeAmountLimits {
         checkNotNull(tradeAmountLimits, "tradeAmountLimits must not be null");
         checkNotNull(userSpecificTradeAmountLimit, "userSpecificTradeAmountLimit must not be null");
         if (includeUserSpecificTradeAmountLimit) {
+            if (userSpecificTradeAmountLimit.isEmpty()) {
+                return tradeAmountLimits;
+            } else {
+                TradeAmount userSpecificLimit = userSpecificTradeAmountLimit.get();
+                int comparison = userSpecificLimit.compareToRange(tradeAmountLimits);
+                if (comparison < 0) {
+                    throw new IllegalArgumentException(
+                            String.format(
+                                    "User-specific trade amount limit is below the allowed range. userSpecificLimit=%s, tradeAmountLimits=%s",
+                                    userSpecificLimit,
+                                    tradeAmountLimits
+                            )
+                    );
+                }
+            }
             return userSpecificTradeAmountLimit
                     .map(tradeAmount -> clampTradeAmount(tradeAmountLimits, tradeAmount))
                     .map(tradeAmount -> new TradeAmountRange(tradeAmountLimits.getMin(), tradeAmount))
@@ -157,7 +167,6 @@ class TradeAmountLimits {
         checkNotNull(tradeAmountLimits, "tradeAmountLimits must not be null");
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         return tradeAmount.clamp(tradeAmountLimits);
-
     }
 
     static Monetary clampBaseSideAmount(TradeAmountRange tradeAmountLimits, Monetary baseSideAmount) {

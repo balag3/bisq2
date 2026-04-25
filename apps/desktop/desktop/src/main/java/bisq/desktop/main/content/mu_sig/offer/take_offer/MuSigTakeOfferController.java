@@ -146,9 +146,6 @@ public class MuSigTakeOfferController extends NavigationController implements In
         model.setPaymentMethodVisible(!isSingleAccountForSinglePaymentMethod);
 
         model.getChildTargets().clear();
-        if (model.isAmountVisible()) {
-            model.getChildTargets().add(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
-        }
         if (model.isPaymentMethodVisible()) {
             model.getChildTargets().add(NavigationTarget.MU_SIG_TAKE_OFFER_PAYMENT);
         } else {
@@ -164,6 +161,9 @@ public class MuSigTakeOfferController extends NavigationController implements In
             muSigTakeOfferReviewController.setTakersAccount(accountsForPaymentMethod.iterator().next());
             muSigTakeOfferReviewController.setTakersPaymentMethodSpec(takersPaymentMethodSpec);
         }
+        if (model.isAmountVisible()) {
+            model.getChildTargets().add(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
+        }
         model.getChildTargets().add(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
     }
 
@@ -173,7 +173,8 @@ public class MuSigTakeOfferController extends NavigationController implements In
         overlayController.setEnterKeyHandler(null);
         overlayController.getApplicationRoot().addEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
 
-        model.getSelectedChildTarget().set(model.getChildTargets().get(0));
+        NavigationTarget first = model.getChildTargets().getFirst();
+        model.getSelectedChildTarget().set(first);
         model.getBackButtonText().set(Res.get("action.back"));
         model.getNextButtonVisible().set(true);
        /* takersBaseSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersBaseSideAmount(),
@@ -222,19 +223,19 @@ public class MuSigTakeOfferController extends NavigationController implements In
     @Override
     protected Optional<? extends Controller> createController(NavigationTarget navigationTarget) {
         return switch (navigationTarget) {
-            case MU_SIG_TAKE_OFFER_AMOUNT -> {
-                if (!model.isAmountVisible()) {
-                    Navigation.navigateTo(NavigationTarget.MU_SIG_TAKE_OFFER_PAYMENT);
-                    yield Optional.empty();
-                }
-                yield Optional.of(muSigTakeOfferAmountController);
-            }
             case MU_SIG_TAKE_OFFER_PAYMENT -> {
                 if (!model.isPaymentMethodVisible()) {
-                    Navigation.navigateTo(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
+                    Navigation.navigateTo(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
                     yield Optional.empty();
                 }
                 yield Optional.of(muSigTakeOfferPaymentController);
+            }
+            case MU_SIG_TAKE_OFFER_AMOUNT -> {
+                if (!model.isAmountVisible()) {
+                    Navigation.navigateTo(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
+                    yield Optional.empty();
+                }
+                yield Optional.of(muSigTakeOfferAmountController);
             }
             case MU_SIG_TAKE_OFFER_REVIEW -> Optional.of(muSigTakeOfferReviewController);
             default -> Optional.empty();

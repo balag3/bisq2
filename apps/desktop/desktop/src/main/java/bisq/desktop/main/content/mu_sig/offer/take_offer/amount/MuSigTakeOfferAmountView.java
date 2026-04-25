@@ -31,6 +31,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
-public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountModel, MuSigTakeOfferAmountController> {
+public class MuSigTakeOfferAmountView extends View<StackPane, MuSigTakeOfferAmountModel, MuSigTakeOfferAmountController> {
     private static final String SELECTED_MODEL_STYLE_CLASS = "selected-model";
 
     private final Label headlineLabel, amountLimitInfo, amountLimitInfoOverlayInfo, linkToWikiText, warningIcon;
@@ -50,12 +51,17 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
     private final VBox overlay;
     private final Button learnHowToBuildReputation, closeOverlayButton;
     private final HBox amountLimitInfoHBox, learnHowToBuildReputationBox;
+    private final VBox content;
     private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigTakeOfferAmountView(MuSigTakeOfferAmountModel model,
                                     MuSigTakeOfferAmountController controller,
                                     VBox amountComponents) {
-        super(new VBox(10), model, controller);
+        super(new StackPane(), model, controller);
+
+        root.setAlignment(Pos.CENTER);
+        content = new VBox(10);
+        content.setAlignment(Pos.TOP_CENTER);
 
         headlineLabel = new Label();
         headlineLabel.getStyleClass().add("bisq-text-headline-2");
@@ -64,9 +70,8 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
         // Amount component
         amountComponents.getStyleClass().add("min-amount");
         HBox amountBox = new HBox(0, amountComponents);
-        amountBox.setAlignment(Pos.BASELINE_LEFT);
         amountBox.getStyleClass().add("amount-box");
-
+        amountBox.setAlignment(Pos.TOP_CENTER);
 
         // Amount limit info
         warningIcon = new Label();
@@ -83,7 +88,7 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
         learnMore.setMinWidth(Hyperlink.USE_PREF_SIZE);
 
         amountLimitInfoHBox = new HBox(2.5, warningIcon, amountLimitInfo, learnMore);
-        amountLimitInfoHBox.setAlignment(Pos.CENTER_LEFT);
+        amountLimitInfoHBox.setAlignment(Pos.TOP_CENTER);
 
 
         // Amount limit overlay
@@ -107,9 +112,12 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
 
 
         VBox.setMargin(headlineLabel, new Insets(-10, 0, 40, 0));
-        root.getChildren().addAll(Spacer.fillVBox(), headlineLabel, amountBox, amountLimitInfoHBox, Spacer.fillVBox());
-        root.setAlignment(Pos.TOP_CENTER);
-        root.getStyleClass().add("bisq-easy-trade-wizard-amount-step");
+        content.getChildren().addAll(Spacer.fillVBox(), headlineLabel, amountBox, amountLimitInfoHBox, Spacer.fillVBox());
+       // root.setAlignment(Pos.TOP_CENTER);
+       // root.setAlignment(Pos.CENTER);
+       // root.getStyleClass().add("bisq-easy-trade-wizard-amount-step");
+
+        root.getChildren().addAll(content, overlay);
     }
 
     @Override
