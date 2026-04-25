@@ -1,14 +1,19 @@
 package bisq.offer.mu_sig.draft;
 
 import bisq.account.payment_method.fiat.FiatPaymentRail;
+import bisq.bonded_roles.market_price.MarketPrice;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
+import bisq.common.observable.ReadOnlyObservable;
+import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,8 +25,8 @@ public class TradeAmountConstraintsServiceTest {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
-        FakeOfferDraftMarketPriceService marketData = new FakeOfferDraftMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
-        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketData);
+        MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
+        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketPriceService);
 
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.BUY,
@@ -39,8 +44,8 @@ public class TradeAmountConstraintsServiceTest {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
-        FakeOfferDraftMarketPriceService marketData = new FakeOfferDraftMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
-        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketData);
+        MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
+        TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketPriceService);
 
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.SELL,
@@ -52,26 +57,53 @@ public class TradeAmountConstraintsServiceTest {
         assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());
     }
 
-    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
+    private static class MockMarketPriceService implements MarketPriceService {
         private final PriceQuote btcUsdPriceQuote;
 
-        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
+        private MockMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 
-        @Override
         public PriceQuote getBtcUsdPriceQuote() {
             return btcUsdPriceQuote;
         }
 
-        @Override
-        public PriceQuote getMarketPriceQuote(Market market) {
+        public TradeAmount getTradeAmountFromUsd(Market market, Fiat usdAmount) {
             throw new UnsupportedOperationException("Not used in this test");
         }
 
         @Override
-        public TradeAmount getTradeAmountFromUsd(Market market, Fiat usdAmount) {
-            throw new UnsupportedOperationException("Not used in this test");
+        public void setSelectedMarket(Market market) {
+        }
+
+        @Override
+        public ReadOnlyObservable<Market> getSelectedMarket() {
+            return null;
+        }
+
+        @Override
+        public Optional<MarketPrice> findMarketPrice(Market market) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<PriceQuote> findMarketPriceQuote(Market market) {
+            return Optional.ofNullable(btcUsdPriceQuote);
+        }
+
+        @Override
+        public PriceQuote getMarketPriceQuoteOrThrow(Market market) {
+            return btcUsdPriceQuote;
+        }
+
+        @Override
+        public ReadOnlyObservableMap<Market, MarketPrice> getMarketPriceByCurrencyMap() {
+            return null;
+        }
+
+        @Override
+        public boolean hasMarketPrice(Market market) {
+            return false;
         }
     }
 }

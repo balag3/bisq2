@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.draft;
 
 import bisq.account.payment_method.PaymentRail;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
@@ -26,7 +27,6 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -43,7 +43,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 class CreateOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
-    private final OfferDraftMarketPriceService marketPriceProvider;
+    private final MarketPriceService marketPriceService;
     private final TradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
     private final Supplier<PaymentRail> selectedPaymentRailSupplier;
@@ -55,14 +55,14 @@ class CreateOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     CreateOfferDraftStateEngine(CreateOfferDraft offerDraft,
-                                OfferDraftMarketPriceService marketPriceProvider,
+                                MarketPriceService marketPriceService,
                                 TradeAmountConstraintsService tradeAmountConstraintsService,
                                 AmountMappingService amountMappingService,
                                 Supplier<PaymentRail> selectedPaymentRailSupplier,
                                 Runnable updatePaymentMethodsHandler,
                                 Fiat defaultTradeAmountInUsd) {
         this.offerDraft = checkNotNull(offerDraft, "offerDraft must not be null");
-        this.marketPriceProvider = checkNotNull(marketPriceProvider, "marketPriceProvider must not be null");
+        this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
         this.selectedPaymentRailSupplier = checkNotNull(selectedPaymentRailSupplier, "selectedPaymentRailSupplier must not be null");
@@ -88,7 +88,7 @@ class CreateOfferDraftStateEngine {
         offerDraft.setDirection(direction);
 
         // Price
-        PriceQuote marketPriceQuote = marketPriceProvider.getMarketPriceQuote(market);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         //todo clamp price to limits
         PriceQuote priceQuote = fixPrice
                 .filter(e -> e.getValue() > 0)
@@ -107,7 +107,7 @@ class CreateOfferDraftStateEngine {
                 getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        TradeAmount defaultTradeAmount = marketPriceProvider.getTradeAmountFromUsd(market, defaultTradeAmountInUsd);
+        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
         TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
         offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
         offerDraft.setMinTradeAmount(clampedDefaultTradeAmount);
@@ -126,7 +126,7 @@ class CreateOfferDraftStateEngine {
         }
 
         Direction direction = offerDraft.getDirection();
-        PriceQuote marketPriceQuote = marketPriceProvider.getMarketPriceQuote(market);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         offerDraft.setPriceQuote(marketPriceQuote);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
@@ -135,7 +135,7 @@ class CreateOfferDraftStateEngine {
                 getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        TradeAmount defaultTradeAmount = marketPriceProvider.getTradeAmountFromUsd(market, defaultTradeAmountInUsd);
+        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
         TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
         offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
         offerDraft.setMinTradeAmount(clampedDefaultTradeAmount);
@@ -155,7 +155,7 @@ class CreateOfferDraftStateEngine {
 
         Market market = offerDraft.getMarket();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
-        PriceQuote marketPriceQuote = marketPriceProvider.getMarketPriceQuote(market);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
                 offerPriceQuote,
@@ -197,7 +197,7 @@ class CreateOfferDraftStateEngine {
         TradeAmount minTradeAmount = offerDraft.getMinTradeAmount();
         TradeAmount maxTradeAmount = offerDraft.getMaxTradeAmount();
         TradeAmountRange oldClampLimits = getClampLimits(true);
-        PriceQuote marketPriceQuote = marketPriceProvider.getMarketPriceQuote(market);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
@@ -283,7 +283,7 @@ class CreateOfferDraftStateEngine {
         Market market = offerDraft.getMarket();
         Direction direction = offerDraft.getDirection();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
-        PriceQuote marketPriceQuote = marketPriceProvider.getMarketPriceQuote(market);
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,

@@ -4,6 +4,8 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.fiat.FiatPaymentMethod;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
+import bisq.bonded_roles.market_price.MarketPrice;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.Coin;
@@ -13,10 +15,11 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountConversion;
 import bisq.common.monetary.TradeAmountRange;
+import bisq.common.observable.ReadOnlyObservable;
+import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +45,7 @@ public class CreateOfferDraftWorkflowTest {
     private TradeAmount defaultMarketDefaultTradeAmount;
     private TradeAmount usdBtcDefaultTradeAmount;
     private TradeAmount xmrBtcDefaultTradeAmount;
-    private FakeOfferDraftMarketPriceService marketData;
+    private MockMarketPriceService marketPriceService;
     private FakeCookieStore cookieStore;
     private FakeAccountsProvider accountsProvider;
     private CreateOfferDraftWorkflow workflow;
@@ -67,14 +70,14 @@ public class CreateOfferDraftWorkflowTest {
                 xmrBtcPriceQuote,
                 Coin.asBtcFromFaceValue(0.01));
 
-        marketData = new FakeOfferDraftMarketPriceService(usdBtcPriceQuote);
-        marketData.put(defaultMarket, defaultMarketPriceQuote, defaultMarketDefaultTradeAmount);
-        marketData.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
-        marketData.put(xmrBtcMarket, xmrBtcPriceQuote, xmrBtcDefaultTradeAmount);
+        marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
+        marketPriceService.put(defaultMarket, defaultMarketPriceQuote, defaultMarketDefaultTradeAmount);
+        marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
+        marketPriceService.put(xmrBtcMarket, xmrBtcPriceQuote, xmrBtcDefaultTradeAmount);
 
         cookieStore = new FakeCookieStore(Direction.SELL, false, true, false);
         accountsProvider = new FakeAccountsProvider();
-        workflow = new CreateOfferDraftWorkflow(marketData, cookieStore, accountsProvider);
+        workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
     }
 
     @Test
@@ -187,11 +190,11 @@ public class CreateOfferDraftWorkflowTest {
     @Test
     public void setPriceQuoteWithCurrentValueIsNoOp() {
         workflow.initialize(usdBtcMarket);
-        int recalculationCountBefore = marketData.btcUsdPriceQuoteRequests;
+        int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
         workflow.setPriceQuote(workflow.getPriceQuote());
 
-        assertEquals(recalculationCountBefore, marketData.btcUsdPriceQuoteRequests);
+        assertEquals(recalculationCountBefore, marketPriceService.btcUsdPriceQuoteRequests);
     }
 
     @Test
@@ -211,11 +214,11 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
         workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
-        int recalculationCountAfterFirstSelection = marketData.btcUsdPriceQuoteRequests;
+        int recalculationCountAfterFirstSelection = marketPriceService.btcUsdPriceQuoteRequests;
 
         workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
 
-        assertEquals(recalculationCountAfterFirstSelection, marketData.btcUsdPriceQuoteRequests);
+        assertEquals(recalculationCountAfterFirstSelection, marketPriceService.btcUsdPriceQuoteRequests);
     }
 
     @Test
@@ -469,13 +472,13 @@ public class CreateOfferDraftWorkflowTest {
         assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
     }
 
-    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
+    private static class MockMarketPriceService implements MarketPriceService {
         private final Map<Market, PriceQuote> priceQuoteByMarket = new HashMap<>();
         private final Map<Market, TradeAmount> defaultTradeAmountByMarket = new HashMap<>();
         private final PriceQuote btcUsdPriceQuote;
         private int btcUsdPriceQuoteRequests;
 
-        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
+        private MockMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 
@@ -484,22 +487,49 @@ public class CreateOfferDraftWorkflowTest {
             defaultTradeAmountByMarket.put(market, defaultTradeAmount);
         }
 
-        @Override
-        public PriceQuote getMarketPriceQuote(Market market) {
-            return Optional.ofNullable(priceQuoteByMarket.get(market))
-                    .orElseThrow(() -> new IllegalStateException("Market price quote not available for " + market));
-        }
-
-        @Override
         public PriceQuote getBtcUsdPriceQuote() {
             btcUsdPriceQuoteRequests++;
             return btcUsdPriceQuote;
         }
 
-        @Override
         public TradeAmount getTradeAmountFromUsd(Market market, Fiat usdAmount) {
             return Optional.ofNullable(defaultTradeAmountByMarket.get(market))
                     .orElseThrow(() -> new IllegalStateException("Default trade amount not available for " + market));
+        }
+
+        @Override
+        public void setSelectedMarket(Market market) {
+
+        }
+
+        @Override
+        public ReadOnlyObservable<Market> getSelectedMarket() {
+            return null;
+        }
+
+        @Override
+        public Optional<MarketPrice> findMarketPrice(Market market) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<PriceQuote> findMarketPriceQuote(Market market) {
+            return Optional.ofNullable(priceQuoteByMarket.get(market));
+        }
+
+        @Override
+        public PriceQuote getMarketPriceQuoteOrThrow(Market market) {
+            return findMarketPriceQuote(market).orElseThrow(() -> new IllegalStateException("No price quote found for market: " + market));
+        }
+
+        @Override
+        public ReadOnlyObservableMap<Market, MarketPrice> getMarketPriceByCurrencyMap() {
+            return null;
+        }
+
+        @Override
+        public boolean hasMarketPrice(Market market) {
+            return false;
         }
     }
 
@@ -550,6 +580,36 @@ public class CreateOfferDraftWorkflowTest {
         @Override
         public void persistUseRangeAmount(boolean useRangeAmount) {
             persistedUseRangeAmountValues.add(useRangeAmount);
+        }
+
+        @Override
+        public boolean getUseFixPrice(Market market) {
+            return false;
+        }
+
+        @Override
+        public void persistUseFixPrice(Market market, boolean useFixPrice) {
+
+        }
+
+        @Override
+        public double getPricePercentage(Market market) {
+            return 0;
+        }
+
+        @Override
+        public void persistPricePercentage(Market market, double pricePercentage) {
+
+        }
+
+        @Override
+        public Optional<PriceQuote> getFixPrice(Market market) {
+            return Optional.empty();
+        }
+
+        @Override
+        public void persistFixPrice(Market market, PriceQuote fixPrice) {
+
         }
     }
 

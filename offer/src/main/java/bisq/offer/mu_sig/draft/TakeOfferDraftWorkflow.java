@@ -35,9 +35,7 @@ import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
-import bisq.offer.mu_sig.draft.dependencies.DefaultOfferDraftMarketPriceService;
 import bisq.offer.mu_sig.draft.dependencies.DefaultTakeOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import bisq.offer.mu_sig.draft.dependencies.TakeOfferDraftCookieStore;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -107,12 +105,12 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     public TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
                                   SettingsService settingsService,
                                   AccountService accountService) {
-        this(new DefaultOfferDraftMarketPriceService(marketPriceService),
+        this(marketPriceService,
                 new DefaultTakeOfferDraftCookieStore(settingsService),
                 new DefaultAccountsProvider(accountService));
     }
 
-    TakeOfferDraftWorkflow(OfferDraftMarketPriceService marketPriceProvider,
+    TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
                            TakeOfferDraftCookieStore cookieStore,
                            AccountsProvider accountsProvider) {
         super(new TakeOfferDraft());
@@ -121,13 +119,13 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         checkNotNull(accountsProvider, "accountsProvider must not be null");
 
         amountMappingService = new AmountMappingService();
-        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketPriceProvider,
+        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketPriceService,
                 "marketPriceProvider must not be null"));
         paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
         takeOfferDraft = offerDraft;
         stateEngine = new TakeOfferDraftStateEngine(takeOfferDraft,
-                marketPriceProvider,
+                marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
                 this::getSelectedPaymentRail,

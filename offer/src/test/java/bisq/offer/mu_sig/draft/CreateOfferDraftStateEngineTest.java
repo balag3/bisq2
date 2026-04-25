@@ -2,14 +2,17 @@ package bisq.offer.mu_sig.draft;
 
 import bisq.account.payment_method.PaymentRail;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
+import bisq.bonded_roles.market_price.MarketPrice;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountConversion;
+import bisq.common.observable.ReadOnlyObservable;
+import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +32,7 @@ public class CreateOfferDraftStateEngineTest {
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
     private CreateOfferDraft offerDraft;
-    private FakeOfferDraftMarketPriceService marketData;
+    private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
     private AtomicReference<PaymentRail> selectedPaymentRail;
@@ -43,15 +46,15 @@ public class CreateOfferDraftStateEngineTest {
                 Fiat.fromFaceValue(500, "USD"));
 
         offerDraft = new CreateOfferDraft();
-        marketData = new FakeOfferDraftMarketPriceService(usdBtcPriceQuote);
-        marketData.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
+        marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
+        marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
         paymentMethodUpdateCalls = new AtomicInteger();
         selectedPaymentRail = new AtomicReference<>();
 
         stateEngine = new CreateOfferDraftStateEngine(offerDraft,
-                marketData,
-                new TradeAmountConstraintsService(marketData),
+                marketPriceService,
+                new TradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
                 selectedPaymentRail::get,
                 paymentMethodUpdateCalls::incrementAndGet,
@@ -60,7 +63,7 @@ public class CreateOfferDraftStateEngineTest {
 
     @Test
     public void initializeSetsDerivedStateAndCallsPaymentMethodUpdater() {
-        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true);
+        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true, false, 0, Optional.empty());
 
         assertEquals(usdBtcMarket, offerDraft.getMarket());
         assertEquals(Direction.SELL, offerDraft.getDirection());
@@ -83,7 +86,7 @@ public class CreateOfferDraftStateEngineTest {
 
     @Test
     public void applyDirectionChangedReturnsTrueWithPricingContext() {
-        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false);
+        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false, false, 0, Optional.empty());
 
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
@@ -96,7 +99,7 @@ public class CreateOfferDraftStateEngineTest {
     public void applyUseBaseCurrencyForAmountInputChangedDependsOnDerivedStateInitialization() {
         assertFalse(stateEngine.applyUseBaseCurrencyForAmountInputChanged(true));
 
-        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false);
+        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false, false, 0, Optional.empty());
 
         assertTrue(stateEngine.applyUseBaseCurrencyForAmountInputChanged(true));
         assertTrue(offerDraft.getUseBaseCurrencyForAmountInput());
@@ -104,7 +107,7 @@ public class CreateOfferDraftStateEngineTest {
 
     @Test
     public void recalculateTradeAmountConstraintsForSelectedPaymentRailClampsExistingAmounts() {
-        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false);
+        stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false, false, 0, Optional.empty());
 
         TradeAmount nineThousandUsd = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
@@ -118,12 +121,12 @@ public class CreateOfferDraftStateEngineTest {
         assertEquals(Fiat.fromFaceValue(5000, "USD"), offerDraft.getFixTradeAmount().getQuoteSideAmount());
     }
 
-    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
+    private static class MockMarketPriceService implements MarketPriceService {
         private final Map<Market, PriceQuote> priceQuoteByMarket = new HashMap<>();
         private final Map<Market, TradeAmount> defaultTradeAmountByMarket = new HashMap<>();
         private final PriceQuote btcUsdPriceQuote;
 
-        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
+        private MockMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 
@@ -133,20 +136,38 @@ public class CreateOfferDraftStateEngineTest {
         }
 
         @Override
-        public PriceQuote getBtcUsdPriceQuote() {
-            return btcUsdPriceQuote;
+        public void setSelectedMarket(Market market) {
         }
 
         @Override
-        public PriceQuote getMarketPriceQuote(Market market) {
-            return Optional.ofNullable(priceQuoteByMarket.get(market))
+        public ReadOnlyObservable<Market> getSelectedMarket() {
+            return null;
+        }
+
+        @Override
+        public Optional<MarketPrice> findMarketPrice(Market market) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<PriceQuote> findMarketPriceQuote(Market market) {
+            return Optional.ofNullable(priceQuoteByMarket.get(market));
+        }
+
+        @Override
+        public PriceQuote getMarketPriceQuoteOrThrow(Market market) {
+            return findMarketPriceQuote(market)
                     .orElseThrow(() -> new IllegalStateException("Market price quote not available for " + market));
         }
 
         @Override
-        public TradeAmount getTradeAmountFromUsd(Market market, Fiat usdAmount) {
-            return Optional.ofNullable(defaultTradeAmountByMarket.get(market))
-                    .orElseThrow(() -> new IllegalStateException("Default trade amount not available for " + market));
+        public ReadOnlyObservableMap<Market, MarketPrice> getMarketPriceByCurrencyMap() {
+            return null;
+        }
+
+        @Override
+        public boolean hasMarketPrice(Market market) {
+            return false;
         }
     }
 }

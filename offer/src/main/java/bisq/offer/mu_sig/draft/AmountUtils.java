@@ -17,7 +17,10 @@
 
 package bisq.offer.mu_sig.draft;
 
+import bisq.bonded_roles.market_price.MarketBasedAmountConversion;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
+import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
@@ -27,6 +30,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.common.util.MathUtils;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Utility class for amount conversions and calculations in the offer creation workflow.
@@ -37,8 +41,8 @@ class AmountUtils {
      * Extracts the input amount from a TradeAmount based on user preference.
      * The input amount is the currency that the user directly controls (e.g., enters in a text field or slider).
      *
-     * @param tradeAmount                    The trade amount containing both base and quote sides
-     * @param limits                         The limits to clamp the amount to
+     * @param tradeAmount                   The trade amount containing both base and quote sides
+     * @param limits                        The limits to clamp the amount to
      * @param useBaseCurrencyForAmountInput If true, base currency is the input; otherwise quote currency
      * @return The clamped input amount (either base or quote side)
      */
@@ -59,8 +63,8 @@ class AmountUtils {
      * The passive amount is automatically calculated from the input amount
      * using the current price quote. It is the non-editable side.
      *
-     * @param tradeAmount                    The trade amount containing both base and quote sides
-     * @param limits                         The limits to clamp the amount to
+     * @param tradeAmount                   The trade amount containing both base and quote sides
+     * @param limits                        The limits to clamp the amount to
      * @param useBaseCurrencyForAmountInput If true, quote currency is passive; otherwise base currency
      * @return The clamped passive amount (opposite side of input amount)
      */
@@ -115,5 +119,11 @@ class AmountUtils {
         long sliderAmountValue = min + Math.round(sliderValue * diff);
         Monetary sliderAmount = Monetary.from(inputAmount, sliderAmountValue);
         return TradeAmountConversion.toTradeAmount(market, priceQuote, sliderAmount);
+    }
+
+    static TradeAmount getTradeAmountFromUsd(MarketPriceService marketPriceService, Market market, Fiat usdAmount) {
+        checkNotNull(market, "market must not be null");
+        checkNotNull(usdAmount, "usdAmount must not be null");
+        return MarketBasedAmountConversion.tradeAmountFromUsdAmount(marketPriceService, market, usdAmount);
     }
 }

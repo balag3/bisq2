@@ -18,14 +18,15 @@
 package bisq.offer.mu_sig.draft;
 
 import bisq.account.payment_method.PaymentRail;
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
+import bisq.common.market.MarketRepository;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
-import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 
 import java.util.Optional;
 
@@ -38,10 +39,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * {@link TradeAmountConstraints} result so callers do not duplicate protocol limit logic.
  */
 class TradeAmountConstraintsService {
-    private final OfferDraftMarketPriceService marketData;
+    private final MarketPriceService marketPriceService;
 
-    TradeAmountConstraintsService(OfferDraftMarketPriceService marketData) {
-        this.marketData = checkNotNull(marketData, "marketData must not be null");
+    TradeAmountConstraintsService(MarketPriceService marketPriceService) {
+        this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
     }
 
     /* --------------------------------------------------------------------- */
@@ -58,7 +59,8 @@ class TradeAmountConstraintsService {
         checkNotNull(offerPriceQuote, "offerPriceQuote must not be null");
         checkNotNull(marketPriceQuote, "marketPriceQuote must not be null");
 
-        PriceQuote btcUsdPriceQuote = marketData.getBtcUsdPriceQuote();
+        Market usdBitcoinMarket = MarketRepository.getUSDBitcoinMarket();
+        PriceQuote btcUsdPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(usdBitcoinMarket);
 
         Fiat maxTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
