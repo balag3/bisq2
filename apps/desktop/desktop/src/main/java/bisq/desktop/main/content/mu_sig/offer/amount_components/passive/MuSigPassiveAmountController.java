@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.passive;
+package bisq.desktop.main.content.mu_sig.offer.amount_components.passive;
 
 import bisq.common.asset.Asset;
 import bisq.common.monetary.Fiat;

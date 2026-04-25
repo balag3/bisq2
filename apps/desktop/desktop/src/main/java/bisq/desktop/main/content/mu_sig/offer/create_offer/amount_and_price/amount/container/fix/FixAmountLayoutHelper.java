@@ -18,7 +18,7 @@
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.fix;
 
 import bisq.desktop.components.containers.Spacer;
-import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.MuSigAmountInputFontSizeHelper;
+import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountInputFontSizeHelper;
 import javafx.geometry.Bounds;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;

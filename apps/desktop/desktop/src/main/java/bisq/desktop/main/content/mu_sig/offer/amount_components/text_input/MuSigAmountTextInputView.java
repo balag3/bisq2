@@ -15,12 +15,12 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.components.text_input;
+package bisq.desktop.main.content.mu_sig.offer.amount_components.text_input;
 
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.View;
 import bisq.desktop.components.containers.BaselineHBox;
-import bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.components.MuSigAmountInputFontSizeHelper;
+import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountInputFontSizeHelper;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;

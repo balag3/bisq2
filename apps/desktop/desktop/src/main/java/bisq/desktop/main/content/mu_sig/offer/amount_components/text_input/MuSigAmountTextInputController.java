@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.text_input;
+package bisq.desktop.main.content.mu_sig.offer.amount_components.text_input;
 
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;

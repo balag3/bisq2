@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.components.passive;
+package bisq.desktop.main.content.mu_sig.offer.amount_components.passive;
 
 import bisq.common.monetary.Monetary;
 import javafx.beans.property.BooleanProperty;

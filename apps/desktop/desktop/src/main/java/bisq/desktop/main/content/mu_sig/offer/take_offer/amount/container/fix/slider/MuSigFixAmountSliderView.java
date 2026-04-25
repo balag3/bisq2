@@ -30,7 +30,6 @@ import java.util.Set;
 
 import static bisq.desktop.main.content.mu_sig.offer.amount_components.SliderTrackStyleHelper.getSliderTrackStyle;
 
-
 @Slf4j
 public class MuSigFixAmountSliderView extends View<VBox, MuSigFixAmountSliderModel, MuSigFixAmountSliderController> {
     private final Slider slider;
