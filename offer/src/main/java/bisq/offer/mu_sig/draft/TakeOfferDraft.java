@@ -21,7 +21,7 @@ import bisq.common.market.Market;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
 
-public class TakeOfferDraft extends ReadOnlyOfferDraft {
+public class TakeOfferDraft extends ReadOnlyTakeOfferDraft {
 
     private MuSigOffer offer;
 

@@ -17,21 +17,6 @@
 
 package bisq.offer.mu_sig.draft;
 
-import bisq.offer.mu_sig.MuSigOffer;
-import lombok.experimental.Delegate;
-import lombok.extern.slf4j.Slf4j;
+public abstract class ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
 
-@Slf4j
-public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
-    @Delegate
-    protected TakeOfferDraft takeOfferDraft;
-
-    public TakeOfferDraftWorkflow() {
-        super(new TakeOfferDraft());
-        takeOfferDraft = offerDraft;
-    }
-
-    public void initialize(MuSigOffer offer) {
-        this.offerDraft.setOffer(offer);
-    }
 }
