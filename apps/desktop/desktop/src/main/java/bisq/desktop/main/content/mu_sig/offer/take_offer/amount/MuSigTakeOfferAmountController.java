@@ -25,6 +25,8 @@ import bisq.desktop.common.utils.KeyHandlerUtil;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.MuSigAmountContainerController;
 import bisq.i18n.Res;
+import bisq.offer.Direction;
+import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
@@ -60,6 +62,12 @@ public class MuSigTakeOfferAmountController implements Controller {
         view = new MuSigTakeOfferAmountView(model, this, muSigAmountComponentsController.getView().getRoot());
     }
 
+    public void init(MuSigOffer muSigOffer) {
+        Direction takersDisplayDirection = muSigOffer.getTakersDisplayDirection();
+        model.setHeadline(takersDisplayDirection.isBuy()
+                ? Res.get("muSig.offer.taker.amount.headline.buyer")
+                : Res.get("muSig.offer.taker.amount.headline.seller"));
+    }
 
     /* --------------------------------------------------------------------- */
     // Lifecycle

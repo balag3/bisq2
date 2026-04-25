@@ -117,7 +117,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         MuSigOffer muSigOffer = initData.getMuSigOffer();
         createOfferDraftWorkflow.initialize(muSigOffer.getMarket());
         takeOfferDraftWorkflow.initialize(muSigOffer);
-        //  muSigTakeOfferAmountController.init(muSigOffer);
+          muSigTakeOfferAmountController.init(muSigOffer);
         muSigTakeOfferPaymentController.init(muSigOffer);
         muSigTakeOfferReviewController.init(muSigOffer);
 

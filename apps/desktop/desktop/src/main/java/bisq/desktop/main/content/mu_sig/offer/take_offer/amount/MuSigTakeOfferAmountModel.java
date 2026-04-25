@@ -27,6 +27,8 @@ import lombok.Setter;
 
 @Getter
 public class MuSigTakeOfferAmountModel implements Model {
+    @Setter
+    private String headline;
     private final StringProperty amountLimitInfo = new SimpleStringProperty();
     private final StringProperty amountLimitInfoOverlayInfo = new SimpleStringProperty();
     private final BooleanProperty shouldShowAmountLimitInfo = new SimpleBooleanProperty();

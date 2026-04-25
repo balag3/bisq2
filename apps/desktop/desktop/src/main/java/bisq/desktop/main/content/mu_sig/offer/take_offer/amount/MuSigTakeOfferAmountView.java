@@ -20,6 +20,7 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount;
 import bisq.desktop.common.Browser;
 import bisq.desktop.common.Icons;
 import bisq.desktop.common.view.View;
+import bisq.desktop.components.containers.Spacer;
 import bisq.desktop.components.containers.WizardOverlay;
 import bisq.desktop.components.controls.BisqTooltip;
 import bisq.i18n.Res;
@@ -43,7 +44,7 @@ import java.util.Set;
 public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountModel, MuSigTakeOfferAmountController> {
     private static final String SELECTED_MODEL_STYLE_CLASS = "selected-model";
 
-    private final Label amountLimitInfo, amountLimitInfoOverlayInfo, linkToWikiText, warningIcon;
+    private final Label headlineLabel, amountLimitInfo, amountLimitInfoOverlayInfo, linkToWikiText, warningIcon;
     private final Hyperlink learnMore, linkToWiki;
     @Getter
     private final VBox overlay;
@@ -55,6 +56,10 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
                                     MuSigTakeOfferAmountController controller,
                                     VBox amountComponents) {
         super(new VBox(10), model, controller);
+
+        headlineLabel = new Label();
+        headlineLabel.getStyleClass().add("bisq-text-headline-2");
+
 
         // Amount component
         amountComponents.getStyleClass().add("min-amount");
@@ -101,13 +106,16 @@ public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountMod
                 .build();
 
 
-        root.getChildren().addAll(amountBox, amountLimitInfoHBox);
+        VBox.setMargin(headlineLabel, new Insets(-10, 0, 40, 0));
+        root.getChildren().addAll(Spacer.fillVBox(), headlineLabel, amountBox, amountLimitInfoHBox, Spacer.fillVBox());
         root.setAlignment(Pos.TOP_CENTER);
         root.getStyleClass().add("bisq-easy-trade-wizard-amount-step");
     }
 
     @Override
     protected void onViewAttached() {
+        headlineLabel.setText(model.getHeadline());
+
         learnMore.setText(model.getAmountLimitInfoLink());
         linkToWikiText.setText(model.getLinkToWikiText());
 
