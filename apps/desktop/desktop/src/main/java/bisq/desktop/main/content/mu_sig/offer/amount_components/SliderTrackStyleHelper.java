@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components;
+package bisq.desktop.main.content.mu_sig.offer.amount_components;
 
 public class SliderTrackStyleHelper {
     private static final String SLIDER_TRACK_DEFAULT_COLOR = "-bisq-dark-grey-50";

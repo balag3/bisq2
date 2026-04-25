@@ -17,14 +17,9 @@
 
 package bisq.desktop.main.content.mu_sig.offer.take_offer.amount;
 
-import bisq.account.payment_method.PaymentMethodSpec;
-import bisq.common.monetary.Monetary;
 import bisq.desktop.common.view.Model;
-import bisq.offer.mu_sig.MuSigOffer;
 import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import lombok.Getter;
@@ -32,44 +27,17 @@ import lombok.Setter;
 
 @Getter
 public class MuSigTakeOfferAmountModel implements Model {
-    @Setter
-    private MuSigOffer muSigOffer;
-    @Setter
-    private Monetary sellersReputationBasedQuoteSideAmount;
-    @Setter
-    private long sellersReputationScore;
+    private final StringProperty amountLimitInfo = new SimpleStringProperty();
+    private final StringProperty amountLimitInfoOverlayInfo = new SimpleStringProperty();
+    private final BooleanProperty shouldShowAmountLimitInfo = new SimpleBooleanProperty();
+    private final BooleanProperty shouldShowHowToBuildReputationButton = new SimpleBooleanProperty();
+    private final BooleanProperty shouldShowWarningIcon = new SimpleBooleanProperty();
+    private final BooleanProperty learnMoreVisible = new SimpleBooleanProperty();
     @Setter
     private String amountLimitInfoLink;
     @Setter
     private String linkToWikiText;
-    @Setter
-    private String headline;
-    @Setter
-    private PaymentMethodSpec<?> takersPaymentMethodSpec;
-    private final ObjectProperty<Monetary> takersQuoteSideAmount = new SimpleObjectProperty<>();
-    private final ObjectProperty<Monetary> takersBaseSideAmount = new SimpleObjectProperty<>();
-    private final StringProperty amountLimitInfo = new SimpleStringProperty();
-    private final StringProperty amountLimitInfoAmount = new SimpleStringProperty();
-    private final StringProperty amountLimitInfoOverlayInfo = new SimpleStringProperty();
-    private final BooleanProperty isWarningIconVisible = new SimpleBooleanProperty();
-    private final BooleanProperty isAmountHyperLinkDisabled = new SimpleBooleanProperty();
-    private final BooleanProperty isAmountLimitInfoOverlayVisible = new SimpleBooleanProperty();
-    private final BooleanProperty isAmountLimitInfoVisible = new SimpleBooleanProperty();
-
-    void reset() {
-        muSigOffer = null;
-        sellersReputationBasedQuoteSideAmount = null;
-        sellersReputationScore = 0;
-        amountLimitInfoLink = null;
-        linkToWikiText = null;
-        headline = null;
-        takersQuoteSideAmount.set(null);
-        takersBaseSideAmount.set(null);
-        amountLimitInfo.set(null);
-        amountLimitInfoOverlayInfo.set(null);
-        isWarningIconVisible.set(false);
-        isAmountHyperLinkDisabled.set(false);
-        isAmountLimitInfoOverlayVisible.set(false);
-        isAmountLimitInfoVisible.set(false);
-    }
+    private final BooleanProperty isOverlayVisible = new SimpleBooleanProperty();
+    private final StringProperty priceTooltip = new SimpleStringProperty();
+    private final StringProperty errorMessage = new SimpleStringProperty();
 }

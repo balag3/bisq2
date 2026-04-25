@@ -15,16 +15,24 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.fix.slider;
 
-import bisq.common.util.MathUtils;
-import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants;
+import bisq.desktop.common.view.Model;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class MuSigAmountInputFontSizeHelper {
-    public static double computeFontSize(int length) {
-        length = MathUtils.bounded(9, 23, length);
-        return MuSigAmountLayoutConstants.EM_SIZE_BY_TEXT_LENGTH.get(length);
-    }
+@Getter(AccessLevel.PACKAGE)
+public class MuSigFixAmountSliderModel implements Model {
+    private final DoubleProperty maxAllowedValue = new SimpleDoubleProperty(1);
+
+    private final DoubleProperty getSliderValue = new SimpleDoubleProperty(0) {
+        @Override
+        public void set(double value) {
+            super.set(Math.min(value, maxAllowedValue.get()));
+        }
+    };
 }

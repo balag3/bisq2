@@ -31,8 +31,8 @@ import org.fxmisc.easybind.Subscription;
 import java.util.HashSet;
 import java.util.Set;
 
-import static bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.MuSigAmountLayoutConstants.PADDING;
-import static bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.MuSigAmountLayoutConstants.WIDTH;
+import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.PADDING;
+import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.WIDTH;
 
 @Slf4j
 public class RangeAmountLayoutHelper extends HBox {

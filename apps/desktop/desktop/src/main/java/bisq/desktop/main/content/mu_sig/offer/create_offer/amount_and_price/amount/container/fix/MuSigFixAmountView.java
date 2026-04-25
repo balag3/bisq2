@@ -28,8 +28,8 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import lombok.extern.slf4j.Slf4j;
 
-import static bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.MuSigAmountLayoutConstants.PADDING;
-import static bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.MuSigAmountLayoutConstants.WIDTH;
+import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.PADDING;
+import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.WIDTH;
 
 @Slf4j
 public class MuSigFixAmountView extends View<VBox, MuSigFixAmountModel, MuSigFixAmountController> {

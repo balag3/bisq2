@@ -20,7 +20,6 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount;
 import bisq.desktop.common.Browser;
 import bisq.desktop.common.Icons;
 import bisq.desktop.common.view.View;
-import bisq.desktop.components.containers.Spacer;
 import bisq.desktop.components.containers.WizardOverlay;
 import bisq.desktop.components.controls.BisqTooltip;
 import bisq.i18n.Res;
@@ -31,135 +30,146 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
 import org.fxmisc.easybind.Subscription;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Slf4j
-public class MuSigTakeOfferAmountView extends View<StackPane, MuSigTakeOfferAmountModel, MuSigTakeOfferAmountController> {
-    private final Label headlineLabel, amountLimitInfo, amountLimitInfoOverlayInfo, linkToWikiText, warningIcon;
-    private final Hyperlink amountLimitInfoAmount, learnMore, linkToWiki;
-    private final VBox content;
-    private final WizardOverlay amountLimitInfoOverlay;
-    private final Button closeOverlayButton;
-    private final HBox amountLimitInfoHBox;
-    private Subscription isAmountLimitInfoVisiblePin, isWarningIconVisiblePin;
+public class MuSigTakeOfferAmountView extends View<VBox, MuSigTakeOfferAmountModel, MuSigTakeOfferAmountController> {
+    private static final String SELECTED_MODEL_STYLE_CLASS = "selected-model";
+
+    private final Label amountLimitInfo, amountLimitInfoOverlayInfo, linkToWikiText, warningIcon;
+    private final Hyperlink learnMore, linkToWiki;
+    @Getter
+    private final VBox overlay;
+    private final Button learnHowToBuildReputation, closeOverlayButton;
+    private final HBox amountLimitInfoHBox, learnHowToBuildReputationBox;
+    private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigTakeOfferAmountView(MuSigTakeOfferAmountModel model,
                                     MuSigTakeOfferAmountController controller,
-                                    VBox amountComponentRoot) {
-        super(new StackPane(), model, controller);
+                                    VBox amountComponents) {
+        super(new VBox(10), model, controller);
 
-        root.setAlignment(Pos.CENTER);
-        content = new VBox(10);
-        content.setAlignment(Pos.TOP_CENTER);
+        // Amount component
+        amountComponents.getStyleClass().add("min-amount");
+        HBox amountBox = new HBox(0, amountComponents);
+        amountBox.setAlignment(Pos.BASELINE_LEFT);
+        amountBox.getStyleClass().add("amount-box");
 
-        headlineLabel = new Label();
-        headlineLabel.getStyleClass().add("bisq-text-headline-2");
+
+        // Amount limit info
+        warningIcon = new Label();
+        warningIcon.getStyleClass().add("text-fill-grey-dimmed");
+        warningIcon.setPadding(new Insets(0, 2.5, 0, 0));
+        warningIcon.setMinWidth(Label.USE_PREF_SIZE);
+        Icons.getIconForLabel(AwesomeIcon.WARNING_SIGN, warningIcon, "1em");
 
         amountLimitInfo = new Label();
         amountLimitInfo.getStyleClass().add("trade-wizard-amount-limit-info");
 
-        amountLimitInfoAmount = new Hyperlink();
-        amountLimitInfoAmount.getStyleClass().add("trade-wizard-amount-limit-info-overlay-link");
-
         learnMore = new Hyperlink();
         learnMore.getStyleClass().add("trade-wizard-amount-limit-info-overlay-link");
+        learnMore.setMinWidth(Hyperlink.USE_PREF_SIZE);
 
-        warningIcon = new Label();
-        Icons.getIconForLabel(AwesomeIcon.WARNING_SIGN, warningIcon, "1.15em");
-        warningIcon.getStyleClass().add("overlay-icon-warning");
+        amountLimitInfoHBox = new HBox(2.5, warningIcon, amountLimitInfo, learnMore);
+        amountLimitInfoHBox.setAlignment(Pos.CENTER_LEFT);
 
-        HBox.setMargin(warningIcon, new Insets(0, 5, 0, 0));
-        HBox.setMargin(amountLimitInfoAmount, new Insets(0, 0, 0, -2.5));
-        amountLimitInfoHBox = new HBox(5, warningIcon, amountLimitInfo, amountLimitInfoAmount, learnMore);
-        amountLimitInfoHBox.setAlignment(Pos.BASELINE_CENTER);
 
-        VBox.setMargin(headlineLabel, new Insets(-10, 0, 40, 0));
-        VBox.setMargin(amountLimitInfoHBox, new Insets(15, 0, 15, 0));
-        content.getChildren().addAll(Spacer.fillVBox(), headlineLabel, amountComponentRoot, amountLimitInfoHBox, Spacer.fillVBox());
-
+        // Amount limit overlay
         amountLimitInfoOverlayInfo = new Label();
-        closeOverlayButton = new Button(Res.get("muSig.offer.wizard.amount.limitInfo.overlay.close"));
+
         linkToWikiText = new Label();
         linkToWiki = new Hyperlink("https://bisq.wiki/Reputation");
-        amountLimitInfoOverlay = new WizardOverlay(root)
+
+        learnHowToBuildReputation = new Button(Res.get("muSig.offer.create.amount.limitInfo.overlay.learnHowToBuildReputation"));
+        learnHowToBuildReputation.getStyleClass().add("outlined-button");
+        learnHowToBuildReputationBox = new HBox(learnHowToBuildReputation);
+
+        closeOverlayButton = new Button(Res.get("muSig.offer.wizard.amount.limitInfo.overlay.close"));
+
+        overlay = new WizardOverlay(root)
                 .warning()
                 .headlineFromI18nKey("muSig.offer.wizard.amount.limitInfo.overlay.headline")
-                .description(createAndGetOverlayContent(amountLimitInfoOverlayInfo, linkToWikiText, linkToWiki))
+                .description(createAndGetOverlayContent(amountLimitInfoOverlayInfo, linkToWikiText, linkToWiki, learnHowToBuildReputationBox))
                 .buttons(closeOverlayButton)
                 .build();
 
-        root.getChildren().addAll(content, amountLimitInfoOverlay);
+
+        root.getChildren().addAll(amountBox, amountLimitInfoHBox);
+        root.setAlignment(Pos.TOP_CENTER);
+        root.getStyleClass().add("bisq-easy-trade-wizard-amount-step");
     }
 
     @Override
     protected void onViewAttached() {
-        headlineLabel.setText(model.getHeadline());
         learnMore.setText(model.getAmountLimitInfoLink());
         linkToWikiText.setText(model.getLinkToWikiText());
 
         amountLimitInfo.textProperty().bind(model.getAmountLimitInfo());
-        amountLimitInfoAmount.textProperty().bind(model.getAmountLimitInfoAmount());
         amountLimitInfoOverlayInfo.textProperty().bind(model.getAmountLimitInfoOverlayInfo());
-        amountLimitInfoAmount.disableProperty().bind(model.getIsAmountHyperLinkDisabled());
+        amountLimitInfoHBox.visibleProperty().bind(model.getShouldShowAmountLimitInfo());
+        amountLimitInfoHBox.managedProperty().bind(model.getShouldShowAmountLimitInfo());
+        learnMore.visibleProperty().bind(model.getLearnMoreVisible());
+        learnMore.managedProperty().bind(model.getLearnMoreVisible());
+        learnHowToBuildReputationBox.visibleProperty().bind(model.getShouldShowHowToBuildReputationButton());
+        learnHowToBuildReputationBox.managedProperty().bind(model.getShouldShowHowToBuildReputationButton());
+        warningIcon.visibleProperty().bind(model.getShouldShowWarningIcon());
+        warningIcon.managedProperty().bind(model.getShouldShowWarningIcon());
 
-        amountLimitInfoAmount.managedProperty().bind(model.getIsAmountLimitInfoVisible().and(model.getAmountLimitInfoAmount().isEmpty().not()));
-        amountLimitInfoAmount.visibleProperty().bind(amountLimitInfoAmount.managedProperty());
-        learnMore.managedProperty().bind(model.getIsAmountLimitInfoVisible());
-        learnMore.visibleProperty().bind(model.getIsAmountLimitInfoVisible());
-        amountLimitInfoHBox.managedProperty().bind(model.getIsAmountLimitInfoVisible());
-        amountLimitInfoHBox.visibleProperty().bind(model.getIsAmountLimitInfoVisible());
+        subscriptions.add(EasyBind.subscribe(model.getIsOverlayVisible(), isOverlayVisible -> {
+            if (isOverlayVisible) {
+                root.setOnKeyPressed(controller::onKeyPressedWhileShowingOverlay);
+            } else {
+                root.setOnKeyPressed(null);
+            }
+        }));
 
-        isAmountLimitInfoVisiblePin = EasyBind.subscribe(model.getIsAmountLimitInfoOverlayVisible(), isAmountLimitInfoVisible ->
-            amountLimitInfoOverlay.updateOverlayVisibility(content, isAmountLimitInfoVisible, controller::onKeyPressedWhileShowingOverlay));
-
-        isWarningIconVisiblePin = EasyBind.subscribe(model.getIsWarningIconVisible(), isWarningIconVisible -> {
-            warningIcon.setVisible(isWarningIconVisible);
-            amountLimitInfo.getStyleClass().setAll("font-size-11", "wrap-text", "font-light");
-            amountLimitInfo.getStyleClass().add(isWarningIconVisible ? "bisq-text-white" : "bisq-text-grey-9");
-        });
-
-        amountLimitInfoAmount.setOnAction(e -> controller.onSetReputationBasedAmount());
-        learnMore.setOnAction(e -> controller.onShowAmountLimitInfoOverlay());
+        learnMore.setOnAction(e -> controller.onShowOverlay());
         linkToWiki.setOnAction(e -> controller.onOpenWiki(linkToWiki.getText()));
-        closeOverlayButton.setOnAction(e -> controller.onCloseAmountLimitInfoOverlay());
+        //learnHowToBuildReputation.setOnAction(e -> controller.onLearnHowToBuildReputation());
+        closeOverlayButton.setOnAction(e -> controller.onCloseOverlay());
     }
 
     @Override
     protected void onViewDetached() {
+        subscriptions.forEach(Subscription::unsubscribe);
+        subscriptions.clear();
+
         amountLimitInfo.textProperty().unbind();
-        amountLimitInfoAmount.textProperty().unbind();
         amountLimitInfoOverlayInfo.textProperty().unbind();
-        amountLimitInfoAmount.disableProperty().unbind();
-
-        amountLimitInfoAmount.managedProperty().unbind();
-        amountLimitInfoAmount.visibleProperty().unbind();
-        learnMore.managedProperty().unbind();
         learnMore.visibleProperty().unbind();
-        amountLimitInfoHBox.managedProperty().unbind();
+        learnMore.managedProperty().unbind();
         amountLimitInfoHBox.visibleProperty().unbind();
+        amountLimitInfoHBox.managedProperty().unbind();
+        learnHowToBuildReputationBox.visibleProperty().unbind();
+        learnHowToBuildReputationBox.managedProperty().unbind();
+        warningIcon.visibleProperty().unbind();
+        warningIcon.managedProperty().unbind();
 
-        isAmountLimitInfoVisiblePin.unsubscribe();
-        isWarningIconVisiblePin.unsubscribe();
-
-        amountLimitInfoAmount.setOnAction(null);
         learnMore.setOnAction(null);
         linkToWiki.setOnAction(null);
         closeOverlayButton.setOnAction(null);
+        learnHowToBuildReputation.setOnAction(null);
 
         root.setOnKeyPressed(null);
     }
 
-    private static VBox createAndGetOverlayContent(Label amountLimitInfoOverlayInfo,
+    private static VBox createAndGetOverlayContent(Label amountLimitInfo,
                                                    Label linkToWikiText,
-                                                   Hyperlink linkToWiki) {
-        amountLimitInfoOverlayInfo.setMinWidth(WizardOverlay.OVERLAY_WIDTH - 100);
-        amountLimitInfoOverlayInfo.setMaxWidth(amountLimitInfoOverlayInfo.getMinWidth());
-        amountLimitInfoOverlayInfo.setMinHeight(Label.USE_PREF_SIZE);
-        amountLimitInfoOverlayInfo.getStyleClass().addAll("normal-text", "wrap-text", "text-fill-grey-dimmed");
+                                                   Hyperlink linkToWiki,
+                                                   HBox learnHowToBuildReputationBox) {
+        amountLimitInfo.setMinWidth(WizardOverlay.OVERLAY_WIDTH - 100);
+        amountLimitInfo.setMaxWidth(amountLimitInfo.getMinWidth());
+        amountLimitInfo.setMinHeight(Label.USE_PREF_SIZE);
+        amountLimitInfo.getStyleClass().addAll("normal-text", "wrap-text", "text-fill-grey-dimmed");
+
+        learnHowToBuildReputationBox.setAlignment(Pos.CENTER);
 
         linkToWikiText.setMaxWidth(linkToWikiText.getMinWidth());
         linkToWikiText.getStyleClass().addAll("normal-text", "wrap-text", "text-fill-grey-dimmed");
@@ -173,7 +183,10 @@ public class MuSigTakeOfferAmountView extends View<StackPane, MuSigTakeOfferAmou
         HBox linkBox = new HBox(5, linkToWikiText, linkToWiki);
         linkBox.setAlignment(Pos.BASELINE_LEFT);
 
-        VBox vBox = new VBox(amountLimitInfoOverlayInfo, linkBox);
+        VBox.setMargin(learnHowToBuildReputationBox, new Insets(0, 0, 40, 0));
+        VBox.setMargin(linkBox, new Insets(-40, 0, 0, 0));
+
+        VBox vBox = new VBox(40, amountLimitInfo, learnHowToBuildReputationBox, linkBox);
         vBox.setPadding(WizardOverlay.TEXT_CONTENT_PADDING);
         return vBox;
     }

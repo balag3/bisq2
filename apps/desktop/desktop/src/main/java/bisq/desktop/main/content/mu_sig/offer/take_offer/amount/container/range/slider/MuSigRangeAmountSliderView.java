@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.slider;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.range.slider;
 
 import bisq.desktop.common.view.View;
 import bisq.desktop.components.controls.RangeSlider;

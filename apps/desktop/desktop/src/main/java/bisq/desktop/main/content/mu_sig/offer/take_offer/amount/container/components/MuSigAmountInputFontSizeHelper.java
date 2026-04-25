@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.components;
 
 import bisq.common.util.MathUtils;
 import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants;

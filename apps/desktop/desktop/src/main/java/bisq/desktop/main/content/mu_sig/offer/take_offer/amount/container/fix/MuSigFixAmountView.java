@@ -15,12 +15,11 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.fix;
 
 import bisq.desktop.common.view.View;
 import bisq.desktop.components.containers.Spacer;
 import bisq.desktop.components.controls.BisqMenuItem;
-import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants;
 import bisq.i18n.Res;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -33,41 +32,35 @@ import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmou
 import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.WIDTH;
 
 @Slf4j
-public class MuSigRangeAmountView extends View<VBox, MuSigRangeAmountModel, MuSigRangeAmountController> {
+public class MuSigFixAmountView extends View<VBox, MuSigFixAmountModel, MuSigFixAmountController> {
     private final BisqMenuItem inputModeToggle;
-    private final RangeAmountLayoutHelper layoutHelper;
+    private final FixAmountLayoutHelper layoutHelper;
 
-    public MuSigRangeAmountView(MuSigRangeAmountModel model,
-                                MuSigRangeAmountController controller,
-                                HBox minAmountInput,
-                                HBox maxAmountInput,
-                                HBox minPassiveAmount,
-                                HBox maxPassiveAmount,
-                                HBox amountSlider) {
+    public MuSigFixAmountView(MuSigFixAmountModel model,
+                              MuSigFixAmountController controller,
+                              HBox amountInput,
+                              HBox passiveAmount,
+                              VBox amountSlider) {
         super(new VBox(), model, controller);
 
         root.setAlignment(Pos.TOP_CENTER);
-        root.setMinWidth(MuSigAmountLayoutConstants.WIDTH);
-        root.setMaxWidth(MuSigAmountLayoutConstants.WIDTH);
 
-        layoutHelper = new RangeAmountLayoutHelper(model);
+        layoutHelper = new FixAmountLayoutHelper(model);
         layoutHelper.setVisible(false);
         layoutHelper.setManaged(false);
+
+        amountInput.setMinWidth(WIDTH);
+        amountInput.setMaxWidth(WIDTH);
+        amountInput.setPadding(new Insets(0, PADDING, 0, PADDING));
 
         inputModeToggle = new BisqMenuItem("flip-fields-arrows-green", "flip-fields-arrows-white");
         inputModeToggle.setTooltip(Res.get("muSig.offer.create.amount.selection.flipCurrenciesButton.tooltip"));
 
-        HBox amountInputHBox = new HBox(5, minAmountInput, maxAmountInput);
-        amountInputHBox.setMinWidth(WIDTH);
-        amountInputHBox.setMaxWidth(WIDTH);
-        amountInputHBox.setPadding(new Insets(0, PADDING, 0, PADDING));
+        HBox.setMargin(passiveAmount, new Insets(0, 0, 0, 20));
+        HBox passiveAmountAndToggle = new HBox(Spacer.fillHBox(), passiveAmount, Spacer.fillHBox(), inputModeToggle);
+        passiveAmountAndToggle.setPadding(new Insets(0, 10, 0, 10));
 
-        Pane amountInputHBoxPane = new Pane(layoutHelper, amountInputHBox);
-
-        minPassiveAmount.setAlignment(Pos.CENTER_RIGHT);
-        HBox passiveAmountAndToggle = new HBox(Spacer.fillHBox(), minPassiveAmount, maxPassiveAmount, Spacer.fillHBox(), inputModeToggle);
-        passiveAmountAndToggle.setPadding(new Insets(0, 10, 0, 0));
-        passiveAmountAndToggle.setAlignment(Pos.CENTER_RIGHT);
+        Pane amountInputHBoxPane = new Pane(layoutHelper, amountInput);
 
         VBox.setMargin(amountSlider, new Insets(32.5, 0, 0, 0));
         root.getChildren().addAll(amountInputHBoxPane, passiveAmountAndToggle, amountSlider);

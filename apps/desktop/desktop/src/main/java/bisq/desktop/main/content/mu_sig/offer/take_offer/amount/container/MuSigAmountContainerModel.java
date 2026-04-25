@@ -15,16 +15,17 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container;
 
-import bisq.common.util.MathUtils;
-import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants;
-import lombok.extern.slf4j.Slf4j;
+import bisq.desktop.common.view.Model;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+import lombok.Getter;
 
-@Slf4j
-public class MuSigAmountInputFontSizeHelper {
-    public static double computeFontSize(int length) {
-        length = MathUtils.bounded(9, 23, length);
-        return MuSigAmountLayoutConstants.EM_SIZE_BY_TEXT_LENGTH.get(length);
-    }
+@Getter
+public class MuSigAmountContainerModel implements Model {
+    private final StringProperty description = new SimpleStringProperty();
+    private final BooleanProperty isTextInputFocused = new SimpleBooleanProperty();
 }

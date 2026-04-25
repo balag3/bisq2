@@ -1,4 +1,4 @@
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount;/*
+/*
  * This file is part of Bisq.
  *
  * Bisq is free software: you can redistribute it and/or modify it
@@ -14,6 +14,8 @@ package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amo
  * You should have received a copy of the GNU Affero General Public License
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
+
+package bisq.desktop.main.content.mu_sig.offer.amount_components;
 
 import java.util.Map;
 

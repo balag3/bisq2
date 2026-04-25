@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.fix.slider;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.fix.slider;
 
 import bisq.desktop.common.view.View;
 import bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants;
@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static bisq.desktop.main.content.mu_sig.offer.amount_components.SliderTrackStyleHelper.getSliderTrackStyle;
+
 
 @Slf4j
 public class MuSigFixAmountSliderView extends View<VBox, MuSigFixAmountSliderModel, MuSigFixAmountSliderController> {

@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container;
+package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container;
 
 import bisq.desktop.common.Transitions;
 import bisq.desktop.common.view.View;
@@ -35,23 +35,22 @@ import java.util.Set;
 
 import static bisq.desktop.main.content.mu_sig.offer.amount_components.MuSigAmountLayoutConstants.WIDTH;
 
+
 @Slf4j
 public class MuSigAmountContainerView extends View<VBox, MuSigAmountContainerModel, MuSigAmountContainerController> {
     private static final int HEIGHT = 127;
 
     private final Label description;
-    private final VBox fixAmount, rangeAmount;
+    private final VBox fixAmount;
     private final Region selectionLine;
     private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigAmountContainerView(MuSigAmountContainerModel model,
                                     MuSigAmountContainerController controller,
                                     VBox fixAmount,
-                                    VBox rangeAmount,
                                     HBox amountLimits) {
         super(new VBox(10), model, controller);
         this.fixAmount = fixAmount;
-        this.rangeAmount = rangeAmount;
 
         root.setAlignment(Pos.TOP_CENTER);
 
@@ -73,7 +72,7 @@ public class MuSigAmountContainerView extends View<VBox, MuSigAmountContainerMod
         selectionLine.setLayoutY(HEIGHT - 2);
         selectionLine.setMouseTransparent(true);
 
-        Pane inputAndDisplayWithLine = new Pane(description, fixAmount, rangeAmount, greyLine, selectionLine);
+        Pane inputAndDisplayWithLine = new Pane(description, fixAmount, greyLine, selectionLine);
         inputAndDisplayWithLine.setMinWidth(WIDTH);
         inputAndDisplayWithLine.setMaxWidth(WIDTH);
         inputAndDisplayWithLine.setMinHeight(HEIGHT);
@@ -81,7 +80,6 @@ public class MuSigAmountContainerView extends View<VBox, MuSigAmountContainerMod
         inputAndDisplayWithLine.getStyleClass().add("amount-components");
 
         fixAmount.setLayoutY(27);
-        rangeAmount.setLayoutY(27);
 
         VBox.setMargin(amountLimits, new Insets(42.5, 0, 0, 0));
         root.getChildren().addAll(inputAndDisplayWithLine, amountLimits);
@@ -90,11 +88,6 @@ public class MuSigAmountContainerView extends View<VBox, MuSigAmountContainerMod
     @Override
     protected void onViewAttached() {
         description.textProperty().bind(model.getDescription());
-
-        fixAmount.visibleProperty().bind(model.getUseRangeAmount().not());
-        fixAmount.managedProperty().bind(model.getUseRangeAmount().not());
-        rangeAmount.visibleProperty().bind(model.getUseRangeAmount());
-        rangeAmount.managedProperty().bind(model.getUseRangeAmount());
 
         subscriptions.add(EasyBind.subscribe(model.getIsTextInputFocused(),
                 isFocused -> {
@@ -117,10 +110,5 @@ public class MuSigAmountContainerView extends View<VBox, MuSigAmountContainerMod
         subscriptions.clear();
 
         description.textProperty().unbind();
-
-        fixAmount.visibleProperty().unbind();
-        fixAmount.managedProperty().unbind();
-        rangeAmount.visibleProperty().unbind();
-        rangeAmount.managedProperty().unbind();
     }
 }

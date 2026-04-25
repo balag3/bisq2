@@ -34,6 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
@@ -54,6 +55,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 public class MuSigTakeOfferController extends NavigationController implements InitWithDataController<MuSigTakeOfferController.InitData> {
+    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+
     @Getter
     @EqualsAndHashCode
     @ToString
@@ -82,14 +85,19 @@ public class MuSigTakeOfferController extends NavigationController implements In
         super(NavigationTarget.MU_SIG_TAKE_OFFER);
 
         accountService = serviceProvider.getAccountService();
-        takeOfferDraftWorkflow = new TakeOfferDraftWorkflow();
         overlayController = OverlayController.getInstance();
+
+        takeOfferDraftWorkflow = new TakeOfferDraftWorkflow();
+             createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
+                serviceProvider.getBondedRolesService().getMarketPriceService(),
+                serviceProvider.getSettingsService(),
+                serviceProvider.getAccountService());
 
         model = new MuSigTakeOfferModel();
         view = new MuSigTakeOfferView(model, this);
 
         muSigTakeOfferAmountController = new MuSigTakeOfferAmountController(serviceProvider,
-                takeOfferDraftWorkflow,
+                createOfferDraftWorkflow,
                 this::setMainButtonsVisibleState);
         muSigTakeOfferPaymentController = new MuSigTakeOfferPaymentController(serviceProvider,
                 takeOfferDraftWorkflow,
@@ -108,8 +116,9 @@ public class MuSigTakeOfferController extends NavigationController implements In
     @Override
     public void initWithData(InitData initData) {
         MuSigOffer muSigOffer = initData.getMuSigOffer();
+        createOfferDraftWorkflow.initialize(muSigOffer.getMarket());
         takeOfferDraftWorkflow.initialize(muSigOffer);
-        muSigTakeOfferAmountController.init(muSigOffer);
+      //  muSigTakeOfferAmountController.init(muSigOffer);
         muSigTakeOfferPaymentController.init(muSigOffer);
         muSigTakeOfferReviewController.init(muSigOffer);
 
@@ -172,10 +181,10 @@ public class MuSigTakeOfferController extends NavigationController implements In
         model.getSelectedChildTarget().set(model.getChildTargets().get(0));
         model.getBackButtonText().set(Res.get("action.back"));
         model.getNextButtonVisible().set(true);
-        takersBaseSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersBaseSideAmount(),
+       /* takersBaseSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersBaseSideAmount(),
                 muSigTakeOfferReviewController::setTakersBaseSideAmount);
         takersQuoteSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersQuoteSideAmount(),
-                muSigTakeOfferReviewController::setTakersQuoteSideAmount);
+                muSigTakeOfferReviewController::setTakersQuoteSideAmount);*/
 
         selectedAccountPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getSelectedAccount(),
                 muSigTakeOfferReviewController::setTakersAccount);
@@ -183,7 +192,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
                 muSigTakeOfferReviewController::setTakersPaymentMethodSpec);
         paymentMethodSpecPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getPaymentMethodSpec(),
                 paymentMethodSpec -> {
-                    muSigTakeOfferAmountController.setTakersPaymentMethodSpec(paymentMethodSpec);
+                  //  muSigTakeOfferAmountController.setTakersPaymentMethodSpec(paymentMethodSpec);
                     muSigTakeOfferReviewController.setTakersPaymentMethodSpec(paymentMethodSpec);
 
                 });
@@ -194,10 +203,10 @@ public class MuSigTakeOfferController extends NavigationController implements In
         takeOfferDraftWorkflow.dispose();
         overlayController.setUseEscapeKeyHandler(true);
         overlayController.getApplicationRoot().removeEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
-        takersBaseSideAmountPin.unsubscribe();
+     /*   takersBaseSideAmountPin.unsubscribe();
         takersQuoteSideAmountPin.unsubscribe();
         selectedAccountPin.unsubscribe();
-        paymentMethodSpecPin.unsubscribe();
+        paymentMethodSpecPin.unsubscribe();*/
         reset();
     }
 
@@ -286,7 +295,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
 
     private void reset() {
         resetSelectedChildTarget();
-        muSigTakeOfferAmountController.reset();
+      //  muSigTakeOfferAmountController.reset();
         muSigTakeOfferPaymentController.reset();
         muSigTakeOfferReviewController.reset();
 
