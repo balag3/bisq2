@@ -34,7 +34,6 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
@@ -55,8 +54,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 public class MuSigTakeOfferController extends NavigationController implements InitWithDataController<MuSigTakeOfferController.InitData> {
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
-
     @Getter
     @EqualsAndHashCode
     @ToString
@@ -87,16 +84,14 @@ public class MuSigTakeOfferController extends NavigationController implements In
         accountService = serviceProvider.getAccountService();
         overlayController = OverlayController.getInstance();
 
-        takeOfferDraftWorkflow = new TakeOfferDraftWorkflow();
-        createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
-                serviceProvider.getBondedRolesService().getMarketPriceService(),
+        takeOfferDraftWorkflow = new TakeOfferDraftWorkflow(serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
 
         model = new MuSigTakeOfferModel();
         view = new MuSigTakeOfferView(model, this);
 
-        muSigTakeOfferAmountController = new MuSigTakeOfferAmountController(createOfferDraftWorkflow,
+        muSigTakeOfferAmountController = new MuSigTakeOfferAmountController(takeOfferDraftWorkflow,
                 this::setMainButtonsVisibleState);
         muSigTakeOfferPaymentController = new MuSigTakeOfferPaymentController(serviceProvider,
                 takeOfferDraftWorkflow,
@@ -115,9 +110,10 @@ public class MuSigTakeOfferController extends NavigationController implements In
     @Override
     public void initWithData(InitData initData) {
         MuSigOffer muSigOffer = initData.getMuSigOffer();
-        createOfferDraftWorkflow.initialize(muSigOffer.getMarket());
+
         takeOfferDraftWorkflow.initialize(muSigOffer);
-          muSigTakeOfferAmountController.init(muSigOffer);
+
+        muSigTakeOfferAmountController.init(muSigOffer);
         muSigTakeOfferPaymentController.init(muSigOffer);
         muSigTakeOfferReviewController.init(muSigOffer);
 

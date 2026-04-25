@@ -41,7 +41,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * deterministic order, recomputes derived constraints, and keeps draft amount fields/clamp state
  * consistent. The workflow remains a user-facing facade and persistence coordinator.
  */
-class CreateOfferDraftStateEngine {
+class TakeOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
     private final CreateOfferDraftMarketData marketData;
     private final TradeAmountConstraintsService tradeAmountConstraintsService;
@@ -54,13 +54,13 @@ class CreateOfferDraftStateEngine {
     // Construction
     /* --------------------------------------------------------------------- */
 
-    CreateOfferDraftStateEngine(CreateOfferDraft offerDraft,
-                                CreateOfferDraftMarketData marketData,
-                                TradeAmountConstraintsService tradeAmountConstraintsService,
-                                AmountMappingService amountMappingService,
-                                Supplier<PaymentRail> selectedPaymentRailSupplier,
-                                Runnable updatePaymentMethodsHandler,
-                                Fiat defaultTradeAmountInUsd) {
+    TakeOfferDraftStateEngine(CreateOfferDraft offerDraft,
+                              CreateOfferDraftMarketData marketData,
+                              TradeAmountConstraintsService tradeAmountConstraintsService,
+                              AmountMappingService amountMappingService,
+                              Supplier<PaymentRail> selectedPaymentRailSupplier,
+                              Runnable updatePaymentMethodsHandler,
+                              Fiat defaultTradeAmountInUsd) {
         this.offerDraft = checkNotNull(offerDraft, "offerDraft must not be null");
         this.marketData = checkNotNull(marketData, "marketData must not be null");
         this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");

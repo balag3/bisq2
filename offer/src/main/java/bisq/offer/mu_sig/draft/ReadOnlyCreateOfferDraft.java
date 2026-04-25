@@ -114,6 +114,4 @@ public abstract class ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
     public abstract ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable();
 
     public abstract ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod();
-
-
 }

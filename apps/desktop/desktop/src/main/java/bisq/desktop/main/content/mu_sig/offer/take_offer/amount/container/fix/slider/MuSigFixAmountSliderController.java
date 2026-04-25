@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -35,12 +35,12 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+    public MuSigFixAmountSliderController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
+        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -50,18 +50,17 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        createOfferDraftWorkflow.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        takeOfferDraftWorkflow.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
-
-        pins.add(createOfferDraftWorkflow.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(takeOfferDraftWorkflow.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getGetSliderValue())
-                .to(createOfferDraftWorkflow.fixAmountSliderValueObservable()));
+                .to(takeOfferDraftWorkflow.fixAmountSliderValueObservable()));
     }
 
     @Override
