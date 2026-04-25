@@ -47,8 +47,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(serviceProvider,
-                createOfferDraftWorkflow,
+        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferDraftWorkflow,
                 owner,
                 navigationButtonsVisibleHandler,
                 closeAndNavigateToHandler);

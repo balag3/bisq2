@@ -18,7 +18,6 @@
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.limits;
 
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.i18n.Res;
@@ -41,8 +40,7 @@ public class MuSigAmountLimitsController implements Controller {
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountLimitsController(ServiceProvider serviceProvider,
-                                       CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigAmountLimitsController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
 
         String minInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MIN_TRADE_AMOUNT_IN_USD));

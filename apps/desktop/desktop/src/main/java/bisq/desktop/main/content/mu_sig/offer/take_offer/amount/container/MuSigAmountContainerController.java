@@ -19,7 +19,6 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container;
 
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.fix.MuSigFixAmountController;
@@ -44,13 +43,12 @@ public class MuSigAmountContainerController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountContainerController(ServiceProvider serviceProvider,
-                                          CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigAmountContainerController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigAmountContainerModel();
 
-        muSigFixAmountController = new MuSigFixAmountController(serviceProvider, createOfferDraftWorkflow);
-        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(serviceProvider, createOfferDraftWorkflow);
+        muSigFixAmountController = new MuSigFixAmountController(createOfferDraftWorkflow);
+        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferDraftWorkflow);
 
         view = new MuSigAmountContainerView(model, this,
                 muSigFixAmountController.getView().getRoot(),

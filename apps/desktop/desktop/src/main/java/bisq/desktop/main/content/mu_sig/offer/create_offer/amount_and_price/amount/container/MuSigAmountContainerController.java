@@ -19,12 +19,11 @@ package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amo
 
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.fix.MuSigFixAmountController;
-import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.limits.MuSigAmountLimitsController;
+import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import lombok.Getter;
@@ -46,14 +45,13 @@ public class MuSigAmountContainerController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountContainerController(ServiceProvider serviceProvider,
-                                          CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigAmountContainerController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigAmountContainerModel();
 
-        muSigFixAmountController = new MuSigFixAmountController(serviceProvider, createOfferDraftWorkflow);
-        muSigRangeAmountController = new MuSigRangeAmountController(serviceProvider, createOfferDraftWorkflow);
-        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(serviceProvider, createOfferDraftWorkflow);
+        muSigFixAmountController = new MuSigFixAmountController(createOfferDraftWorkflow);
+        muSigRangeAmountController = new MuSigRangeAmountController(createOfferDraftWorkflow);
+        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferDraftWorkflow);
 
         view = new MuSigAmountContainerView(model, this,
                 muSigFixAmountController.getView().getRoot(),

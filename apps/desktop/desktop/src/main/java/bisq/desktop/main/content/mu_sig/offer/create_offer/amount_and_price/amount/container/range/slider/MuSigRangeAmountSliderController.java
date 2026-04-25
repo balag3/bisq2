@@ -18,7 +18,6 @@
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.slider;
 
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
@@ -40,8 +39,7 @@ public class MuSigRangeAmountSliderController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigRangeAmountSliderController(ServiceProvider serviceProvider,
-                                            CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigRangeAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigRangeAmountSliderModel();
         view = new MuSigRangeAmountSliderView(model, this);

@@ -20,7 +20,6 @@ package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amo
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
 import bisq.common.validation.NumberValidation;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.view.Controller;
 import bisq.presentation.formatters.AmountFormatter;
 import bisq.presentation.parser.AmountParser;
@@ -44,8 +43,7 @@ public class MuSigAmountTextInputController implements Controller {
     private final MuSigAmountTextInputView view;
     private final Set<Subscription> subscriptions = new HashSet<>();
 
-    public MuSigAmountTextInputController(ServiceProvider serviceProvider,
-                                          boolean isFixedAmount,
+    public MuSigAmountTextInputController(boolean isFixedAmount,
                                           boolean isLeftSideRangeAmount) {
         StringConverter<Monetary> stringConverter = new StringConverter<>() {
             @Override

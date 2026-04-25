@@ -19,7 +19,6 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount;
 
 import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.Browser;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.utils.KeyHandlerUtil;
@@ -51,14 +50,13 @@ public class MuSigTakeOfferAmountController implements Controller {
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigTakeOfferAmountController(ServiceProvider serviceProvider,
-                                          CreateOfferDraftWorkflow createOfferDraftWorkflow,
+    public MuSigTakeOfferAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow,
                                           Consumer<Boolean> navigationButtonsVisibleHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         model = new MuSigTakeOfferAmountModel();
 
-        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(serviceProvider, createOfferDraftWorkflow);
+        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferDraftWorkflow);
         view = new MuSigTakeOfferAmountView(model, this, muSigAmountComponentsController.getView().getRoot());
     }
 

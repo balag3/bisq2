@@ -20,12 +20,11 @@ package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amo
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.slider.MuSigRangeAmountSliderController;
-import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.passive.MuSigPassiveAmountController;
+import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.components.text_input.MuSigAmountTextInputController;
+import bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.range.slider.MuSigRangeAmountSliderController;
 import bisq.offer.mu_sig.draft.CreateOfferDraftWorkflow;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
@@ -49,16 +48,15 @@ public class MuSigRangeAmountController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigRangeAmountController(ServiceProvider serviceProvider,
-                                      CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigRangeAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigRangeAmountModel();
 
-        minAmountInputController = new MuSigAmountTextInputController(serviceProvider, false, true);
-        maxAmountInputController = new MuSigAmountTextInputController(serviceProvider, false, false);
-        minPassiveAmountController = new MuSigPassiveAmountController(serviceProvider, true);
-        maxPassiveAmountController = new MuSigPassiveAmountController(serviceProvider, false);
-        MuSigRangeAmountSliderController amountSliderController = new MuSigRangeAmountSliderController(serviceProvider, createOfferDraftWorkflow);
+        minAmountInputController = new MuSigAmountTextInputController(false, true);
+        maxAmountInputController = new MuSigAmountTextInputController(false, false);
+        minPassiveAmountController = new MuSigPassiveAmountController(true);
+        maxPassiveAmountController = new MuSigPassiveAmountController(false);
+        MuSigRangeAmountSliderController amountSliderController = new MuSigRangeAmountSliderController(createOfferDraftWorkflow);
 
         view = new MuSigRangeAmountView(model, this,
                 minAmountInputController.getView().getRoot(),

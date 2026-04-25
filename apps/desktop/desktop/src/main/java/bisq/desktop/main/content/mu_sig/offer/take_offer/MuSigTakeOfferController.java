@@ -88,7 +88,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         overlayController = OverlayController.getInstance();
 
         takeOfferDraftWorkflow = new TakeOfferDraftWorkflow();
-             createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
+        createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
@@ -96,8 +96,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         model = new MuSigTakeOfferModel();
         view = new MuSigTakeOfferView(model, this);
 
-        muSigTakeOfferAmountController = new MuSigTakeOfferAmountController(serviceProvider,
-                createOfferDraftWorkflow,
+        muSigTakeOfferAmountController = new MuSigTakeOfferAmountController(createOfferDraftWorkflow,
                 this::setMainButtonsVisibleState);
         muSigTakeOfferPaymentController = new MuSigTakeOfferPaymentController(serviceProvider,
                 takeOfferDraftWorkflow,
@@ -118,7 +117,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         MuSigOffer muSigOffer = initData.getMuSigOffer();
         createOfferDraftWorkflow.initialize(muSigOffer.getMarket());
         takeOfferDraftWorkflow.initialize(muSigOffer);
-      //  muSigTakeOfferAmountController.init(muSigOffer);
+        //  muSigTakeOfferAmountController.init(muSigOffer);
         muSigTakeOfferPaymentController.init(muSigOffer);
         muSigTakeOfferReviewController.init(muSigOffer);
 
@@ -192,7 +191,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
                 muSigTakeOfferReviewController::setTakersPaymentMethodSpec);
         paymentMethodSpecPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getPaymentMethodSpec(),
                 paymentMethodSpec -> {
-                  //  muSigTakeOfferAmountController.setTakersPaymentMethodSpec(paymentMethodSpec);
+                    //  muSigTakeOfferAmountController.setTakersPaymentMethodSpec(paymentMethodSpec);
                     muSigTakeOfferReviewController.setTakersPaymentMethodSpec(paymentMethodSpec);
 
                 });
@@ -295,7 +294,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
 
     private void reset() {
         resetSelectedChildTarget();
-      //  muSigTakeOfferAmountController.reset();
+        //  muSigTakeOfferAmountController.reset();
         muSigTakeOfferPaymentController.reset();
         muSigTakeOfferReviewController.reset();
 

@@ -20,7 +20,6 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.fix;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.components.passive.MuSigPassiveAmountController;
@@ -47,14 +46,13 @@ public class MuSigFixAmountController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountController(ServiceProvider serviceProvider,
-                                    CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigFixAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigFixAmountModel();
 
-        amountTextInputController = new MuSigAmountTextInputController(serviceProvider, true, false);
-        passiveAmountController = new MuSigPassiveAmountController(serviceProvider, false);
-        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(serviceProvider, createOfferDraftWorkflow);
+        amountTextInputController = new MuSigAmountTextInputController(true, false);
+        passiveAmountController = new MuSigPassiveAmountController(false);
+        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(createOfferDraftWorkflow);
 
         view = new MuSigFixAmountView(model, this,
                 amountTextInputController.getView().getRoot(),

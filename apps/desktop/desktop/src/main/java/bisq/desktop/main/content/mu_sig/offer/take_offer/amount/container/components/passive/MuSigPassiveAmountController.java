@@ -20,7 +20,6 @@ package bisq.desktop.main.content.mu_sig.offer.take_offer.amount.container.compo
 import bisq.common.asset.Asset;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
-import bisq.desktop.ServiceProvider;
 import bisq.i18n.Res;
 import bisq.presentation.formatters.AmountFormatter;
 import lombok.Getter;
@@ -36,8 +35,7 @@ public class MuSigPassiveAmountController implements bisq.desktop.common.view.Co
     private final MuSigPassiveAmountView view;
     private final Set<Subscription> subscriptions = new HashSet<>();
 
-    public MuSigPassiveAmountController(ServiceProvider serviceProvider,
-                                        boolean isLeftSideRangeAmount) {
+    public MuSigPassiveAmountController(boolean isLeftSideRangeAmount) {
         model = new MuSigPassiveAmountModel(isLeftSideRangeAmount);
         view = new MuSigPassiveAmountView(model, this);
     }

@@ -18,7 +18,6 @@
 package bisq.desktop.main.content.mu_sig.offer.create_offer.amount_and_price.amount.container.fix.slider;
 
 import bisq.common.observable.Pin;
-import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
@@ -40,8 +39,7 @@ public class MuSigFixAmountSliderController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(ServiceProvider serviceProvider,
-                                          CreateOfferDraftWorkflow createOfferDraftWorkflow) {
+    public MuSigFixAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
