@@ -29,10 +29,8 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
-import bisq.common.observable.Pin;
 import bisq.common.util.StringUtils;
 import bisq.desktop.ServiceProvider;
-import bisq.desktop.common.threading.UIScheduler;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.utils.KeyHandlerUtil;
 import bisq.desktop.common.view.Controller;
@@ -66,15 +64,12 @@ import com.google.common.base.Joiner;
 import javafx.scene.input.KeyEvent;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.fxmisc.easybind.Subscription;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -90,10 +85,6 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MarketPriceService marketPriceService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
     private final MuSigService muSigService;
-    private Pin errorMessagePin, peersErrorMessagePin;
-    private UIScheduler timeoutScheduler;
-    private final Set<Subscription> subscriptions = new HashSet<>();
-    private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -113,15 +104,8 @@ public class MuSigCreateOfferReviewController implements Controller {
         view = new MuSigCreateOfferReviewView(model, this, muSigReviewDataDisplay.getRoot());
     }
 
-    public void setPaymentMethods(List<PaymentMethod<?>> paymentMethods) {
-        if (paymentMethods != null) {
-            resetSelectedPaymentMethod();
-            model.setPaymentMethods(paymentMethods);
-        }
-    }
-
-    public void setDataForCreateOffer(AmountSpec amountSpec,
-                                      PriceSpec priceSpec) {
+    public void prepareForCreateOffer(PriceSpec priceSpec) {
+        AmountSpec amountSpec = createOfferDraftWorkflow.getAmountSpec();
         Direction direction = createOfferDraftWorkflow.getDirection();
         Market market = createOfferDraftWorkflow.getMarket();
         List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
@@ -185,6 +169,15 @@ public class MuSigCreateOfferReviewController implements Controller {
                 paymentMethods,
                 offerOptions);
         model.setOffer(offer);
+
+        Direction displayDirection = offer.getDisplayDirection();
+        if (displayDirection.isSell()) {
+            model.setFee(Res.get("muSig.offer.create.review.sellerPaysMinerFee"));
+            model.setFeeDetails(Res.get("muSig.offer.create.review.noTradeFeesLong"));
+        } else {
+            model.setFee(Res.get("muSig.offer.create.review.noTradeFees"));
+            model.setFeeDetails(Res.get("muSig.offer.create.review.sellerPaysMinerFeeLong"));
+        }
     }
 
     public void publishOffer() {
@@ -351,32 +344,10 @@ public class MuSigCreateOfferReviewController implements Controller {
     @Override
     public void onActivate() {
         model.getShowCreateOfferSuccess().set(false);
-
-        Direction displayDirection = model.getOffer().getDisplayDirection();
-        if (displayDirection.isSell()) {
-            model.setFee(Res.get("muSig.offer.create.review.sellerPaysMinerFee"));
-            model.setFeeDetails(Res.get("muSig.offer.create.review.noTradeFeesLong"));
-        } else {
-            model.setFee(Res.get("muSig.offer.create.review.noTradeFees"));
-            model.setFeeDetails(Res.get("muSig.offer.create.review.sellerPaysMinerFeeLong"));
-        }
     }
 
     @Override
     public void onDeactivate() {
-        subscriptions.forEach(Subscription::unsubscribe);
-        subscriptions.clear();
-        pins.forEach(Pin::unbind);
-        pins.clear();
-        if (errorMessagePin != null) {
-            errorMessagePin.unbind();
-        }
-        if (peersErrorMessagePin != null) {
-            peersErrorMessagePin.unbind();
-        }
-        if (timeoutScheduler != null) {
-            timeoutScheduler.stop();
-        }
     }
 
     void onShowOfferbook() {
@@ -387,10 +358,6 @@ public class MuSigCreateOfferReviewController implements Controller {
         KeyHandlerUtil.handleEnterKeyEvent(keyEvent, this::onShowOfferbook);
         KeyHandlerUtil.handleEscapeKeyEvent(keyEvent, () -> {
         });
-    }
-
-    private void resetSelectedPaymentMethod() {
-        model.setTakersSelectedPaymentMethod(null);
     }
 
     private void applyHeaderPaymentMethod() {

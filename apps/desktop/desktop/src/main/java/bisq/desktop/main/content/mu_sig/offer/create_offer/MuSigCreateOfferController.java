@@ -17,9 +17,6 @@
 
 package bisq.desktop.main.content.mu_sig.offer.create_offer;
 
-import bisq.account.AccountService;
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
 import bisq.desktop.ServiceProvider;
@@ -43,12 +40,10 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
-import org.fxmisc.easybind.Subscription;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -73,21 +68,17 @@ public class MuSigCreateOfferController extends NavigationController implements 
     private final MuSigCreateOfferModel model;
     @Getter
     private final MuSigCreateOfferView view;
-    private final AccountService accountService;
     private final MuSigCreateOfferDirectionAndMarketController muSigCreateOfferDirectionAndMarketController;
     private final MuSigCreateOfferPaymentController muSigCreateOfferPaymentController;
     private final MuSigCreateOfferAmountAndPriceController muSigCreateOfferAmountAndPriceController;
     private final MuSigCreateOfferReviewController muSigCreateOfferReviewController;
     private final EventHandler<KeyEvent> onKeyPressedHandler = this::onKeyPressed;
-    private Pin selectedAccountByPaymentMethodPin;
-    private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferController(ServiceProvider serviceProvider) {
         super(NavigationTarget.MU_SIG_CREATE_OFFER);
 
         this.serviceProvider = serviceProvider;
-        accountService = serviceProvider.getAccountService();
         createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
@@ -95,7 +86,12 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         overlayController = OverlayController.getInstance();
 
-        model = new MuSigCreateOfferModel();
+        List<NavigationTarget> targets = new ArrayList<>(List.of(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET));
+        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_PAYMENT_METHODS);
+        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_AMOUNT_AND_PRICE);
+        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_REVIEW_OFFER);
+
+        model = new MuSigCreateOfferModel(targets);
         view = new MuSigCreateOfferView(model, this);
 
         muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferDraftWorkflow, this::onNext);
@@ -119,11 +115,6 @@ public class MuSigCreateOfferController extends NavigationController implements 
         Market market = data.getMarket();
 
         createOfferDraftWorkflow.initialize(market);
-
-        boolean isBaseCurrencyBitcoin = market.isBaseCurrencyBitcoin();
-        model.setPaymentMethodProgressLabel(isBaseCurrencyBitcoin
-                ? Res.get("muSig.offer.wizard.progress.account.fiat")
-                : Res.get("muSig.offer.wizard.progress.account.crypto"));
     }
 
     @Override
@@ -134,50 +125,30 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getNextButtonDisabled().set(false);
 
-        updateChildTargets();
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
         pins.add(createOfferDraftWorkflow.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
-                handlePaymentMethodsUpdate();
-                updateChildTargets();
+                updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();
             });
         }));
-
-
-        handlePaymentMethodsUpdate();
-        selectedAccountByPaymentMethodPin = createOfferDraftWorkflow.selectedAccountByPaymentMethodObservable().addObserver(() ->
-                UIThread.run(this::handlePaymentMethodsUpdate));
     }
 
     @Override
     public void onDeactivate() {
         createOfferDraftWorkflow.dispose();
-        subscriptions.forEach(Subscription::unsubscribe);
-        subscriptions.clear();
         pins.forEach(Pin::unbind);
         pins.clear();
         overlayController.setUseEscapeKeyHandler(true);
         overlayController.getApplicationRoot().removeEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
-
-        selectedAccountByPaymentMethodPin.unbind();
         reset();
-    }
-
-    private void updateChildTargets() {
-        List<NavigationTarget> targets = new ArrayList<>(List.of(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET));
-        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_PAYMENT_METHODS);
-        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_AMOUNT_AND_PRICE);
-        targets.add(NavigationTarget.MU_SIG_CREATE_OFFER_REVIEW_OFFER);
-        model.getChildTargets().setAll(targets);
     }
 
     @Override
     protected void onStartProcessNavigationTarget(NavigationTarget navigationTarget, Optional<Object> data) {
         if (navigationTarget == NavigationTarget.MU_SIG_CREATE_OFFER_REVIEW_OFFER) {
-            muSigCreateOfferReviewController.setDataForCreateOffer(
-                    createOfferDraftWorkflow.getAmountSpec(),
+            muSigCreateOfferReviewController.prepareForCreateOffer(
                     muSigCreateOfferAmountAndPriceController.getPriceSpec().get()
             );
             model.getNextButtonText().set(Res.get("muSig.offer.create.review.nextButton.createOffer"));
@@ -298,9 +269,10 @@ public class MuSigCreateOfferController extends NavigationController implements 
         model.getCloseButtonVisible().set(value);
     }
 
-    private void handlePaymentMethodsUpdate() {
-        Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = createOfferDraftWorkflow.getSelectedAccountByPaymentMethod();
-        List<PaymentMethod<?>> paymentMethods = new ArrayList<>(selectedAccountByPaymentMethod.keySet());
-        muSigCreateOfferReviewController.setPaymentMethods(paymentMethods);
+    private void updatePaymentMethodProgressLabel(Market market) {
+        boolean isBaseCurrencyBitcoin = market != null && market.isBaseCurrencyBitcoin();
+        model.setPaymentMethodProgressLabel(isBaseCurrencyBitcoin
+                ? Res.get("muSig.offer.wizard.progress.account.fiat")
+                : Res.get("muSig.offer.wizard.progress.account.crypto"));
     }
 }

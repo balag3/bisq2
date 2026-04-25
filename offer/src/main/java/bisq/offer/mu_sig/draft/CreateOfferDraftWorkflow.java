@@ -38,6 +38,10 @@ import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftMarketData;
+import bisq.offer.price.spec.FixPriceSpec;
+import bisq.offer.price.spec.FloatPriceSpec;
+import bisq.offer.price.spec.MarketPriceSpec;
+import bisq.offer.price.spec.PriceSpec;
 import bisq.settings.SettingsService;
 import com.google.common.collect.ImmutableMap;
 import lombok.experimental.Delegate;
@@ -141,8 +145,19 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         Direction direction = cookieStore.getDirection();
         boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
         boolean useRangeAmount = cookieStore.getUseRangeAmount();
+        boolean useFixPrice = cookieStore.getUseFixPrice(market);
+        double pricePercentage = cookieStore.getPricePercentage(market);
+        Optional<PriceQuote> fixPrice = cookieStore.getFixPrice(market);
 
-        stateEngine.initialize(market, direction, useBaseCurrencyForAmountInput, useRangeAmount);
+        stateEngine.initialize(market,
+                direction,
+                useBaseCurrencyForAmountInput,
+                useRangeAmount,
+                useFixPrice,
+                pricePercentage,
+                fixPrice);
+        offerDraft.setUseFixPrice(useFixPrice);
+        offerDraft.setPricePercentage(pricePercentage);
     }
 
 
@@ -232,6 +247,34 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         }
         stateEngine.applyPriceQuoteChanged(priceQuote);
     }
+
+    public void setUseFixPrice(boolean useFixPrice) {
+        if (useFixPrice == getUseFixPrice()) {
+            return;
+        }
+        Market market = getMarket();
+        if (market != null) {
+            cookieStore.persistUseFixPrice(market, useFixPrice);
+        }
+        stateEngine.applyUseFixPriceChanged(useFixPrice);
+    }
+
+   /* public void setPricePercentage(double pricePercentage) {
+        if (Double.compare(pricePercentage, getPricePercentage()) == 0) {
+            return;
+        }
+        offerDraft.setPricePercentage(pricePercentage);
+        cookieStore.persistPricePercentage(pricePercentage);
+    }
+
+    public void setUseFixPrice(PriceQuote fixPriceQuote) {
+        checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");
+        if (getPriceQuote().equals(fixPriceQuote)) {
+            return;
+        }
+        offerDraft.setUseFixPrice(fixPriceQuote);
+        cookieStore.persistPricePercentage(fixPriceQuote);
+    }*/
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {
         if (value == getUseBaseCurrencyForAmountInput()) {
@@ -358,6 +401,17 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                 getMinTradeAmount(),
                 getMaxTradeAmount(),
                 getFixTradeAmount());
+    }
+
+    public PriceSpec getPriceSpec() {
+        if (getUseFixPrice()) {
+            return new FixPriceSpec(checkNotNull(getPriceQuote(), "priceQuote must not be null"));
+        }
+        double pricePercentage = getPricePercentage();
+        if (pricePercentage == 0d) {
+            return new MarketPriceSpec();
+        }
+        return new FloatPriceSpec(pricePercentage);
     }
 
 

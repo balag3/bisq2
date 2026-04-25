@@ -77,21 +77,26 @@ class CreateOfferDraftStateEngine {
     void initialize(Market market,
                     Direction direction,
                     boolean useBaseCurrencyForAmountInput,
-                    boolean useRangeAmount) {
+                    boolean useRangeAmount,
+                    boolean useFixPrice,
+                    double pricePercentage,
+                    Optional<PriceQuote> fixPrice) {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
 
         PriceQuote marketPriceQuote = marketData.getMarketPriceQuote(market);
+        PriceQuote priceQuote = fixPrice.orElse(marketPriceQuote);
 
         offerDraft.setMarket(market);
         offerDraft.setDirection(direction);
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
         offerDraft.setUseRangeAmount(useRangeAmount);
-        offerDraft.setPriceQuote(marketPriceQuote);
+        offerDraft.setUseFixPrice(useFixPrice);
+        offerDraft.setPricePercentage(pricePercentage);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
-                marketPriceQuote,
+                priceQuote,
                 marketPriceQuote,
                 getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
@@ -157,12 +162,28 @@ class CreateOfferDraftStateEngine {
         return true;
     }
 
+    void applyUseFixPriceChanged(boolean useFixPrice) {
+        offerDraft.setUseFixPrice(useFixPrice);
+
+        PriceQuote priceQuote = offerDraft.getPriceQuote();
+        if (priceQuote != null) {
+            if (useFixPrice) {
+               // offerDraft.setFixPrice(priceQuote);
+            } else {
+                // todo
+                offerDraft.setPricePercentage(0L);
+            }
+        }
+    }
+
     void applyPriceQuoteChanged(PriceQuote priceQuote) {
         checkNotNull(priceQuote, "priceQuote must not be null");
         offerDraft.setPriceQuote(priceQuote);
         if (!hasPricingContext()) {
             return;
         }
+
+        applyUseFixPriceChanged(offerDraft.getUseFixPrice());
 
         Market market = offerDraft.getMarket();
         Direction direction = offerDraft.getDirection();

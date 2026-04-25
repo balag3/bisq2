@@ -92,7 +92,6 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
             model.getTradePairImage().set(marketIcons);
 
             model.getSelectedMarketTypeListItem().set(new MarketTypeListItem(MarketType.from(market)));
-            model.getSelectedMarketListItem().set(findMarketListItem(market).orElse(null));
         })));
 
         subscriptions.add(EasyBind.subscribe(model.getSelectedMarketTypeListItem(), selectedMarketTypeListItem -> {
@@ -113,11 +112,14 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                         // We do not update num offers dynamically as the selection drop down is not expected to
                         // stay open long
                         long numOffersInMarket = muSigOfferbookService.getOffersForMarket(market).size();
-                        return new MarketListItem(market, numOffersInMarket);
+                        MarketListItem item = new MarketListItem(market, numOffersInMarket);
+                        if (market.equals(selectedMarket)) {
+                            model.getSelectedMarketListItem().set(item);
+                        }
+                        return item;
                     })
                     .collect(Collectors.toList());
             model.getMarketListItems().setAll(items);
-            model.getSelectedMarketListItem().set(findMarketListItem(selectedMarket).orElse(null));
         }));
 
         subscriptions.add(EasyBind.subscribe(model.getPaymentCurrencySearchText(), searchText -> {

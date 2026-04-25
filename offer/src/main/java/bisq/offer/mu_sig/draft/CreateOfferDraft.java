@@ -42,6 +42,9 @@ public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
     protected final Observable<Direction> direction = new Observable<>();
 
     private final Observable<PriceQuote> priceQuote = new Observable<>();
+    private final Observable<Boolean> useFixPrice = new Observable<>(false);
+    private final Observable<Double> pricePercentage = new Observable<>(0d);
+    private final Observable<PriceQuote> fixPrice = new Observable<>();
 
     private final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
     private final Observable<Boolean> useRangeAmount = new Observable<>(false);
@@ -118,6 +121,42 @@ public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
     @Override
     public PriceQuote getPriceQuote() {
         return priceQuote.get();
+    }
+
+    /* --------------------------------------------------------------------- */
+    // useFixPrice
+    /* --------------------------------------------------------------------- */
+
+    void setUseFixPrice(boolean useFixPrice) {
+        this.useFixPrice.set(useFixPrice);
+    }
+
+    @Override
+    public ReadOnlyObservable<Boolean> useFixPriceObservable() {
+        return useFixPrice;
+    }
+
+    @Override
+    public boolean getUseFixPrice() {
+        return useFixPrice.get();
+    }
+
+    /* --------------------------------------------------------------------- */
+    // pricePercentage
+    /* --------------------------------------------------------------------- */
+
+    void setPricePercentage(double pricePercentage) {
+        this.pricePercentage.set(pricePercentage);
+    }
+
+    @Override
+    public ReadOnlyObservable<Double> pricePercentageObservable() {
+        return pricePercentage;
+    }
+
+    @Override
+    public double getPricePercentage() {
+        return pricePercentage.get();
     }
 
 

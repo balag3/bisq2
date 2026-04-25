@@ -44,6 +44,16 @@ public abstract class ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
     public abstract PriceQuote getPriceQuote();
 
 
+    public abstract ReadOnlyObservable<Boolean> useFixPriceObservable();
+
+    public abstract boolean getUseFixPrice();
+
+
+    public abstract ReadOnlyObservable<Double> pricePercentageObservable();
+
+    public abstract double getPricePercentage();
+
+
     public abstract ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable();
 
     public abstract boolean getUseBaseCurrencyForAmountInput();
