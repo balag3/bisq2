@@ -27,10 +27,10 @@ import bisq.common.monetary.TradeAmount;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class DefaultCreateOfferDraftMarketData implements CreateOfferDraftMarketData {
+public class DefaultOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
     private final MarketPriceService marketPriceService;
 
-    public DefaultCreateOfferDraftMarketData(MarketPriceService marketPriceService) {
+    public DefaultOfferDraftMarketPriceService(MarketPriceService marketPriceService) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
     }
 

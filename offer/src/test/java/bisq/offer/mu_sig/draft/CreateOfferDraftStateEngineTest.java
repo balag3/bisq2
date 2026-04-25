@@ -9,7 +9,7 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountConversion;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +29,7 @@ public class CreateOfferDraftStateEngineTest {
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
     private CreateOfferDraft offerDraft;
-    private FakeMarketData marketData;
+    private FakeOfferDraftMarketPriceService marketData;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
     private AtomicReference<PaymentRail> selectedPaymentRail;
@@ -43,7 +43,7 @@ public class CreateOfferDraftStateEngineTest {
                 Fiat.fromFaceValue(500, "USD"));
 
         offerDraft = new CreateOfferDraft();
-        marketData = new FakeMarketData(usdBtcPriceQuote);
+        marketData = new FakeOfferDraftMarketPriceService(usdBtcPriceQuote);
         marketData.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
         paymentMethodUpdateCalls = new AtomicInteger();
@@ -118,12 +118,12 @@ public class CreateOfferDraftStateEngineTest {
         assertEquals(Fiat.fromFaceValue(5000, "USD"), offerDraft.getFixTradeAmount().getQuoteSideAmount());
     }
 
-    private static class FakeMarketData implements CreateOfferDraftMarketData {
+    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
         private final Map<Market, PriceQuote> priceQuoteByMarket = new HashMap<>();
         private final Map<Market, TradeAmount> defaultTradeAmountByMarket = new HashMap<>();
         private final PriceQuote btcUsdPriceQuote;
 
-        private FakeMarketData(PriceQuote btcUsdPriceQuote) {
+        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 

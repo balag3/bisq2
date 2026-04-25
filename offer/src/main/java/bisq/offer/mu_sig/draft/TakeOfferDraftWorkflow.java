@@ -34,11 +34,11 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
-import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.DefaultOfferDraftMarketPriceService;
+import bisq.offer.mu_sig.draft.dependencies.DefaultTakeOfferDraftCookieStore;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
+import bisq.offer.mu_sig.draft.dependencies.TakeOfferDraftCookieStore;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
 import bisq.offer.price.spec.MarketPriceSpec;
@@ -62,15 +62,15 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * and isolated domain services.
  */
 @Slf4j
-public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft> {
+public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
 
-    private final CreateOfferDraftCookieStore cookieStore;
+    private final TakeOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
     private final PaymentMethodSelectionService paymentMethodSelectionService;
-    private final CreateOfferDraftStateEngine stateEngine;
+    private final TakeOfferDraftStateEngine stateEngine;
     @Delegate
-    protected CreateOfferDraft createOfferDraft;
+    protected TakeOfferDraft takeOfferDraft;
 
     public enum PaymentMethodSelectionStatus {
         NO_ACCOUNT_AVAILABLE,
@@ -107,27 +107,27 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft>
     public TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
                                   SettingsService settingsService,
                                   AccountService accountService) {
-        this(new DefaultCreateOfferDraftMarketData(marketPriceService),
-                new DefaultCreateOfferDraftCookieStore(settingsService),
+        this(new DefaultOfferDraftMarketPriceService(marketPriceService),
+                new DefaultTakeOfferDraftCookieStore(settingsService),
                 new DefaultAccountsProvider(accountService));
     }
 
-    TakeOfferDraftWorkflow(CreateOfferDraftMarketData marketData,
-                           CreateOfferDraftCookieStore cookieStore,
+    TakeOfferDraftWorkflow(OfferDraftMarketPriceService marketPriceProvider,
+                           TakeOfferDraftCookieStore cookieStore,
                            AccountsProvider accountsProvider) {
-        super(new CreateOfferDraft());
+        super(new TakeOfferDraft());
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
 
         amountMappingService = new AmountMappingService();
-        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketData,
-                "marketData must not be null"));
+        TradeAmountConstraintsService tradeAmountConstraintsService = new TradeAmountConstraintsService(checkNotNull(marketPriceProvider,
+                "marketPriceProvider must not be null"));
         paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
-        createOfferDraft = offerDraft;
-        stateEngine = new CreateOfferDraftStateEngine(createOfferDraft,
-                marketData,
+        takeOfferDraft = offerDraft;
+        stateEngine = new TakeOfferDraftStateEngine(takeOfferDraft,
+                marketPriceProvider,
                 tradeAmountConstraintsService,
                 amountMappingService,
                 this::getSelectedPaymentRail,
@@ -143,6 +143,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft>
     public void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
+        offerDraft.setOffer(muSigOffer);
         Market market = muSigOffer.getMarket();
 
         Direction direction = cookieStore.getDirection();
@@ -337,7 +338,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft>
     public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
         checkNotNull(paymentMethod, "paymentMethod must not be null");
         checkNotNull(account, "account must not be null");
-        createOfferDraft.putAccountsByPaymentMethod(paymentMethod, account);
+        takeOfferDraft.putAccountsByPaymentMethod(paymentMethod, account);
     }
 
     public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
@@ -467,7 +468,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft>
         if (account.equals(existing)) {
             return false;
         }
-        createOfferDraft.putSelectedAccountByPaymentMethod(paymentMethod, account);
+        takeOfferDraft.putSelectedAccountByPaymentMethod(paymentMethod, account);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }

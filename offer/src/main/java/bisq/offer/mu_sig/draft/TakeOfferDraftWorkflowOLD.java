@@ -22,10 +22,10 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.DefaultOfferDraftMarketPriceService;
 import bisq.settings.SettingsService;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
@@ -44,12 +44,12 @@ public class TakeOfferDraftWorkflowOLD extends OfferDraftWorkflow<TakeOfferDraft
     public TakeOfferDraftWorkflowOLD(MarketPriceService marketPriceService,
                                      SettingsService settingsService,
                                      AccountService accountService) {
-        this(new DefaultCreateOfferDraftMarketData(marketPriceService),
+        this(new DefaultOfferDraftMarketPriceService(marketPriceService),
                 new DefaultCreateOfferDraftCookieStore(settingsService),
                 new DefaultAccountsProvider(accountService));
     }
 
-    TakeOfferDraftWorkflowOLD(CreateOfferDraftMarketData marketData,
+    TakeOfferDraftWorkflowOLD(OfferDraftMarketPriceService marketData,
                               CreateOfferDraftCookieStore cookieStore,
                               AccountsProvider accountsProvider) {
         super(new TakeOfferDraft());

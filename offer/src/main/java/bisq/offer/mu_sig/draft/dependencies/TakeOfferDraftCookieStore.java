@@ -18,14 +18,33 @@
 package bisq.offer.mu_sig.draft.dependencies;
 
 import bisq.common.market.Market;
-import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
-import bisq.common.monetary.TradeAmount;
+import bisq.offer.Direction;
 
-public interface CreateOfferDraftMarketData {
-    PriceQuote getMarketPriceQuote(Market market);
+import java.util.Optional;
 
-    PriceQuote getBtcUsdPriceQuote();
+public interface TakeOfferDraftCookieStore {
+    void persistDirection(Direction direction);
 
-    TradeAmount getTradeAmountFromUsd(Market market, Fiat usdAmount);
+    Direction getDirection();
+
+    boolean getUseBaseCurrencyForAmountInput(Market market);
+
+    void persistUseBaseCurrencyForAmountInput(Market market, boolean useBaseCurrencyForAmountInput);
+
+    boolean getUseRangeAmount();
+
+    void persistUseRangeAmount(boolean useRangeAmount);
+
+    boolean getUseFixPrice(Market market);
+
+    void persistUseFixPrice(Market market, boolean useFixPrice);
+
+    double getPricePercentage(Market market);
+
+    void persistPricePercentage(Market market,double pricePercentage);
+
+    Optional<PriceQuote> getFixPrice(Market market);
+
+    void persistFixPrice(Market market, PriceQuote fixPrice);
 }

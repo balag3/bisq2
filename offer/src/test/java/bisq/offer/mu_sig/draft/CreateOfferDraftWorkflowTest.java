@@ -16,7 +16,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +42,7 @@ public class CreateOfferDraftWorkflowTest {
     private TradeAmount defaultMarketDefaultTradeAmount;
     private TradeAmount usdBtcDefaultTradeAmount;
     private TradeAmount xmrBtcDefaultTradeAmount;
-    private FakeMarketData marketData;
+    private FakeOfferDraftMarketPriceService marketData;
     private FakeCookieStore cookieStore;
     private FakeAccountsProvider accountsProvider;
     private CreateOfferDraftWorkflow workflow;
@@ -67,7 +67,7 @@ public class CreateOfferDraftWorkflowTest {
                 xmrBtcPriceQuote,
                 Coin.asBtcFromFaceValue(0.01));
 
-        marketData = new FakeMarketData(usdBtcPriceQuote);
+        marketData = new FakeOfferDraftMarketPriceService(usdBtcPriceQuote);
         marketData.put(defaultMarket, defaultMarketPriceQuote, defaultMarketDefaultTradeAmount);
         marketData.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
         marketData.put(xmrBtcMarket, xmrBtcPriceQuote, xmrBtcDefaultTradeAmount);
@@ -469,13 +469,13 @@ public class CreateOfferDraftWorkflowTest {
         assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
     }
 
-    private static class FakeMarketData implements CreateOfferDraftMarketData {
+    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
         private final Map<Market, PriceQuote> priceQuoteByMarket = new HashMap<>();
         private final Map<Market, TradeAmount> defaultTradeAmountByMarket = new HashMap<>();
         private final PriceQuote btcUsdPriceQuote;
         private int btcUsdPriceQuoteRequests;
 
-        private FakeMarketData(PriceQuote btcUsdPriceQuote) {
+        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 

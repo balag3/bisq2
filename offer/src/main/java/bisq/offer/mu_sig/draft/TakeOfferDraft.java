@@ -77,7 +77,7 @@ public class TakeOfferDraft extends ReadOnlyTakeOfferDraft {
         return offer;
     }
 
-   /* @Override
+    @Override
     public Market getMarket() {
         return offer.getMarket();
     }
@@ -85,46 +85,8 @@ public class TakeOfferDraft extends ReadOnlyTakeOfferDraft {
     @Override
     public Direction getDirection() {
         return offer.getDirection();
-    }*/
-
-
-
-    /* --------------------------------------------------------------------- */
-    // Market
-    /* --------------------------------------------------------------------- */
-
-    void setMarket(Market market) {
-        this.market.set(market);
     }
 
-    @Override
-    public ReadOnlyObservable<Market> marketObservable() {
-        return market;
-    }
-
-    @Override
-    public Market getMarket() {
-        return market.get();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Direction
-    /* --------------------------------------------------------------------- */
-
-    void setDirection(Direction direction) {
-        this.direction.set(direction);
-    }
-
-    @Override
-    public ReadOnlyObservable<Direction> directionObservable() {
-        return direction;
-    }
-
-    @Override
-    public Direction getDirection() {
-        return direction.get();
-    }
 
 
     /* --------------------------------------------------------------------- */

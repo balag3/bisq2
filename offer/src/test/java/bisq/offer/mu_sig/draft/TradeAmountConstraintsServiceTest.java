@@ -7,7 +7,7 @@ import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,7 +20,7 @@ public class TradeAmountConstraintsServiceTest {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
-        FakeMarketData marketData = new FakeMarketData(PriceQuote.fromFiatPrice(50000, "USD"));
+        FakeOfferDraftMarketPriceService marketData = new FakeOfferDraftMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
         TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketData);
 
         TradeAmountConstraints constraints = service.compute(market,
@@ -39,7 +39,7 @@ public class TradeAmountConstraintsServiceTest {
         Market market = MarketRepository.getUSDBitcoinMarket();
         PriceQuote offerPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
         PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(50000, "USD");
-        FakeMarketData marketData = new FakeMarketData(PriceQuote.fromFiatPrice(50000, "USD"));
+        FakeOfferDraftMarketPriceService marketData = new FakeOfferDraftMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
         TradeAmountConstraintsService service = new TradeAmountConstraintsService(marketData);
 
         TradeAmountConstraints constraints = service.compute(market,
@@ -52,10 +52,10 @@ public class TradeAmountConstraintsServiceTest {
         assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());
     }
 
-    private static class FakeMarketData implements CreateOfferDraftMarketData {
+    private static class FakeOfferDraftMarketPriceService implements OfferDraftMarketPriceService {
         private final PriceQuote btcUsdPriceQuote;
 
-        private FakeMarketData(PriceQuote btcUsdPriceQuote) {
+        private FakeOfferDraftMarketPriceService(PriceQuote btcUsdPriceQuote) {
             this.btcUsdPriceQuote = btcUsdPriceQuote;
         }
 

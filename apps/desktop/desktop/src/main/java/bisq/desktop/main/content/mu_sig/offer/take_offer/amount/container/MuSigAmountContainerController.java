@@ -63,9 +63,7 @@ public class MuSigAmountContainerController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(takeOfferDraftWorkflow.marketObservable().addObserver(market -> {
-            UIThread.run(this::applyDescription);
-        }));
+        applyDescription();
 
         pins.add(takeOfferDraftWorkflow.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {

@@ -25,7 +25,7 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 
 import java.util.Optional;
 
@@ -38,9 +38,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * {@link TradeAmountConstraints} result so callers do not duplicate protocol limit logic.
  */
 class TradeAmountConstraintsService {
-    private final CreateOfferDraftMarketData marketData;
+    private final OfferDraftMarketPriceService marketData;
 
-    TradeAmountConstraintsService(CreateOfferDraftMarketData marketData) {
+    TradeAmountConstraintsService(OfferDraftMarketPriceService marketData) {
         this.marketData = checkNotNull(marketData, "marketData must not be null");
     }
 

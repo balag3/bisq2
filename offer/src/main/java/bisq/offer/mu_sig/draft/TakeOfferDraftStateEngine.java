@@ -26,7 +26,7 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftMarketData;
+import bisq.offer.mu_sig.draft.dependencies.OfferDraftMarketPriceService;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -35,15 +35,15 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Internal state-transition engine for {@link CreateOfferDraft}.
+ * Internal state-transition engine for {@link TakeOfferDraft}.
  * <p>
  * Design: this package-local component applies market/direction/price/input-mode transitions in a
  * deterministic order, recomputes derived constraints, and keeps draft amount fields/clamp state
  * consistent. The workflow remains a user-facing facade and persistence coordinator.
  */
 class TakeOfferDraftStateEngine {
-    private final CreateOfferDraft offerDraft;
-    private final CreateOfferDraftMarketData marketData;
+    private final TakeOfferDraft offerDraft;
+    private final OfferDraftMarketPriceService marketData;
     private final TradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
     private final Supplier<PaymentRail> selectedPaymentRailSupplier;
@@ -54,8 +54,8 @@ class TakeOfferDraftStateEngine {
     // Construction
     /* --------------------------------------------------------------------- */
 
-    TakeOfferDraftStateEngine(CreateOfferDraft offerDraft,
-                              CreateOfferDraftMarketData marketData,
+    TakeOfferDraftStateEngine(TakeOfferDraft offerDraft,
+                              OfferDraftMarketPriceService marketData,
                               TradeAmountConstraintsService tradeAmountConstraintsService,
                               AmountMappingService amountMappingService,
                               Supplier<PaymentRail> selectedPaymentRailSupplier,
@@ -84,8 +84,8 @@ class TakeOfferDraftStateEngine {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
 
-        offerDraft.setMarket(market);
-        offerDraft.setDirection(direction);
+        //offerDraft.setMarket(market);
+       // offerDraft.setDirection(direction);
 
         // Price
         PriceQuote marketPriceQuote = marketData.getMarketPriceQuote(market);
@@ -120,7 +120,7 @@ class TakeOfferDraftStateEngine {
 
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
-        offerDraft.setMarket(market);
+       // offerDraft.setMarket(market);
         if (!isDerivedStateInitialized() || offerDraft.getDirection() == null) {
             return;
         }
@@ -148,7 +148,7 @@ class TakeOfferDraftStateEngine {
 
     boolean applyDirectionChanged(Direction direction) {
         checkNotNull(direction, "direction must not be null");
-        offerDraft.setDirection(direction);
+       // offerDraft.setDirection(direction);
         if (!hasPricingContext()) {
             return false;
         }
