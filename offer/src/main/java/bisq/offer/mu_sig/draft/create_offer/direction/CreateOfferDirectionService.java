@@ -15,8 +15,20 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer.direction;
 
-public interface ReadOnlyOfferDraft {
-  //  Market getMarket();
+import bisq.offer.Direction;
+import lombok.experimental.Delegate;
+
+public class CreateOfferDirectionService {
+    @Delegate
+    private final CreateOfferDirectionModel createOfferDirectionModel;
+
+    public CreateOfferDirectionService(CreateOfferDirectionModel createOfferDirectionModel) {
+        this.createOfferDirectionModel = createOfferDirectionModel;
+    }
+
+    public void setDirection(Direction direction) {
+        createOfferDirectionModel.setDirection(direction);
+    }
 }

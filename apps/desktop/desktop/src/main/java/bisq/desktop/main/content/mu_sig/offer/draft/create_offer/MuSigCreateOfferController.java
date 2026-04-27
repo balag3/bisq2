@@ -34,6 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
@@ -51,6 +52,7 @@ import java.util.Set;
 @Slf4j
 public class MuSigCreateOfferController extends NavigationController implements InitWithDataController<MuSigCreateOfferController.InitData> {
 
+
     @Getter
     @EqualsAndHashCode
     @ToString
@@ -64,6 +66,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferMarketService createOfferMarketService;
     private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final OverlayController overlayController;
     @Getter
@@ -85,6 +88,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
+        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
         createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodDraftFacade();
 
         overlayController = OverlayController.getInstance();
@@ -131,7 +135,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
-        pins.add(createOfferDraftWorkflow.marketObservable().addObserver(market -> {
+        pins.add(createOfferMarketService.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
                 updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();

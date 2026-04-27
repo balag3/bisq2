@@ -47,6 +47,7 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
@@ -87,6 +88,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MarketPriceService marketPriceService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
     private final MuSigService muSigService;
+    private final CreateOfferDirectionService createOfferDirectionService;
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -94,6 +96,7 @@ public class MuSigCreateOfferReviewController implements Controller {
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
         this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
@@ -110,7 +113,7 @@ public class MuSigCreateOfferReviewController implements Controller {
 
     public void prepareForCreateOffer(PriceSpec priceSpec) {
         AmountSpec amountSpec = createOfferDraftWorkflow.getAmountSpec();
-        Direction direction = createOfferDraftWorkflow.getTakersDirection();
+        Direction direction = createOfferDirectionService.getDirection();
         Market market = createOfferDraftWorkflow.getMarket();
         List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
         List<Account<?, ?>> accounts = new ArrayList<>();

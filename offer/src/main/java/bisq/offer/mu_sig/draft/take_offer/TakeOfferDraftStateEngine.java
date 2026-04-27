@@ -90,7 +90,7 @@ class TakeOfferDraftStateEngine {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
         Market market = muSigOffer.getMarket();
-        Direction takersDirection = offerDraft.getTakersDirection();
+        Direction takersDirection = offerDraft.getOffer().getTakersDirection();
 
         // Price
         PriceSpec priceSpec = muSigOffer.getPriceSpec();
@@ -123,11 +123,11 @@ class TakeOfferDraftStateEngine {
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
         // offerDraft.setMarket(market);
-        if (!isDerivedStateInitialized() || offerDraft.getTakersDirection() == null) {
+        if (!isDerivedStateInitialized() || offerDraft.getOffer().getTakersDirection() == null) {
             return;
         }
 
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = offerDraft.getOffer().getTakersDirection();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         // offerDraft.setPriceQuote(marketPriceQuote);
         PriceQuote priceQuote = offerDraft.getPriceQuote();
@@ -177,7 +177,7 @@ class TakeOfferDraftStateEngine {
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = offerDraft.getOffer().getTakersDirection();
         if (!isDerivedStateInitialized() || direction == null) {
             return false;
         }
@@ -207,7 +207,7 @@ class TakeOfferDraftStateEngine {
         }
 
         Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = offerDraft.getOffer().getTakersDirection();
         AmountSpec amountSpec = offerDraft.getAmountSpec();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
@@ -281,7 +281,7 @@ class TakeOfferDraftStateEngine {
 
     private boolean hasPricingContext() {
         return offerDraft.getMarket() != null
-                && offerDraft.getTakersDirection() != null
+                && offerDraft.getOffer().getTakersDirection() != null
                 && offerDraft.getPriceQuote() != null
                 && isDerivedStateInitialized();
     }

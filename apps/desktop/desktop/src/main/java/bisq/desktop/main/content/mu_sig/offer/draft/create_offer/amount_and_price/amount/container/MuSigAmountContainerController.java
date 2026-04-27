@@ -26,6 +26,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -44,9 +45,11 @@ public class MuSigAmountContainerController implements Controller {
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
+    private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigAmountContainerController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
         model = new MuSigAmountContainerModel();
 
         muSigFixAmountController = new MuSigFixAmountController(createOfferDraftWorkflow);
@@ -67,7 +70,7 @@ public class MuSigAmountContainerController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(createOfferDraftWorkflow.marketObservable().addObserver(market -> {
+        pins.add(createOfferMarketService.marketObservable().addObserver(market -> {
             UIThread.run(this::applyDescription);
         }));
 

@@ -30,6 +30,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import com.google.common.collect.ImmutableMap;
 import lombok.Getter;
@@ -41,8 +42,8 @@ import java.util.Optional;
 public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     @Getter
     private final CreateOfferMarketModel marketModel;
-
-    protected final Observable<Direction> direction = new Observable<>();
+    @Getter
+    private final CreateOfferDirectionModel directionModel;
 
     private final Observable<PriceQuote> priceQuote = new Observable<>();
     private final Observable<Boolean> useFixPrice = new Observable<>(false);
@@ -68,35 +69,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
 
     public CreateOfferDraft() {
         marketModel = new CreateOfferMarketModel();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Market
-    /* --------------------------------------------------------------------- */
-
-    @Override
-    public Market getMarket() {
-        return marketModel.getMarket();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Direction
-    /* --------------------------------------------------------------------- */
-
-    void setDirection(Direction direction) {
-        this.direction.set(direction);
-    }
-
-    @Override
-    public ReadOnlyObservable<Direction> directionObservable() {
-        return direction;
-    }
-
-    @Override
-    public Direction getTakersDirection() {
-        return direction.get();
+        directionModel = new CreateOfferDirectionModel();
     }
 
 

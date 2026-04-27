@@ -33,7 +33,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 public class TradeAmountLimits {
-    public static long USER_SPECIFIC_LIMIT_IN_USD = 40000;
+    public static long USER_SPECIFIC_LIMIT_IN_USD = 4000;
 
     //todo
     public static Fiat getUserSpecificLimitInUsdAmount() {

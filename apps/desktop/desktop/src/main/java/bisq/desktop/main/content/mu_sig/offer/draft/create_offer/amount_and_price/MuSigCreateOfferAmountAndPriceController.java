@@ -24,6 +24,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
@@ -40,6 +41,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferDirectionService createOfferDirectionService;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
                                                     CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -47,6 +49,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
         muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferDraftWorkflow,
                 owner,
                 navigationButtonsVisibleHandler,
@@ -101,7 +104,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
 
     private String getHeadline() {
         String baseCurrencyCode = createOfferDraftWorkflow.getMarket().getBaseCurrencyCode();
-        return createOfferDraftWorkflow.getTakersDirection().isBuy()
+        return createOfferDirectionService.getDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

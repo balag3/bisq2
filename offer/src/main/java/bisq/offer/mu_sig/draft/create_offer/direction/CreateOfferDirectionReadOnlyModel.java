@@ -15,8 +15,14 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer.direction;
 
-public interface ReadOnlyOfferDraft {
-  //  Market getMarket();
+import bisq.common.observable.ReadOnlyObservable;
+import bisq.offer.Direction;
+
+public interface CreateOfferDirectionReadOnlyModel {
+
+    ReadOnlyObservable<Direction> directionObservable();
+
+    Direction getDirection();
 }

@@ -34,6 +34,8 @@ import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
@@ -65,18 +67,24 @@ import static com.google.common.base.Preconditions.checkNotNull;
 @Slf4j
 public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft> {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
-
     @Delegate
-    private final CreateOfferMarketModel marketModel;
+    protected CreateOfferDraft createOfferDraft;
+    @Getter
+    private final CreateOfferMarketService marketService;
+    @Getter
+    private final CreateOfferDirectionService directionService;
 
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
     @Getter
     private final CreateOfferPaymentMethodService paymentMethodDraftFacade;
     private final CreateOfferDraftStateEngine stateEngine;
-    private final CreateOfferMarketService createOfferMarketService;
-    @Delegate
-    protected CreateOfferDraft createOfferDraft;
+
+
+    @Override
+    public Market getMarket() {
+        return marketService.getMarket();
+    }
 
     public enum PaymentMethodSelectionStatus {
         NO_ACCOUNT_AVAILABLE,
@@ -124,8 +132,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         super(new CreateOfferDraft());
 
         createOfferDraft = offerDraft;
-        marketModel = createOfferDraft.getMarketModel();
-        createOfferMarketService = new CreateOfferMarketService(marketModel);
+        CreateOfferMarketModel marketModel = createOfferDraft.getMarketModel();
+        CreateOfferDirectionModel directionModel = createOfferDraft.getDirectionModel();
+        marketService = new CreateOfferMarketService(marketModel);
+        directionService = new CreateOfferDirectionService(directionModel);
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
@@ -138,7 +148,9 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
         stateEngine = new CreateOfferDraftStateEngine(createOfferDraft,
                 marketModel,
-                createOfferMarketService,
+                marketService,
+                directionModel,
+                directionService,
                 marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
@@ -259,7 +271,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
     public void setDirection(Direction direction) {
         checkNotNull(direction, "Direction must not be null");
-        if (direction.equals(getTakersDirection())) {
+        if (direction.equals(directionService.getDirection())) {
             return;
         }
 

@@ -31,6 +31,8 @@ import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.AmountUtils;
 import bisq.offer.mu_sig.draft.TradeAmountConstraints;
 import bisq.offer.mu_sig.draft.TradeAmountLimits;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionReadOnlyModel;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketReadOnlyModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 
@@ -51,6 +53,8 @@ public class CreateOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
     private final CreateOfferMarketReadOnlyModel marketModel;
     private final CreateOfferMarketService createOfferMarketService;
+    private final CreateOfferDirectionReadOnlyModel directionModel;
+    private final CreateOfferDirectionService createOfferDirectionService;
     private final MarketPriceService marketPriceService;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
@@ -65,6 +69,8 @@ public class CreateOfferDraftStateEngine {
     CreateOfferDraftStateEngine(CreateOfferDraft offerDraft,
                                 CreateOfferMarketReadOnlyModel marketModel,
                                 CreateOfferMarketService createOfferMarketService,
+                                CreateOfferDirectionReadOnlyModel directionModel,
+                                CreateOfferDirectionService createOfferDirectionService,
                                 MarketPriceService marketPriceService,
                                 CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                                 AmountMappingService amountMappingService,
@@ -74,6 +80,8 @@ public class CreateOfferDraftStateEngine {
         this.offerDraft = checkNotNull(offerDraft, "offerDraft must not be null");
         this.marketModel = marketModel;
         this.createOfferMarketService = createOfferMarketService;
+        this.directionModel = directionModel;
+        this.createOfferDirectionService = createOfferDirectionService;
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
@@ -97,7 +105,7 @@ public class CreateOfferDraftStateEngine {
         checkNotNull(direction, "direction must not be null");
 
         createOfferMarketService.setMarket(market);
-        offerDraft.setDirection(direction);
+        createOfferDirectionService.setDirection(direction);
 
         // Price
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
@@ -134,11 +142,11 @@ public class CreateOfferDraftStateEngine {
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
         createOfferMarketService.setMarket(market);
-        if (!isDerivedStateInitialized() || offerDraft.getTakersDirection() == null) {
+        if (!isDerivedStateInitialized() || directionModel.getDirection() == null) {
             return;
         }
 
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = directionModel.getDirection();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         offerDraft.setPriceQuote(marketPriceQuote);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
@@ -161,7 +169,7 @@ public class CreateOfferDraftStateEngine {
 
     boolean applyDirectionChanged(Direction direction) {
         checkNotNull(direction, "direction must not be null");
-        offerDraft.setDirection(direction);
+        createOfferDirectionService.setDirection(direction);
         if (!hasPricingContext()) {
             return false;
         }
@@ -205,7 +213,7 @@ public class CreateOfferDraftStateEngine {
         applyUseFixPriceChanged(offerDraft.getUseFixPrice());
 
         Market market = marketModel.getMarket();
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = directionModel.getDirection();
         TradeAmount fixTradeAmount = offerDraft.getFixTradeAmount();
         TradeAmount minTradeAmount = offerDraft.getMinTradeAmount();
         TradeAmount maxTradeAmount = offerDraft.getMaxTradeAmount();
@@ -236,7 +244,7 @@ public class CreateOfferDraftStateEngine {
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = directionModel.getDirection();
         if (!isDerivedStateInitialized() || direction == null) {
             return false;
         }
@@ -294,7 +302,7 @@ public class CreateOfferDraftStateEngine {
         }
 
         Market market = marketModel.getMarket();
-        Direction direction = offerDraft.getTakersDirection();
+        Direction direction = directionModel.getDirection();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
 
@@ -364,7 +372,7 @@ public class CreateOfferDraftStateEngine {
 
     private boolean hasPricingContext() {
         return marketModel.getMarket() != null
-                && offerDraft.getTakersDirection() != null
+                && directionModel.getDirection() != null
                 && offerDraft.getPriceQuote() != null
                 && isDerivedStateInitialized();
     }

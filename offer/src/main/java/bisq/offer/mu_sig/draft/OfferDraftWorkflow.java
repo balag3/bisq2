@@ -32,7 +32,5 @@ public abstract class OfferDraftWorkflow<T extends ReadOnlyOfferDraft> extends W
         return offerDraft;
     }
 
-    public Market getMarket() {
-        return offerDraft.getMarket();
-    }
+    public abstract Market getMarket();
 }

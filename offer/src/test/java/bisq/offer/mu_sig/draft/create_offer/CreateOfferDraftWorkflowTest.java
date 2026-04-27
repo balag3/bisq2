@@ -20,6 +20,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -53,6 +54,7 @@ public class CreateOfferDraftWorkflowTest {
     private FakeAccountsProvider accountsProvider;
     private CreateOfferDraftWorkflow workflow;
     private CreateOfferPaymentMethodService paymentMethodDraftFacade;
+    private CreateOfferDirectionService createOfferDirectionService;
 
     @BeforeEach
     public void setUp() {
@@ -83,6 +85,7 @@ public class CreateOfferDraftWorkflowTest {
         accountsProvider = new FakeAccountsProvider();
         workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
         paymentMethodDraftFacade = workflow.getPaymentMethodDraftFacade();
+        createOfferDirectionService = workflow.getDirectionService();
     }
 
     @Test
@@ -90,7 +93,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(defaultMarket);
 
         assertEquals(defaultMarket, workflow.getMarket());
-        assertEquals(Direction.SELL, workflow.getTakersDirection());
+        assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
         assertEquals(defaultMarketPriceQuote, workflow.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getFixTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getMinTradeAmount());

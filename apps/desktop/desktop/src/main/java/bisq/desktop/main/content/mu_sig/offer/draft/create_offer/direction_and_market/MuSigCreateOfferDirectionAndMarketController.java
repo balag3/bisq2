@@ -32,6 +32,8 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -57,11 +59,15 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigOfferbookService muSigOfferbookService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
+    private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
                                                         CreateOfferDraftWorkflow createOfferDraftWorkflow,
                                                         Runnable onNextHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
+        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigOfferbookService = serviceProvider.getOfferService().getMuSigOfferService().getMuSigOfferbookService();
@@ -78,9 +84,9 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public void onActivate() {
         model.getPaymentCurrencySearchText().set("");
 
-        pins.add(FxBindings.bind(model.getDirection()).to(createOfferDraftWorkflow.directionObservable()));
+        pins.add(FxBindings.bind(model.getDirection()).to(createOfferDirectionService.directionObservable()));
 
-        pins.add(createOfferDraftWorkflow.marketObservable().addObserver(market
+        pins.add(createOfferMarketService.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
             String baseCurrencyName = market.getBaseCurrencyName();
             String quoteCurrencyName = market.getQuoteCurrencyName();

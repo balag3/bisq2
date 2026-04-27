@@ -18,8 +18,10 @@
 package bisq.offer.mu_sig.draft.create_offer.market;
 
 import bisq.common.market.Market;
+import lombok.experimental.Delegate;
 
 public class CreateOfferMarketService {
+    @Delegate
     private final CreateOfferMarketModel createOfferMarketModel;
 
     public CreateOfferMarketService(CreateOfferMarketModel createOfferMarketModel) {

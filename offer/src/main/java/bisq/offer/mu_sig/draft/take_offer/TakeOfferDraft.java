@@ -79,14 +79,8 @@ public class TakeOfferDraft implements ReadOnlyTakeOfferDraft {
         return offer;
     }
 
-    @Override
     public Market getMarket() {
         return offer.getMarket();
-    }
-
-    @Override
-    public Direction getTakersDirection() {
-        return offer.getTakersDirection();
     }
 
     @Override

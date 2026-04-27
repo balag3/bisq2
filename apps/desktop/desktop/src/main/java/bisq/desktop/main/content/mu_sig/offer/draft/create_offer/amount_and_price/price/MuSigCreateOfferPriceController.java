@@ -30,6 +30,7 @@ import bisq.desktop.components.overlay.Popup;
 import bisq.desktop.main.content.mu_sig.offer.draft.components.MuSigPriceInput;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -69,6 +70,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private final SettingsService settingsService;
     private final Set<Pin> pins = new HashSet<>();
     private final Set<Subscription> subscriptions = new HashSet<>();
+    private final CreateOfferDirectionService createOfferDirectionService;
 
     public MuSigCreateOfferPriceController(ServiceProvider serviceProvider,
                                            CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -76,6 +78,8 @@ public class MuSigCreateOfferPriceController implements Controller {
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         settingsService = serviceProvider.getSettingsService();
+        createOfferDirectionService=  createOfferDraftWorkflow.getDirectionService();
+
         priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferDraftWorkflow);
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         this.owner = owner;
@@ -400,7 +404,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private String getFeedbackSentence(String adjective) {
-        return createOfferDraftWorkflow.getTakersDirection().isBuy()
+        return createOfferDirectionService.getDirection().isBuy()
                 ? Res.get("muSig.offer.create.price.feedback.buyOffer.sentence", adjective)
                 : Res.get("muSig.offer.create.price.feedback.sellOffer.sentence", adjective);
     }

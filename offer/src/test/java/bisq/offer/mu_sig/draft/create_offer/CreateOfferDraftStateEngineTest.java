@@ -16,6 +16,8 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.AmountMappingService;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
+import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,8 @@ public class CreateOfferDraftStateEngineTest {
     private CreateOfferDraft offerDraft;
     private CreateOfferMarketModel marketModel;
     private CreateOfferMarketService createOfferMarketService;
+    private CreateOfferDirectionModel directionModel;
+    private CreateOfferDirectionService createOfferDirectionService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
@@ -55,6 +59,8 @@ public class CreateOfferDraftStateEngineTest {
         offerDraft = new CreateOfferDraft();
         marketModel = offerDraft.getMarketModel();
         createOfferMarketService = new CreateOfferMarketService(marketModel);
+        directionModel = offerDraft.getDirectionModel();
+        createOfferDirectionService = new CreateOfferDirectionService(directionModel);
         marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
@@ -64,6 +70,8 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine = new CreateOfferDraftStateEngine(offerDraft,
                 marketModel,
                 createOfferMarketService,
+                directionModel,
+                createOfferDirectionService,
                 marketPriceService,
                 new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
@@ -76,8 +84,8 @@ public class CreateOfferDraftStateEngineTest {
     public void initializeSetsDerivedStateAndCallsPaymentMethodUpdater() {
         stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true, false, 0, Optional.empty());
 
-        assertEquals(usdBtcMarket, offerDraft.getMarket());
-        assertEquals(Direction.SELL, offerDraft.getTakersDirection());
+        assertEquals(usdBtcMarket, marketModel.getMarket());
+        assertEquals(Direction.SELL, directionModel.getDirection());
         assertEquals(usdBtcPriceQuote, offerDraft.getPriceQuote());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getFixTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMinTradeAmount());
@@ -92,7 +100,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertFalse(recalculated);
-        assertEquals(Direction.BUY, offerDraft.getTakersDirection());
+        assertEquals(Direction.BUY, directionModel.getDirection());
     }
 
     @Test
