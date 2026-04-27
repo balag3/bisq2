@@ -27,16 +27,18 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
-import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.AmountUtils;
 import bisq.offer.mu_sig.draft.TradeAmountConstraints;
 import bisq.offer.mu_sig.draft.TradeAmountLimits;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.draft.take_offer.direction.TakeOfferDirectionService;
+import bisq.offer.mu_sig.draft.take_offer.market.TakeOfferMarketService;
+import bisq.offer.mu_sig.draft.take_offer.price.TakeOfferPriceService;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.PriceSpec;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -45,15 +47,17 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Internal state-transition engine for {@link TakeOfferDraft}.
+ * Internal state-transition engine for {@link TakeOfferDraftWorkflow}.
  * <p>
- * Design: this package-local component applies market/direction/price/input-mode transitions in a
- * deterministic order, recomputes derived constraints, and keeps draft amount fields/clamp state
+ * Design: this package-local component applies market/direction/input-mode transitions in a
+ * deterministic order, recomputes derived constraints, and keeps amount fields/clamp state
  * consistent. The workflow remains a user-facing facade and persistence coordinator.
  */
-@Slf4j
-class TakeOfferDraftStateEngine {
-    private final TakeOfferDraft offerDraft;
+public class TakeOfferDraftStateEngine {
+    private final TakeOfferMarketService takeOfferMarketService;
+    private final TakeOfferDirectionService takeOfferDirectionService;
+    private final TakeOfferPriceService takeOfferPriceService;
+    private final TakeOfferAmountService takeOfferAmountService;
     private final MarketPriceService marketPriceService;
     private final TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
@@ -65,14 +69,20 @@ class TakeOfferDraftStateEngine {
     // Construction
     /* --------------------------------------------------------------------- */
 
-    TakeOfferDraftStateEngine(TakeOfferDraft offerDraft,
+    TakeOfferDraftStateEngine(TakeOfferMarketService takeOfferMarketService,
+                              TakeOfferDirectionService takeOfferDirectionService,
+                              TakeOfferPriceService takeOfferPriceService,
+                              TakeOfferAmountService takeOfferAmountService,
                               MarketPriceService marketPriceService,
                               TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                               AmountMappingService amountMappingService,
                               Supplier<PaymentRail> selectedPaymentRailSupplier,
                               Runnable updatePaymentMethodsHandler,
                               Fiat defaultTradeAmountInUsd) {
-        this.offerDraft = checkNotNull(offerDraft, "offerDraft must not be null");
+        this.takeOfferMarketService = checkNotNull(takeOfferMarketService, "takeOfferMarketService must not be null");
+        this.takeOfferDirectionService = checkNotNull(takeOfferDirectionService, "takeOfferDirectionService must not be null");
+        this.takeOfferPriceService = checkNotNull(takeOfferPriceService, "takeOfferPriceService must not be null");
+        this.takeOfferAmountService = checkNotNull(takeOfferAmountService, "takeOfferAmountService must not be null");
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
@@ -90,22 +100,24 @@ class TakeOfferDraftStateEngine {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
         Market market = muSigOffer.getMarket();
-        Direction takersDirection = offerDraft.getOffer().getTakersDirection();
+        Direction takersDirection = muSigOffer.getTakersDirection();
+        takeOfferMarketService.initialize(muSigOffer);
+        takeOfferDirectionService.initialize(muSigOffer);
 
         // Price
         PriceSpec priceSpec = muSigOffer.getPriceSpec();
         PriceQuote priceQuote = PriceUtil.getQuoteOrThrow(marketPriceService, priceSpec, market);
-        offerDraft.setPriceQuote(priceQuote);
+        takeOfferPriceService.setPriceQuote(priceQuote);
 
         // Amount
-        offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+        takeOfferAmountService.setAmountSpec(muSigOffer.getAmountSpec());
+        takeOfferAmountService.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        AmountSpec amountSpec = muSigOffer.getAmountSpec();
 
         Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 takersDirection,
-                amountSpec,
+                takeOfferAmountService.getAmountSpec(),
                 priceQuote,
                 marketPriceQuote,
                 maxTradeLimitInUsd);
@@ -113,77 +125,22 @@ class TakeOfferDraftStateEngine {
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
         TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
-        offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
+        takeOfferAmountService.setFixTradeAmount(clampedDefaultTradeAmount);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(takersDirection, offerDraft.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(takersDirection, takeOfferAmountService.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
         updatePaymentMethodsHandler.run();
-    }
-
-    void applyMarketChanged(Market market) {
-        checkNotNull(market, "market must not be null");
-        // offerDraft.setMarket(market);
-        if (!isDerivedStateInitialized() || offerDraft.getOffer().getTakersDirection() == null) {
-            return;
-        }
-
-        Direction direction = offerDraft.getOffer().getTakersDirection();
-        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        // offerDraft.setPriceQuote(marketPriceQuote);
-        PriceQuote priceQuote = offerDraft.getPriceQuote();
-        AmountSpec amountSpec = offerDraft.getAmountSpec();
-        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
-        TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
-                amountSpec,
-                priceQuote,
-                marketPriceQuote,
-                maxTradeLimitInUsd);
-        applyTradeAmountConstraints(tradeAmountConstraints);
-
-        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
-        TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
-        offerDraft.setFixTradeAmount(clampedDefaultTradeAmount);
-
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
-        updatePaymentMethodsHandler.run();
-    }
-
-    boolean applyDirectionChanged(Direction direction) {
-        checkNotNull(direction, "direction must not be null");
-        // offerDraft.setDirection(direction);
-        if (!hasPricingContext()) {
-            return false;
-        }
-
-        Market market = offerDraft.getMarket();
-        PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
-        AmountSpec amountSpec = offerDraft.getAmountSpec();
-        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
-        TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
-                amountSpec,
-                offerPriceQuote,
-                marketPriceQuote,
-                maxTradeLimitInUsd);
-        applyTradeAmountConstraints(tradeAmountConstraints);
-
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
-        return true;
     }
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
-        offerDraft.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = offerDraft.getOffer().getTakersDirection();
+        takeOfferAmountService.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+        Direction direction = takeOfferDirectionService.getDirection();
         if (!isDerivedStateInitialized() || direction == null) {
             return false;
         }
 
-        updateInputAmountLimits(offerDraft.getTradeAmountLimits());
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
+        updateInputAmountLimits(takeOfferAmountService.getTradeAmountLimits());
+        updateUserSpecificTradeAmountLimitAsSliderValue(direction, takeOfferAmountService.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
         return true;
     }
@@ -195,41 +152,40 @@ class TakeOfferDraftStateEngine {
     void setFixTradeAmount(TradeAmount tradeAmount) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        offerDraft.setFixTradeAmount(valueToSet);
+        takeOfferAmountService.setFixTradeAmount(valueToSet);
         if (isDerivedStateInitialized()) {
             updateFixAmountSliderValue();
         }
     }
 
-    void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
+    public void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
         if (!hasPricingContext()) {
             return;
         }
 
-        Market market = offerDraft.getMarket();
-        Direction direction = offerDraft.getOffer().getTakersDirection();
-        AmountSpec amountSpec = offerDraft.getAmountSpec();
-        PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
+        Market market = takeOfferMarketService.getMarket();
+        Direction direction = takeOfferDirectionService.getDirection();
+        PriceQuote offerPriceQuote = takeOfferPriceService.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         Fiat maxTradeLimitInUsd = evaluateMaxTradeLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
-                amountSpec,
+                checkNotNull(takeOfferAmountService.getAmountSpec(), "amountSpec must not be null"),
                 offerPriceQuote,
                 marketPriceQuote,
                 maxTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        if (offerDraft.getFixTradeAmount() != null) {
-            offerDraft.setFixTradeAmount(clampTradeAmount(offerDraft.getFixTradeAmount(), true));
+        if (takeOfferAmountService.getFixTradeAmount() != null) {
+            takeOfferAmountService.setFixTradeAmount(clampTradeAmount(takeOfferAmountService.getFixTradeAmount(), true));
         }
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, offerDraft.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(direction, takeOfferAmountService.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
     }
 
     private Fiat evaluateMaxTradeLimitInUsd() {
-        // Initially, the selected payment rail us null, and we use the MAX_TRADE_AMOUNT_IN_USD
+        // Initially, the selected payment rail is null, and we use the MAX_TRADE_AMOUNT_IN_USD
         PaymentRail selectedPaymentRail = getSelectedPaymentRail();
         return selectedPaymentRail != null
                 ? MuSigTradeAmountLimits.getMaxTradeLimitInUsd(selectedPaymentRail)
@@ -242,37 +198,37 @@ class TakeOfferDraftStateEngine {
 
     TradeAmount toClampedTradeAmount(Monetary amount) {
         checkNotNull(amount, "amount must not be null");
-        Market market = checkNotNull(offerDraft.getMarket(), "market must not be null");
-        PriceQuote priceQuote = checkNotNull(offerDraft.getPriceQuote(), "priceQuote must not be null");
+        Market market = checkNotNull(takeOfferMarketService.getMarket(), "market must not be null");
+        PriceQuote priceQuote = checkNotNull(takeOfferPriceService.getPriceQuote(), "priceQuote must not be null");
         TradeAmountRange limits = getClampLimits(true);
         return amountMappingService.toTradeAmountFromInputAmount(market, priceQuote, amount, limits);
     }
 
     TradeAmount toTradeAmountFromSliderValue(TradeAmount tradeAmount, double sliderValue) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
-        Market market = checkNotNull(offerDraft.getMarket(), "market must not be null");
-        PriceQuote priceQuote = checkNotNull(offerDraft.getPriceQuote(), "priceQuote must not be null");
+        Market market = checkNotNull(takeOfferMarketService.getMarket(), "market must not be null");
+        PriceQuote priceQuote = checkNotNull(takeOfferPriceService.getPriceQuote(), "priceQuote must not be null");
         TradeAmountRange limits = getClampLimits(true);
-        MonetaryRange inputAmountLimits = checkNotNull(offerDraft.getInputAmountLimits(), "inputAmountLimits must not be null");
+        MonetaryRange inputAmountLimits = checkNotNull(takeOfferAmountService.getInputAmountLimits(), "inputAmountLimits must not be null");
         return amountMappingService.toTradeAmountFromSliderValue(market,
                 priceQuote,
                 tradeAmount,
                 limits,
                 inputAmountLimits,
-                offerDraft.getUseBaseCurrencyForAmountInput(),
+                takeOfferAmountService.getUseBaseCurrencyForAmountInput(),
                 sliderValue);
     }
 
     TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
-        TradeAmountRange tradeAmountLimits = offerDraft.getTradeAmountLimits();
-        Optional<TradeAmount> userSpecificTradeAmountLimit = offerDraft.getUserSpecificTradeAmountLimit();
+        TradeAmountRange tradeAmountLimits = takeOfferAmountService.getTradeAmountLimits();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = takeOfferAmountService.getUserSpecificTradeAmountLimit();
         return TradeAmountLimits.getClampLimits(tradeAmountLimits,
                 userSpecificTradeAmountLimit,
                 includeUserSpecificTradeAmountLimit);
     }
 
     boolean isDerivedStateInitialized() {
-        return offerDraft.getTradeAmountLimits() != null && offerDraft.getInputAmountLimits() != null;
+        return takeOfferAmountService.getTradeAmountLimits() != null && takeOfferAmountService.getInputAmountLimits() != null;
     }
 
     /* --------------------------------------------------------------------- */
@@ -280,28 +236,28 @@ class TakeOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     private boolean hasPricingContext() {
-        return offerDraft.getMarket() != null
-                && offerDraft.getOffer().getTakersDirection() != null
-                && offerDraft.getPriceQuote() != null
+        return takeOfferMarketService.getMarket() != null
+                && takeOfferDirectionService.getDirection() != null
+                && takeOfferPriceService.getPriceQuote() != null
                 && isDerivedStateInitialized();
     }
 
     private void applyTradeAmountConstraints(TradeAmountConstraints tradeAmountConstraints) {
-        offerDraft.setTradeAmountLimits(tradeAmountConstraints.tradeAmountLimits());
-        offerDraft.setUserSpecificTradeAmountLimit(tradeAmountConstraints.userSpecificTradeAmountLimit());
+        takeOfferAmountService.setTradeAmountLimits(tradeAmountConstraints.tradeAmountLimits());
+        takeOfferAmountService.setUserSpecificTradeAmountLimit(tradeAmountConstraints.userSpecificTradeAmountLimit());
         updateInputAmountLimits(tradeAmountConstraints.tradeAmountLimits());
     }
 
     private void updateInputAmountLimits(TradeAmountRange tradeAmountLimits) {
         checkNotNull(tradeAmountLimits, "tradeAmountLimits must not be null");
         MonetaryRange inputAmountLimits = amountMappingService.toInputAmountLimits(tradeAmountLimits,
-                offerDraft.getUseBaseCurrencyForAmountInput());
-        offerDraft.setInputAmountLimits(inputAmountLimits);
+                takeOfferAmountService.getUseBaseCurrencyForAmountInput());
+        takeOfferAmountService.setInputAmountLimits(inputAmountLimits);
     }
 
     private void updateUserSpecificTradeAmountLimitAsSliderValue(Direction direction,
                                                                  Optional<TradeAmount> userSpecificTradeAmountLimit) {
-        if (direction.isBuy() && userSpecificTradeAmountLimit.isPresent() && offerDraft.getInputAmountLimits() != null) {
+        if (direction.isBuy() && userSpecificTradeAmountLimit.isPresent() && takeOfferAmountService.getInputAmountLimits() != null) {
             double sliderValue = toSliderValue(userSpecificTradeAmountLimit.get());
             setUserSpecificTradeAmountLimitAsSliderValue(Optional.of(sliderValue));
         } else {
@@ -309,26 +265,13 @@ class TakeOfferDraftStateEngine {
         }
     }
 
-    private TradeAmount toUpdatedPassiveAmount(Market market,
-                                               PriceQuote priceQuote,
-                                               TradeAmount tradeAmount,
-                                               TradeAmountRange oldClampLimits,
-                                               TradeAmountRange newClampLimits) {
-        return amountMappingService.toUpdatedPassiveAmount(market,
-                priceQuote,
-                tradeAmount,
-                oldClampLimits,
-                newClampLimits,
-                offerDraft.getUseBaseCurrencyForAmountInput());
-    }
-
     private double toSliderValue(TradeAmount tradeAmount) {
         TradeAmountRange limits = getClampLimits(true);
-        MonetaryRange inputAmountLimits = checkNotNull(offerDraft.getInputAmountLimits(), "inputAmountLimits must not be null");
+        MonetaryRange inputAmountLimits = checkNotNull(takeOfferAmountService.getInputAmountLimits(), "inputAmountLimits must not be null");
         return amountMappingService.toSliderValue(tradeAmount,
                 limits,
                 inputAmountLimits,
-                offerDraft.getUseBaseCurrencyForAmountInput());
+                takeOfferAmountService.getUseBaseCurrencyForAmountInput());
     }
 
     /* --------------------------------------------------------------------- */
@@ -336,25 +279,24 @@ class TakeOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     private void updateAmountSliderValues() {
-        if (offerDraft.getFixTradeAmount() != null) {
+        if (takeOfferAmountService.getFixTradeAmount() != null) {
             updateFixAmountSliderValue();
         }
     }
 
     private void updateFixAmountSliderValue() {
-        setFixAmountSliderValue(toSliderValue(offerDraft.getFixTradeAmount()));
+        setFixAmountSliderValue(toSliderValue(takeOfferAmountService.getFixTradeAmount()));
     }
 
     private void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> value) {
         value.ifPresent(v -> checkArgument(v >= 0 && v <= 1, "value must be in range of 0 and 1"));
-        offerDraft.setUserSpecificTradeAmountLimitAsSliderValue(value);
+        takeOfferAmountService.setUserSpecificTradeAmountLimitAsSliderValue(value);
     }
 
     private void setFixAmountSliderValue(double sliderValue) {
         checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        offerDraft.setFixAmountSliderValue(sliderValue);
+        takeOfferAmountService.setFixAmountSliderValue(sliderValue);
     }
-
 
     private TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);

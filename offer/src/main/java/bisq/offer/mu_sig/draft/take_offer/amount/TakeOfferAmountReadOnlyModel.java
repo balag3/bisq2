@@ -15,31 +15,17 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.take_offer.amount;
 
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
 import bisq.common.monetary.MonetaryRange;
-import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.amount.spec.AmountSpec;
-import com.google.common.collect.ImmutableMap;
 
-import java.util.List;
 import java.util.Optional;
 
-public interface ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
-    AmountSpec getAmountSpec();
-
-    ReadOnlyObservable<PriceQuote> priceQuoteObservable();
-
-    PriceQuote getPriceQuote();
-
-
-
+public interface TakeOfferAmountReadOnlyModel {
     ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable();
 
     boolean getUseBaseCurrencyForAmountInput();
@@ -50,33 +36,30 @@ public interface ReadOnlyTakeOfferDraft extends ReadOnlyOfferDraft {
     TradeAmount getFixTradeAmount();
 
 
+    AmountSpec getAmountSpec();
+
+
     TradeAmountRange getTradeAmountLimits();
+
+    ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
+
 
     ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable();
 
     Optional<TradeAmount> getUserSpecificTradeAmountLimit();
 
+
     ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable();
 
     Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue();
 
-    ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
 
     ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable();
 
     MonetaryRange getInputAmountLimits();
 
+
     ReadOnlyObservable<Double> fixAmountSliderValueObservable();
 
     Double getFixAmountSliderValue();
-
-
-
-    ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod();
-
-    ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod();
 }

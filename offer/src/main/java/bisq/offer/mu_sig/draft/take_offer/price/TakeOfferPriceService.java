@@ -15,8 +15,23 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.take_offer.price;
 
-public interface ReadOnlyOfferDraft {
-  //  Market getMarket();
+import bisq.common.monetary.PriceQuote;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.experimental.Delegate;
+
+public class TakeOfferPriceService {
+    @Getter(AccessLevel.PACKAGE)
+    @Delegate
+    private final TakeOfferPriceModel model;
+
+    public TakeOfferPriceService() {
+        this.model = new TakeOfferPriceModel();
+    }
+
+    public void setPriceQuote(PriceQuote priceQuote) {
+        model.setPriceQuote(priceQuote);
+    }
 }

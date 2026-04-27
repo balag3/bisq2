@@ -35,6 +35,7 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.payment_method.TakeOfferPaymentMethodService;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.input.KeyEvent;
 import lombok.Getter;
@@ -59,7 +60,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
     @Getter
     private final MuSigTakeOfferPaymentView view;
     private final AccountService accountService;
-    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferPaymentMethodService takeOfferPaymentMethodService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private Subscription paymentMethodWithoutAccountPin, paymentMethodWithMultipleAccountsPin;
     private final Set<Pin> pins = new HashSet<>();
@@ -68,7 +69,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
     public MuSigTakeOfferPaymentController(ServiceProvider serviceProvider,
                                            TakeOfferDraftWorkflow takeOfferDraftWorkflow,
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
-        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
+        takeOfferPaymentMethodService = takeOfferDraftWorkflow.getPaymentMethodService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         accountService = serviceProvider.getAccountService();
 
@@ -173,9 +174,9 @@ public class MuSigTakeOfferPaymentController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(model.getSelectedAccount(), selectedAccount -> {
             if (selectedAccount != null) {
-                takeOfferDraftWorkflow.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
-            }else{
-                takeOfferDraftWorkflow.clearSelectedAccountByPaymentMethod();
+                takeOfferPaymentMethodService.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
+            } else {
+                takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
             }
         }));
     }

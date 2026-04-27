@@ -25,6 +25,8 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.limits.MuSigAmountLimitsController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.draft.take_offer.market.TakeOfferMarketService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -40,11 +42,15 @@ public class MuSigAmountContainerController implements Controller {
     private final MuSigAmountContainerView view;
     private final MuSigFixAmountController muSigFixAmountController;
     private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferMarketService takeOfferMarketService;
+    private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigAmountContainerController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
         this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
+        takeOfferMarketService = takeOfferDraftWorkflow.getMarketService();
+        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
         model = new MuSigAmountContainerModel();
 
         muSigFixAmountController = new MuSigFixAmountController(takeOfferDraftWorkflow);
@@ -65,8 +71,7 @@ public class MuSigAmountContainerController implements Controller {
     public void onActivate() {
         applyDescription();
 
-
-        pins.add(takeOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(takeOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyDescription);
         }));
 
@@ -92,13 +97,13 @@ public class MuSigAmountContainerController implements Controller {
     /* --------------------------------------------------------------------- */
 
     private void applyDescription() {
-        Market market = takeOfferDraftWorkflow.getMarket();
+        Market market = takeOfferMarketService.getMarket();
         String code = getCode(market);
         model.getDescription().set(Res.get("muSig.offer.create.amount.description.fixed", code));
     }
 
     private String getCode(Market market) {
-        boolean useBaseCurrencyForAmountInput = takeOfferDraftWorkflow.getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = takeOfferAmountService.getUseBaseCurrencyForAmountInput();
         return useBaseCurrencyForAmountInput ? market.getBaseCurrencyCode() : market.getQuoteCurrencyCode();
     }
 }

@@ -18,16 +18,14 @@
 package bisq.offer.mu_sig.draft.take_offer;
 
 import bisq.account.AccountService;
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
-import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
+import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
@@ -36,14 +34,14 @@ import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultTakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.TakeOfferDraftCookieStore;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.draft.take_offer.direction.TakeOfferDirectionService;
+import bisq.offer.mu_sig.draft.take_offer.market.TakeOfferMarketService;
+import bisq.offer.mu_sig.draft.take_offer.payment_method.TakeOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.take_offer.price.TakeOfferPriceService;
 import bisq.settings.SettingsService;
-import com.google.common.collect.ImmutableMap;
-import lombok.experimental.Delegate;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -57,42 +55,21 @@ import static com.google.common.base.Preconditions.checkNotNull;
 @Slf4j
 public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
+    @Getter
+    private final TakeOfferMarketService marketService;
+    @Getter
+    private final TakeOfferDirectionService directionService;
+    @Getter
+    private final TakeOfferPriceService priceService;
+    @Getter
+    private final TakeOfferAmountService amountService;
 
     private final TakeOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
-    private final PaymentMethodSelectionService paymentMethodSelectionService;
+    @Getter
+    private final TakeOfferPaymentMethodService paymentMethodService;
     private final TakeOfferDraftStateEngine stateEngine;
-    @Delegate
-    protected final TakeOfferDraft takeOfferDraft;
 
-
-    public enum PaymentMethodSelectionStatus {
-        NO_ACCOUNT_AVAILABLE,
-        SINGLE_ACCOUNT_SELECTED,
-        ACCOUNT_SELECTION_REQUIRED
-    }
-
-    public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
-                                               List<Account<?, ?>> accountsRequiringSelection) {
-        public PaymentMethodSelectionResult {
-            checkNotNull(status, "status must not be null");
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
-        }
-
-        public static PaymentMethodSelectionResult noAccountAvailable() {
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of());
-        }
-
-        public static PaymentMethodSelectionResult singleAccountSelected() {
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of());
-        }
-
-        public static PaymentMethodSelectionResult accountSelectionRequired(List<Account<?, ?>> accountsRequiringSelection) {
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection);
-        }
-    }
 
     /* --------------------------------------------------------------------- */
     // Construction
@@ -109,22 +86,39 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
                            TakeOfferDraftCookieStore cookieStore,
                            AccountsProvider accountsProvider) {
+        marketService = new TakeOfferMarketService();
+        directionService = new TakeOfferDirectionService();
+        priceService = new TakeOfferPriceService();
+        amountService = new TakeOfferAmountService();
+
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
         checkNotNull(marketPriceService, "marketPriceProvider must not be null");
 
         amountMappingService = new AmountMappingService();
         TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService = new TakeOfferTradeAmountConstraintsService(marketPriceService);
-        paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
+        PaymentMethodSelectionService paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
-        takeOfferDraft = new TakeOfferDraft();
-        stateEngine = new TakeOfferDraftStateEngine(takeOfferDraft,
+        stateEngine = new TakeOfferDraftStateEngine(marketService,
+                directionService,
+                priceService,
+                amountService,
                 marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
                 this::getSelectedPaymentRail,
                 this::updatePaymentMethods,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
+
+        paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService, stateEngine);
+    }
+
+    private void updatePaymentMethods() {
+        paymentMethodService.updatePaymentMethods(getMarket());
+    }
+
+    private PaymentRail getSelectedPaymentRail() {
+        return paymentMethodService.getSelectedPaymentRail();
     }
 
 
@@ -135,18 +129,12 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     public void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
-        takeOfferDraft.setOffer(muSigOffer);
-
         Market market = muSigOffer.getMarket();
         boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
 
         stateEngine.initialize(muSigOffer, useBaseCurrencyForAmountInput);
     }
 
-    @Override
-    public Market getMarket() {
-        return takeOfferDraft.getOffer().getMarket();
-    }
     /* --------------------------------------------------------------------- */
     // Amount input entry points
     /* --------------------------------------------------------------------- */
@@ -157,11 +145,10 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     }
 
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount fixTradeAmount = checkNotNull(getFixTradeAmount(), "fixTradeAmount must not be null");
+        TradeAmount fixTradeAmount = checkNotNull(amountService.getFixTradeAmount(), "fixTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
         setFixTradeAmount(tradeAmount);
     }
-
 
 
     /* --------------------------------------------------------------------- */
@@ -169,13 +156,13 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     /* --------------------------------------------------------------------- */
 
     public Monetary toInputAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
         return amountMappingService.toInputAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
 
     public Monetary toPassiveAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
         return amountMappingService.toPassiveAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
@@ -185,23 +172,14 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     // Mutation API
     /* --------------------------------------------------------------------- */
 
-    // Core market/pricing state
-    public void setMarket(Market market) {
-        checkNotNull(market, "Market must not be null");
-        if (market.equals(getMarket())) {
-            return;
-        }
-        stateEngine.applyMarketChanged(market);
-    }
-
     public void setUseBaseCurrencyForAmountInput(boolean value) {
-        if (value == getUseBaseCurrencyForAmountInput()) {
+        if (value == amountService.getUseBaseCurrencyForAmountInput()) {
             return;
         }
 
         Market market = getMarket();
         if (market == null) {
-            takeOfferDraft.setUseBaseCurrencyForAmountInput(value);
+            amountService.setUseBaseCurrencyForAmountInput(value);
             return;
         }
 
@@ -210,184 +188,28 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
         }
     }
 
-    // Amount state
     public void setFixTradeAmount(TradeAmount tradeAmount) {
         stateEngine.setFixTradeAmount(tradeAmount);
     }
 
-    public void setTradeAmountLimits(TradeAmountRange tradeAmountRange) {
-        checkNotNull(tradeAmountRange, "TradeAmountRange must not be null");
-        takeOfferDraft.setTradeAmountLimits(tradeAmountRange);
+
+    /* --------------------------------------------------------------------- */
+    // Derived read model
+    /* --------------------------------------------------------------------- */
+
+    public AmountSpec getAmountSpec() {
+        return amountService.getAmountSpec();
     }
 
-    public void setUserSpecificTradeAmountLimit(Optional<TradeAmount> tradeAmount) {
-        tradeAmount.ifPresent(amount -> checkNotNull(amount, "tradeAmount must not be null"));
-        takeOfferDraft.setUserSpecificTradeAmountLimit(tradeAmount);
-    }
-
-    public void setInputAmountLimits(MonetaryRange inputAmountLimits) {
-        checkNotNull(inputAmountLimits, "inputAmountLimits must not be null");
-        takeOfferDraft.setInputAmountLimits(inputAmountLimits);
-    }
-
-    // Payment account state
-    public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-        checkNotNull(account, "account must not be null");
-        takeOfferDraft.putAccountsByPaymentMethod(paymentMethod, account);
-    }
-
-    public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        takeOfferDraft.removeAccountsByPaymentMethod(paymentMethod);
-    }
-
-    public void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> selectedAccountByPaymentMethod) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        takeOfferDraft.putAllAccountsByPaymentMethod(selectedAccountByPaymentMethod);
-    }
-
-    public void clearAccountsByPaymentMethod() {
-        takeOfferDraft.clearAccountsByPaymentMethod();
-    }
-
-    public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-        checkNotNull(account, "account must not be null");
-        putSelectedAccountByPaymentMethod(paymentMethod, account, true);
-    }
-
-    public void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        removeSelectedAccountByPaymentMethod(paymentMethod, true);
-    }
-
-    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod, true);
-    }
-
-    public void clearSelectedAccountByPaymentMethod() {
-        clearSelectedAccountByPaymentMethod(true);
-    }
-
-    public PaymentMethodSelectionResult onPaymentMethodSelected(PaymentMethod<?> paymentMethod) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-
-        PaymentMethodSelectionService.PaymentMethodAccountsSelection selection = paymentMethodSelectionService.findAccountsSelection(
-                getAccountsByPaymentMethod(),
-                paymentMethod);
-        if (selection.accountToAutoSelect().isPresent()) {
-            putSelectedAccountByPaymentMethod(paymentMethod, selection.accountToAutoSelect().get());
-            return PaymentMethodSelectionResult.singleAccountSelected();
-        }
-
-        if (!selection.accountsRequiringSelection().isEmpty()) {
-            return PaymentMethodSelectionResult.accountSelectionRequired(selection.accountsRequiringSelection());
-        }
-
-        return PaymentMethodSelectionResult.noAccountAvailable();
+    @Override
+    public Market getMarket() {
+        return marketService.getMarket();
     }
 
 
     /* --------------------------------------------------------------------- */
     // Internal helpers
     /* --------------------------------------------------------------------- */
-
-    /* --------------------------------------------------------------------- */
-    // PaymentMethods
-    /* --------------------------------------------------------------------- */
-
-    private void updatePaymentMethods() {
-        Market market = getMarket();
-        PaymentMethodSelectionService.MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
-        List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
-        Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
-        if (!getAccountsByPaymentMethod().equals(map)) {
-            clearAccountsByPaymentMethod();
-            putAllAccountsByPaymentMethod(map);
-        }
-
-        boolean selectedAccountsChanged = false;
-
-        // Remove payment methods which are not present in the eligible accounts
-        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = getSelectedAccountByPaymentMethod();
-        List<? extends PaymentMethod<?>> paymentMethodsToRemove = paymentMethodSelectionService.findSelectedPaymentMethodsToRemove(selectedAccountByPaymentMethod,
-                accountsForMarket);
-        if (!paymentMethodsToRemove.isEmpty()) {
-            selectedAccountsChanged = true;
-            paymentMethodsToRemove.forEach(paymentMethod -> removeSelectedAccountByPaymentMethod(paymentMethod, false));
-        }
-
-        // If we have only one, we pre-select
-        Optional<Account<?, ?>> accountToAutoSelect = paymentMethodSelectionService.findAccountToAutoSelect(accountsForMarket,
-                getSelectedAccountByPaymentMethod());
-        if (accountToAutoSelect.isPresent()) {
-            Account<?, ?> account = accountToAutoSelect.get();
-            selectedAccountsChanged |= putSelectedAccountByPaymentMethod(account.getPaymentMethod(), account, false);
-        }
-
-        if (selectedAccountsChanged) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-    private boolean putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod,
-                                                      Account<?, ?> account,
-                                                      boolean recalculateTradeAmountConstraints) {
-        Account<?, ?> existing = getSelectedAccountByPaymentMethod().get(paymentMethod);
-        if (account.equals(existing)) {
-            return false;
-        }
-        takeOfferDraft.putSelectedAccountByPaymentMethod(paymentMethod, account);
-        if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-        return true;
-    }
-
-    private boolean removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod,
-                                                         boolean recalculateTradeAmountConstraints) {
-        if (!getSelectedAccountByPaymentMethod().containsKey(paymentMethod)) {
-            return false;
-        }
-        takeOfferDraft.removeSelectedAccountByPaymentMethod(paymentMethod);
-        if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-        return true;
-    }
-
-    private boolean putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
-                                                         boolean recalculateTradeAmountConstraints) {
-        if (selectedAccountByPaymentMethod.isEmpty()) {
-            return clearSelectedAccountByPaymentMethod(recalculateTradeAmountConstraints);
-        }
-        ImmutableMap<PaymentMethod<?>, Account<?, ?>> existing = getSelectedAccountByPaymentMethod();
-        boolean changed = selectedAccountByPaymentMethod.entrySet().stream()
-                .anyMatch(entry -> !entry.getValue().equals(existing.get(entry.getKey())));
-        if (!changed) {
-            return false;
-        }
-        takeOfferDraft.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
-        if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-        return true;
-    }
-
-    private boolean clearSelectedAccountByPaymentMethod(boolean recalculateTradeAmountConstraints) {
-        if (getSelectedAccountByPaymentMethod().isEmpty()) {
-            return false;
-        }
-        takeOfferDraft.clearSelectedAccountByPaymentMethod();
-        if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-        return true;
-    }
-
-    private PaymentRail getSelectedPaymentRail() {
-        return paymentMethodSelectionService.findMostRestrictiveSelectedPaymentRail(getSelectedAccountByPaymentMethod());
-    }
 
     private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
         return stateEngine.getClampLimits(includeUserSpecificTradeAmountLimit);

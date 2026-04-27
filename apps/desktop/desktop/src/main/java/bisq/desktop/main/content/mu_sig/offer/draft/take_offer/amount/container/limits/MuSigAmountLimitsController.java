@@ -22,6 +22,7 @@ import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,11 +38,11 @@ public class MuSigAmountLimitsController implements Controller {
     private final MuSigAmountLimitsModel model;
     @Getter
     private final MuSigAmountLimitsView view;
+    private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Pin> pins = new HashSet<>();
-    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
 
     public MuSigAmountLimitsController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
-        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
+        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
 
         String minInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MIN_TRADE_AMOUNT_IN_USD));
         String maxInInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MAX_TRADE_AMOUNT_IN_USD));
@@ -51,7 +52,7 @@ public class MuSigAmountLimitsController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(takeOfferDraftWorkflow.inputAmountLimitsObservable().addObserver(inputAmountLimits -> {
+        pins.add(takeOfferAmountService.inputAmountLimitsObservable().addObserver(inputAmountLimits -> {
             UIThread.run(() -> {
                 model.getMin().set(formatAmountByMonetaryType(inputAmountLimits.getMin()));
                 model.getMax().set(formatAmountByMonetaryType(inputAmountLimits.getMax()));

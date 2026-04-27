@@ -28,6 +28,7 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;
@@ -49,12 +50,14 @@ public class MuSigTakeOfferAmountController implements Controller {
     @Getter
     private final MuSigTakeOfferAmountView view;
     private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferAmountService takeOfferAmountService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigTakeOfferAmountController(TakeOfferDraftWorkflow takeOfferDraftWorkflow,
                                           Consumer<Boolean> navigationButtonsVisibleHandler) {
         this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
+        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         model = new MuSigTakeOfferAmountModel();
 
@@ -75,10 +78,10 @@ public class MuSigTakeOfferAmountController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(takeOfferDraftWorkflow.userSpecificTradeAmountLimitObservable().addObserver(value -> {
+        pins.add(takeOfferAmountService.userSpecificTradeAmountLimitObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
-        pins.add(takeOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
+        pins.add(takeOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
     }
@@ -130,7 +133,7 @@ public class MuSigTakeOfferAmountController implements Controller {
     }
 
     private void applyAmountLimitInfo() {
-        Optional<TradeAmount> userSpecificTradeAmountLimit = takeOfferDraftWorkflow.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = takeOfferAmountService.getUserSpecificTradeAmountLimit();
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
                 .map(tradeAmount -> takeOfferDraftWorkflow.toInputAmount(tradeAmount, true))

@@ -22,6 +22,7 @@ import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,11 +37,13 @@ public class MuSigFixAmountSliderController implements Controller {
     @Getter
     private final MuSigFixAmountSliderView view;
     private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigFixAmountSliderController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
         this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
+        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -53,14 +56,14 @@ public class MuSigFixAmountSliderController implements Controller {
                         takeOfferDraftWorkflow.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
-        pins.add(takeOfferDraftWorkflow.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(takeOfferAmountService.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getGetSliderValue())
-                .to(takeOfferDraftWorkflow.fixAmountSliderValueObservable()));
+                .to(takeOfferAmountService.fixAmountSliderValueObservable()));
     }
 
     @Override
