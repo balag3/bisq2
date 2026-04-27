@@ -34,6 +34,8 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.presentation.formatters.AmountFormatter;
 import javafx.collections.ListChangeListener;
@@ -64,12 +66,15 @@ public class MuSigCreateOfferPaymentController implements Controller {
     private final ListChangeListener<PaymentMethod<?>> selectedPaymentMethodsListener;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
+    private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigCreateOfferPaymentController(ServiceProvider serviceProvider,
-                                             CreateOfferPaymentMethodService createOfferPaymentMethodService,
+                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
                                              Region owner,
                                              Consumer<Boolean> navigationButtonsVisibleHandler) {
-        this.createOfferPaymentMethodService = createOfferPaymentMethodService;
+        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodService();
+        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
+
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
 
@@ -84,7 +89,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
             navigationButtonsVisibleHandler.accept(false);
             model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
             model.getNoPaymentMethodSelectedOverlayText().set(
-                    createOfferPaymentMethodService.getMarket().isCrypto()
+                    createOfferMarketService.getMarket().isCrypto()
                             ? Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.crypto")
                             : Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.fiat"));
             return false;
@@ -103,7 +108,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         updateShouldShowMultipleAccountsOverlay(false);
         model.getPaymentMethodWithoutAccount().set(null);
 
-        Market market = createOfferPaymentMethodService.getMarket();
+        Market market = createOfferMarketService.getMarket();
         pins.add(createOfferPaymentMethodService.selectedAccountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, Account<?, ?> account) {

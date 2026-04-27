@@ -17,18 +17,13 @@
 
 package bisq.offer.mu_sig.draft.create_offer;
 
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.mu_sig.draft.ReadOnlyOfferDraft;
-import com.google.common.collect.ImmutableMap;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
@@ -100,12 +95,4 @@ public interface ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
 
     Double getMaxAmountSliderValue();
 
-
-    ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod();
-
-    ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod();
 }

@@ -17,9 +17,6 @@
 
 package bisq.offer.mu_sig.draft.create_offer;
 
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
-import bisq.common.market.Market;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
@@ -27,23 +24,21 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.common.observable.map.ObservableHashMap;
-import bisq.common.observable.map.ReadOnlyObservableMap;
-import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
-import com.google.common.collect.ImmutableMap;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
+import lombok.AccessLevel;
 import lombok.Getter;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private final CreateOfferMarketModel marketModel;
-    @Getter
+    @Getter(AccessLevel.PACKAGE)
     private final CreateOfferDirectionModel directionModel;
+    @Getter(AccessLevel.PACKAGE)
+    private final CreateOfferPaymentMethodModel paymentMethodModel;
 
     private final Observable<PriceQuote> priceQuote = new Observable<>();
     private final Observable<Boolean> useFixPrice = new Observable<>(false);
@@ -64,12 +59,10 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     private final Observable<Double> minAmountSliderValue = new Observable<>(0d);
     private final Observable<Double> maxAmountSliderValue = new Observable<>(0d);
 
-    private final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
-    private final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = new ObservableHashMap<>();
-
     public CreateOfferDraft() {
         marketModel = new CreateOfferMarketModel();
         directionModel = new CreateOfferDirectionModel();
+        paymentMethodModel = new CreateOfferPaymentMethodModel();
     }
 
 
@@ -353,66 +346,4 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
         return maxAmountSliderValue.get();
     }
 
-
-
-    /* --------------------------------------------------------------------- */
-    // accountsByPaymentMethod
-    /* --------------------------------------------------------------------- */
-
-    public void clearAccountsByPaymentMethod() {
-        accountsByPaymentMethod.clear();
-    }
-
-    public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
-        accountsByPaymentMethod.put(paymentMethod, account);
-    }
-
-    public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        accountsByPaymentMethod.remove(paymentMethod);
-    }
-
-    public void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
-        this.accountsByPaymentMethod.putAll(accountsByPaymentMethod);
-    }
-
-    @Override
-    public ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable() {
-        return accountsByPaymentMethod;
-    }
-
-    @Override
-    public ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod() {
-        return ImmutableMap.copyOf(accountsByPaymentMethod);
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // selectedAccountByPaymentMethod
-    /* --------------------------------------------------------------------- */
-
-    public void clearSelectedAccountByPaymentMethod() {
-        selectedAccountByPaymentMethod.clear();
-    }
-
-    public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
-        selectedAccountByPaymentMethod.put(paymentMethod, account);
-    }
-
-    public void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        selectedAccountByPaymentMethod.remove(paymentMethod);
-    }
-
-    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        this.selectedAccountByPaymentMethod.putAll(selectedAccountByPaymentMethod);
-    }
-
-    @Override
-    public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable() {
-        return selectedAccountByPaymentMethod;
-    }
-
-    @Override
-    public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod() {
-        return ImmutableMap.copyOf(selectedAccountByPaymentMethod);
-    }
 }

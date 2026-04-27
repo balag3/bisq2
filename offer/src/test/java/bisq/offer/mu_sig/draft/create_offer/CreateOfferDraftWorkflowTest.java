@@ -84,7 +84,7 @@ public class CreateOfferDraftWorkflowTest {
         cookieStore = new FakeCookieStore(Direction.SELL, false, true, false);
         accountsProvider = new FakeAccountsProvider();
         workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
-        paymentMethodDraftFacade = workflow.getPaymentMethodDraftFacade();
+        paymentMethodDraftFacade = workflow.getPaymentMethodService();
         createOfferDirectionService = workflow.getDirectionService();
     }
 

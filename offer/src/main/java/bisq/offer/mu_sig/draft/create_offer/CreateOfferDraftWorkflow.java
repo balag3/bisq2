@@ -38,6 +38,7 @@ import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -77,7 +78,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
     @Getter
-    private final CreateOfferPaymentMethodService paymentMethodDraftFacade;
+    private final CreateOfferPaymentMethodService paymentMethodService;
     private final CreateOfferDraftStateEngine stateEngine;
 
 
@@ -134,6 +135,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         createOfferDraft = offerDraft;
         CreateOfferMarketModel marketModel = createOfferDraft.getMarketModel();
         CreateOfferDirectionModel directionModel = createOfferDraft.getDirectionModel();
+        CreateOfferPaymentMethodModel paymentMethodModel = createOfferDraft.getPaymentMethodModel();
         marketService = new CreateOfferMarketService(marketModel);
         directionService = new CreateOfferDirectionService(directionModel);
 
@@ -158,20 +160,19 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                 this::updatePaymentMethods,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
 
-        paymentMethodDraftFacade = new CreateOfferPaymentMethodService(createOfferDraft,
-                marketModel,
+        paymentMethodService = new CreateOfferPaymentMethodService(paymentMethodModel,
                 paymentMethodSelectionService,
                 stateEngine);
     }
 
     //todo  method hides circular reference of stateEngine and paymentMethodDraftFacade
     private void updatePaymentMethods() {
-        paymentMethodDraftFacade.updatePaymentMethods();
+        paymentMethodService.updatePaymentMethods(getMarket());
     }
 
     //todo  method hides circular reference of stateEngine and paymentMethodDraftFacade
     private PaymentRail getSelectedPaymentRail() {
-        return paymentMethodDraftFacade.getSelectedPaymentRail();
+        return paymentMethodService.getSelectedPaymentRail();
     }
 
 

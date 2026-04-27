@@ -21,12 +21,10 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
-import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraft;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftStateEngine;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketReadOnlyModel;
 import com.google.common.collect.ImmutableMap;
+import lombok.experimental.Delegate;
 
 import java.util.List;
 import java.util.Map;
@@ -35,8 +33,8 @@ import java.util.Optional;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CreateOfferPaymentMethodService {
-    private final CreateOfferDraft createOfferDraft;
-    private final CreateOfferMarketReadOnlyModel marketModel;
+    @Delegate
+    private final CreateOfferPaymentMethodModel paymentMethodModel;
     private final PaymentMethodSelectionService paymentMethodSelectionService;
     private final CreateOfferDraftStateEngine stateEngine;
 
@@ -68,53 +66,31 @@ public class CreateOfferPaymentMethodService {
         }
     }
 
-    public CreateOfferPaymentMethodService(CreateOfferDraft createOfferDraft,
-                                           CreateOfferMarketReadOnlyModel marketModel,
+    public CreateOfferPaymentMethodService(CreateOfferPaymentMethodModel paymentMethodModel,
                                            PaymentMethodSelectionService paymentMethodSelectionService,
                                            CreateOfferDraftStateEngine stateEngine) {
-        this.createOfferDraft = checkNotNull(createOfferDraft, "createOfferDraft must not be null");
-        this.marketModel = marketModel;
+        this.paymentMethodModel = checkNotNull(paymentMethodModel, "paymentMethodModel must not be null");
         this.paymentMethodSelectionService = checkNotNull(paymentMethodSelectionService, "paymentMethodSelectionService must not be null");
         this.stateEngine = checkNotNull(stateEngine, "stateEngine must not be null");
-    }
-
-    public Market getMarket() {
-        return marketModel.getMarket();
-    }
-
-    public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable() {
-        return createOfferDraft.selectedAccountByPaymentMethodObservable();
-    }
-
-    public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod() {
-        return createOfferDraft.getSelectedAccountByPaymentMethod();
-    }
-
-    public ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable() {
-        return createOfferDraft.accountsByPaymentMethodObservable();
-    }
-
-    public ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod() {
-        return createOfferDraft.getAccountsByPaymentMethod();
     }
 
     public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
         checkNotNull(paymentMethod, "paymentMethod must not be null");
         checkNotNull(account, "account must not be null");
-        createOfferDraft.putAccountsByPaymentMethod(paymentMethod, account);
+        paymentMethodModel.putAccountsByPaymentMethod(paymentMethod, account);
     }
 
     public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        createOfferDraft.removeAccountsByPaymentMethod(paymentMethod);
+        paymentMethodModel.removeAccountsByPaymentMethod(paymentMethod);
     }
 
     public void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> selectedAccountByPaymentMethod) {
         checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        createOfferDraft.putAllAccountsByPaymentMethod(selectedAccountByPaymentMethod);
+        paymentMethodModel.putAllAccountsByPaymentMethod(selectedAccountByPaymentMethod);
     }
 
     public void clearAccountsByPaymentMethod() {
-        createOfferDraft.clearAccountsByPaymentMethod();
+        paymentMethodModel.clearAccountsByPaymentMethod();
     }
 
     public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
@@ -158,8 +134,7 @@ public class CreateOfferPaymentMethodService {
     // Package scope helpers used by workflow/state engine callbacks
     /* --------------------------------------------------------------------- */
 
-    public void updatePaymentMethods() {
-        Market market = marketModel.getMarket();
+    public void updatePaymentMethods(Market market) {
         PaymentMethodSelectionService.MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
         List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
         Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
@@ -203,7 +178,7 @@ public class CreateOfferPaymentMethodService {
         if (account.equals(existing)) {
             return false;
         }
-        createOfferDraft.putSelectedAccountByPaymentMethod(paymentMethod, account);
+        paymentMethodModel.putSelectedAccountByPaymentMethod(paymentMethod, account);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
@@ -215,7 +190,7 @@ public class CreateOfferPaymentMethodService {
         if (!getSelectedAccountByPaymentMethod().containsKey(paymentMethod)) {
             return false;
         }
-        createOfferDraft.removeSelectedAccountByPaymentMethod(paymentMethod);
+        paymentMethodModel.removeSelectedAccountByPaymentMethod(paymentMethod);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
@@ -233,7 +208,7 @@ public class CreateOfferPaymentMethodService {
         if (!changed) {
             return false;
         }
-        createOfferDraft.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
+        paymentMethodModel.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
@@ -244,7 +219,7 @@ public class CreateOfferPaymentMethodService {
         if (getSelectedAccountByPaymentMethod().isEmpty()) {
             return false;
         }
-        createOfferDraft.clearSelectedAccountByPaymentMethod();
+        paymentMethodModel.clearSelectedAccountByPaymentMethod();
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }

@@ -89,7 +89,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
         createOfferMarketService = createOfferDraftWorkflow.getMarketService();
-        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodDraftFacade();
+        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodService();
 
         overlayController = OverlayController.getInstance();
 
@@ -103,7 +103,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferDraftWorkflow, this::onNext);
         muSigCreateOfferPaymentController = new MuSigCreateOfferPaymentController(serviceProvider,
-                createOfferPaymentMethodService,
+                createOfferDraftWorkflow,
                 view.getRoot(),
                 this::setMainButtonsVisibleState);
         muSigCreateOfferAmountAndPriceController = new MuSigCreateOfferAmountAndPriceController(serviceProvider,
