@@ -34,6 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
@@ -50,8 +51,6 @@ import java.util.Set;
 
 @Slf4j
 public class MuSigCreateOfferController extends NavigationController implements InitWithDataController<MuSigCreateOfferController.InitData> {
-
-
     @Getter
     @EqualsAndHashCode
     @ToString
@@ -65,7 +64,8 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferService createOfferService;
-    private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
+    private final CreateOfferMarketService marketService;
+    private final CreateOfferPaymentMethodService paymentMethodService;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -86,8 +86,8 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        createOfferPaymentMethodService = createOfferService.getPaymentMethodService();
-
+        paymentMethodService = createOfferService.getPaymentMethodService();
+        marketService = createOfferService.getMarketService();
         overlayController = OverlayController.getInstance();
 
         List<NavigationTarget> targets = new ArrayList<>(List.of(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET));
@@ -110,7 +110,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
                 createOfferService,
-                createOfferPaymentMethodService,
+                paymentMethodService,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
     }
@@ -132,7 +132,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
-        pins.add(createOfferService.marketObservable().addObserver(market -> {
+        pins.add(marketService.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
                 updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();
@@ -153,9 +153,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
     @Override
     protected void onStartProcessNavigationTarget(NavigationTarget navigationTarget, Optional<Object> data) {
         if (navigationTarget == NavigationTarget.MU_SIG_CREATE_OFFER_REVIEW_OFFER) {
-            muSigCreateOfferReviewController.prepareForCreateOffer(
-                    muSigCreateOfferAmountAndPriceController.getPriceSpec().get()
-            );
+            muSigCreateOfferReviewController.initialize();
             model.getNextButtonText().set(Res.get("muSig.offer.create.review.nextButton.createOffer"));
         } else {
             model.getNextButtonText().set(Res.get("action.next"));

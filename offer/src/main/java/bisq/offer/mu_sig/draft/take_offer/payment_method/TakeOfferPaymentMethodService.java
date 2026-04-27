@@ -21,6 +21,8 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.MarketAccounts;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodAccountSelection;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftStateEngine;
 import com.google.common.collect.ImmutableMap;
@@ -117,7 +119,7 @@ public class TakeOfferPaymentMethodService {
     public PaymentMethodSelectionResult onPaymentMethodSelected(PaymentMethod<?> paymentMethod) {
         checkNotNull(paymentMethod, "paymentMethod must not be null");
 
-        PaymentMethodSelectionService.PaymentMethodAccountsSelection selection = paymentMethodSelectionService.findAccountsSelection(
+        PaymentMethodAccountSelection selection = paymentMethodSelectionService.findAccountsSelection(
                 getAccountsByPaymentMethod(),
                 paymentMethod);
         if (selection.accountToAutoSelect().isPresent()) {
@@ -137,7 +139,7 @@ public class TakeOfferPaymentMethodService {
     /* --------------------------------------------------------------------- */
 
     public void updatePaymentMethods(Market market) {
-        PaymentMethodSelectionService.MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
+        MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
         List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
         Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
         if (!getAccountsByPaymentMethod().equals(map)) {

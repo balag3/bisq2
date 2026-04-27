@@ -21,11 +21,17 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
+import bisq.offer.price.spec.FixPriceSpec;
+import bisq.offer.price.spec.FloatPriceSpec;
+import bisq.offer.price.spec.MarketPriceSpec;
+import bisq.offer.price.spec.PriceSpec;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
 import java.util.Optional;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CreateOfferPriceService {
     @Getter(AccessLevel.PACKAGE)
@@ -47,13 +53,26 @@ public class CreateOfferPriceService {
         double pricePercentage = cookieStore.getPricePercentage(market);
         setPricePercentage(pricePercentage);
 
-        Optional<PriceQuote> fixPrice = cookieStore.getFixPrice(market);
-        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        //todo clamp price to limits
-        PriceQuote priceQuote = fixPrice
-                .filter(e -> e.getValue() > 0)
-                .orElse(marketPriceQuote);
+        PriceQuote priceQuote = fromMarketChange(market);
         setPriceQuote(priceQuote);
+    }
+
+    public PriceQuote fromMarketChange(Market market) {
+        boolean useFixPrice = getUseFixPrice();
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
+        if (useFixPrice) {
+            Optional<PriceQuote> fixPrice = cookieStore.getFixPrice(market);
+            //todo clamp price to limits
+            PriceQuote priceQuote = fixPrice
+                    .filter(e -> e.getValue() > 0)
+                    .orElse(marketPriceQuote);
+            cookieStore.persistFixPrice(market, priceQuote);
+            return priceQuote;
+        } else {
+            double pricePercentage = cookieStore.getPricePercentage(market);
+            // cookieStore.persistPricePercentage(market, pricePercentage);
+            return marketPriceQuote;
+        }
     }
 
     public void setPriceQuote(PriceQuote priceQuote) {
@@ -76,4 +95,14 @@ public class CreateOfferPriceService {
         model.setPricePercentage(pricePercentage);
     }
 
+    public PriceSpec createAndGetPriceSpec() {
+        if (getUseFixPrice()) {
+            return new FixPriceSpec(checkNotNull(getPriceQuote(), "priceQuote must not be null"));
+        }
+        double pricePercentage = getPricePercentage();
+        if (pricePercentage == 0d) {
+            return new MarketPriceSpec();
+        }
+        return new FloatPriceSpec(pricePercentage);
+    }
 }

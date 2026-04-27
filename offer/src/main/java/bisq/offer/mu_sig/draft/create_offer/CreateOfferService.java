@@ -18,8 +18,6 @@
 package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.AccountService;
-import bisq.account.accounts.Account;
-import bisq.account.payment_method.PaymentMethod;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
@@ -27,32 +25,21 @@ import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
-import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.Direction;
-import bisq.offer.amount.spec.AmountSpec;
-import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.DraftOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionResult;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionStatus;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultCreateOfferDraftCookieStore;
-import bisq.offer.price.spec.FixPriceSpec;
-import bisq.offer.price.spec.FloatPriceSpec;
-import bisq.offer.price.spec.MarketPriceSpec;
-import bisq.offer.price.spec.PriceSpec;
 import bisq.settings.SettingsService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -81,6 +68,7 @@ public class CreateOfferService extends DraftOfferService {
     private final CreateOfferPaymentMethodService paymentMethodService;
     private final CreateOfferDraftStateEngine stateEngine;
     private final CreateOfferStateUpdateHandler stateUpdateHandler;
+    private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
 
 
     /* --------------------------------------------------------------------- */
@@ -103,6 +91,7 @@ public class CreateOfferService extends DraftOfferService {
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         amountMappingService = new AmountMappingService();
+        tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         marketService = new CreateOfferMarketService();
         directionService = new CreateOfferDirectionService(cookieStore);
@@ -110,11 +99,13 @@ public class CreateOfferService extends DraftOfferService {
         priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
         amountService = new CreateOfferAmountService(marketPriceService, cookieStore, amountMappingService);
 
-        stateUpdateHandler = new CreateOfferStateUpdateHandler(marketService,
-                directionService,
-                paymentMethodService,
-                priceService,
-                amountService);
+
+        marketService.marketObservable().addObserver(market -> {
+            if (market != null) {
+                paymentMethodService.handleMarketChanged(market);
+            }
+        });
+
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
@@ -123,7 +114,17 @@ public class CreateOfferService extends DraftOfferService {
                 amountService,
                 marketPriceService,
                 amountMappingService,
+                tradeAmountConstraintsService,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
+
+        stateUpdateHandler = new CreateOfferStateUpdateHandler(marketService,
+                directionService,
+                paymentMethodService,
+                priceService,
+                amountService,
+                marketPriceService,
+                tradeAmountConstraintsService,
+                stateEngine);
     }
 
 
@@ -144,19 +145,80 @@ public class CreateOfferService extends DraftOfferService {
         stateUpdateHandler.initialize();
 
         stateEngine.initialize();
-
-        boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
-        if (selectedAccountsChanged) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
     }
 
     @Override
     public void dispose() {
         super.dispose();
+        paymentMethodService.dispose();
         stateUpdateHandler.dispose();
+        stateEngine.dispose();
     }
 
+
+    /* --------------------------------------------------------------------- */
+    // Mutation API
+    /* --------------------------------------------------------------------- */
+
+    public void setPriceQuote(PriceQuote priceQuote) {
+        checkNotNull(priceQuote, "PriceQuote must not be null");
+        if (priceQuote.equals(priceService.getPriceQuote())) {
+            return;
+        }
+        stateEngine.applyPriceQuoteChanged(priceQuote);
+    }
+
+    public void setUseFixPrice(boolean useFixPrice) {
+        if (useFixPrice == priceService.getUseFixPrice()) {
+            return;
+        }
+        Market market = checkNotNull(getMarket(), "market must not be null");
+        cookieStore.persistUseFixPrice(market, useFixPrice);
+        stateEngine.applyUseFixPriceChanged(useFixPrice);
+    }
+
+    public void setPricePercentage(double pricePercentage) {
+        if (Double.compare(pricePercentage, priceService.getPricePercentage()) == 0) {
+            return;
+        }
+        priceService.setPricePercentage(pricePercentage);
+        Market market = checkNotNull(getMarket(), "market must not be null");
+        cookieStore.persistPricePercentage(market, pricePercentage);
+    }
+
+   /* public void setFixPrice(PriceQuote fixPriceQuote) {
+        checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");
+        if (priceService.getPriceQuote().equals(fixPriceQuote)) {
+            return;
+        }
+        priceService.setPriceQuote(fixPriceQuote);
+    }*/
+
+    public void setUseBaseCurrencyForAmountInput(boolean value) {
+        if (value == amountService.getUseBaseCurrencyForAmountInput()) {
+            return;
+        }
+
+        Market market = getMarket();
+        if (market == null) {
+            amountService.setUseBaseCurrencyForAmountInput(value);
+            return;
+        }
+
+        if (stateEngine.applyUseBaseCurrencyForAmountInputChanged(value)) {
+            cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
+        }
+    }
+
+    public void setUseRangeAmount(boolean useRangeAmount) {
+        if (useRangeAmount == amountService.getUseRangeAmount()) {
+            return;
+        }
+
+        if (stateEngine.applyUseRangeAmountChanged(useRangeAmount)) {
+            cookieStore.persistUseRangeAmount(useRangeAmount);
+        }
+    }
 
     /* --------------------------------------------------------------------- */
     // Amount input entry points
@@ -214,163 +276,6 @@ public class CreateOfferService extends DraftOfferService {
 
 
     /* --------------------------------------------------------------------- */
-    // Mutation API
-    /* --------------------------------------------------------------------- */
-
-    // Core market/pricing state
-    public void setMarket(Market market) {
-        checkNotNull(market, "Market must not be null");
-        if (market.equals(getMarket())) {
-            return;
-        }
-        stateEngine.applyMarketChanged(market);
-        boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
-        if (selectedAccountsChanged) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-
-    public void setDirection(Direction direction) {
-        checkNotNull(direction, "Direction must not be null");
-        if (direction.equals(directionService.getDirection())) {
-            return;
-        }
-
-        cookieStore.persistDirection(direction);
-
-        stateEngine.applyDirectionChanged(direction);
-    }
-
-    public void setPriceQuote(PriceQuote priceQuote) {
-        checkNotNull(priceQuote, "PriceQuote must not be null");
-        if (priceQuote.equals(priceService.getPriceQuote())) {
-            return;
-        }
-        stateEngine.applyPriceQuoteChanged(priceQuote);
-    }
-
-    public void setUseFixPrice(boolean useFixPrice) {
-        if (useFixPrice == priceService.getUseFixPrice()) {
-            return;
-        }
-        Market market = getMarket();
-        if (market != null) {
-            cookieStore.persistUseFixPrice(market, useFixPrice);
-        }
-        stateEngine.applyUseFixPriceChanged(useFixPrice);
-    }
-
-   /* public void setPricePercentage(double pricePercentage) {
-        if (Double.compare(pricePercentage, getPricePercentage()) == 0) {
-            return;
-        }
-        createOfferDraft.setPricePercentage(pricePercentage);
-        cookieStore.persistPricePercentage(pricePercentage);
-    }
-
-    public void setUseFixPrice(PriceQuote fixPriceQuote) {
-        checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");
-        if (getPriceQuote().equals(fixPriceQuote)) {
-            return;
-        }
-        createOfferDraft.setUseFixPrice(fixPriceQuote);
-        cookieStore.persistPricePercentage(fixPriceQuote);
-    }*/
-
-    public void setUseBaseCurrencyForAmountInput(boolean value) {
-        if (value == amountService.getUseBaseCurrencyForAmountInput()) {
-            return;
-        }
-
-        Market market = getMarket();
-        if (market == null) {
-            amountService.setUseBaseCurrencyForAmountInput(value);
-            return;
-        }
-
-        if (stateEngine.applyUseBaseCurrencyForAmountInputChanged(value)) {
-            cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
-        }
-    }
-
-    public void setUseRangeAmount(boolean useRangeAmount) {
-        if (useRangeAmount == amountService.getUseRangeAmount()) {
-            return;
-        }
-
-        if (stateEngine.applyUseRangeAmountChanged(useRangeAmount)) {
-            cookieStore.persistUseRangeAmount(useRangeAmount);
-        }
-    }
-
-    // Payment account state
-    public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-        checkNotNull(account, "account must not be null");
-        if (paymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account)) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-    public void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-        if (paymentMethodService.removeSelectedAccountByPaymentMethod(paymentMethod)) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        if (paymentMethodService.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod)) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-    public void clearSelectedAccountByPaymentMethod() {
-        if (paymentMethodService.clearSelectedAccountByPaymentMethod()) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-    }
-
-    public PaymentMethodSelectionResult onPaymentMethodSelected(PaymentMethod<?> paymentMethod) {
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-        PaymentMethodSelectionResult selectionResult = paymentMethodService.onPaymentMethodSelected(paymentMethod);
-        if (selectionResult.status() == PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
-        }
-        return selectionResult;
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Derived read model
-    /* --------------------------------------------------------------------- */
-
-    public AmountSpec getAmountSpec() {
-        Market market = checkNotNull(getMarket(), "market must not be null");
-        boolean isBtcFiatMarket = market.isBtcFiatMarket();
-        boolean useRangeAmount = amountService.getUseRangeAmount();
-        return AmountSpecFactory.createAmountSpec(isBtcFiatMarket,
-                useRangeAmount,
-                amountService.getMinTradeAmount(),
-                amountService.getMaxTradeAmount(),
-                amountService.getFixTradeAmount());
-    }
-
-    public PriceSpec getPriceSpec() {
-        if (priceService.getUseFixPrice()) {
-            return new FixPriceSpec(checkNotNull(priceService.getPriceQuote(), "priceQuote must not be null"));
-        }
-        double pricePercentage = priceService.getPricePercentage();
-        if (pricePercentage == 0d) {
-            return new MarketPriceSpec();
-        }
-        return new FloatPriceSpec(pricePercentage);
-    }
-
-
-    /* --------------------------------------------------------------------- */
     // Delegate read methods
     /* --------------------------------------------------------------------- */
 
@@ -379,25 +284,8 @@ public class CreateOfferService extends DraftOfferService {
         return marketService.getMarket();
     }
 
-    public ReadOnlyObservable<Market> marketObservable() {
-        return marketService.marketObservable();
-    }
-
-
-
-
-    /* --------------------------------------------------------------------- */
-    // Internal helpers
-    /* --------------------------------------------------------------------- */
-
-    /* --------------------------------------------------------------------- */
-    // PaymentMethods
-    /* --------------------------------------------------------------------- */
-
 
     private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
         return stateEngine.getClampLimits(includeUserSpecificTradeAmountLimit);
     }
-
-
 }

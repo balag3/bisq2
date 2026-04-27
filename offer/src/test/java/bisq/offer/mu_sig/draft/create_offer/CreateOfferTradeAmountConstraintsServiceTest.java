@@ -1,5 +1,6 @@
 package bisq.offer.mu_sig.draft.create_offer;
 
+import bisq.account.payment_method.PaymentRail;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.bonded_roles.bonded_role.AuthorizedBondedRole;
 import bisq.bonded_roles.market_price.MarketPrice;
@@ -13,6 +14,7 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.draft.TradeAmountConstraints;
 import bisq.offer.mu_sig.draft.TradeAmountLimits;
 import org.junit.jupiter.api.Test;
@@ -32,11 +34,12 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
+        PaymentRail paymentRail = FiatPaymentRail.ACH_TRANSFER;
+        Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.BUY,
                 offerPriceQuote,
-                marketPriceQuote,
-                FiatPaymentRail.ACH_TRANSFER);
+                paymentRailBasedTradeLimitInUsd);
 
         assertEquals(Fiat.fromFaceValue(5000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
         assertEquals(Fiat.fromFaceValue(TradeAmountLimits.USER_SPECIFIC_LIMIT_IN_USD, "USD"),
@@ -51,11 +54,20 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
+        PaymentRail paymentRail = null;
+        Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.SELL,
                 offerPriceQuote,
+                paymentRailBasedTradeLimitInUsd);
+
+
+
+      /*  TradeAmountConstraints constraints = service.compute(market,
+                Direction.SELL,
+                offerPriceQuote,
                 marketPriceQuote,
-                null);
+                null);*/
 
         assertEquals(Fiat.fromFaceValue(10000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
         assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());

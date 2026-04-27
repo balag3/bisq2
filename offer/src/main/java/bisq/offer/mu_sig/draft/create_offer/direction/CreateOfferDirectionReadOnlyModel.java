@@ -25,6 +25,4 @@ public interface CreateOfferDirectionReadOnlyModel {
     ReadOnlyObservable<Direction> directionObservable();
 
     Direction getDirection();
-
-    ReadOnlyObservable<Boolean> directionChangedObservable();
 }

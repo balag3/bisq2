@@ -23,7 +23,6 @@ import bisq.offer.Direction;
 
 public class CreateOfferDirectionModel implements CreateOfferDirectionReadOnlyModel {
     protected final Observable<Direction> direction = new Observable<>();
-    protected final Observable<Boolean> directionChanged = new Observable<>(false);
 
     public CreateOfferDirectionModel() {
     }
@@ -40,13 +39,5 @@ public class CreateOfferDirectionModel implements CreateOfferDirectionReadOnlyMo
     @Override
     public Direction getDirection() {
         return direction.get();
-    }
-
-    void setDirectionChanged(Boolean directionChanged) {
-        this.directionChanged.set(directionChanged);
-    }
-    @Override
-    public ReadOnlyObservable<Boolean> directionChangedObservable() {
-        return directionChanged;
     }
 }

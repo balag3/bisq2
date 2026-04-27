@@ -22,10 +22,15 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Consumer;
+
 public class CreateOfferMarketService {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferMarketModel model;
+    private final Set<Consumer<Market>> listeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferMarketService() {
         this.model = new CreateOfferMarketModel();
@@ -33,16 +38,33 @@ public class CreateOfferMarketService {
 
     public void initialize(Market market) {
         model.setMarket(market);
+        applyMarket(market, false);
     }
 
-    public void setMarket(Market market) {
+
+    /* --------------------------------------------------------------------- */
+    // User input
+    /* --------------------------------------------------------------------- */
+
+    public void onSelectMarket(Market market) {
+        applyMarket(market, true);
+    }
+
+
+    private void applyMarket(Market market, boolean notifyListeners) {
         if (market != model.getMarket()) {
             model.setMarket(market);
-            model.setMarketChanged(true);
+            if (notifyListeners) {
+                listeners.forEach(listener -> listener.accept(market));
+            }
         }
     }
 
-    public void resetMarketChanged() {
-        model.setMarketChanged(false);
+    public void addListener(Consumer<Market> listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(Consumer<Market> listener) {
+        listeners.remove(listener);
     }
 }

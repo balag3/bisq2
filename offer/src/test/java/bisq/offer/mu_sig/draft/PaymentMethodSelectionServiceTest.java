@@ -6,6 +6,7 @@ import bisq.account.payment_method.fiat.FiatPaymentMethod;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,7 @@ public class PaymentMethodSelectionServiceTest {
         accountsProvider.put(market, List.of(achAccount1, achAccount2, advancedCashAccount));
         PaymentMethodSelectionService service = new PaymentMethodSelectionService(accountsProvider);
 
-        PaymentMethodSelectionService.MarketAccounts marketAccounts = service.loadAccountsForMarket(market);
+        MarketAccounts marketAccounts = service.loadAccountsForMarket(market);
 
         assertEquals(List.of(achAccount1, achAccount2, advancedCashAccount), marketAccounts.accountsForMarket());
         assertEquals(List.of(achAccount1, achAccount2), marketAccounts.accountsByPaymentMethod().get(achMethod));

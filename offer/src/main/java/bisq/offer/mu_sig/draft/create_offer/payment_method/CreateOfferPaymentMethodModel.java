@@ -19,6 +19,9 @@ package bisq.offer.mu_sig.draft.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
+import bisq.common.monetary.Fiat;
+import bisq.common.observable.Observable;
+import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import com.google.common.collect.ImmutableMap;
@@ -27,10 +30,27 @@ import java.util.List;
 import java.util.Map;
 
 public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodReadOnlyModel {
-    protected final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
-    protected final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = new ObservableHashMap<>();
+    private final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
+    private final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = new ObservableHashMap<>();
 
+    protected final Observable<Fiat> paymentRailBasedTradeLimitInUsd = new Observable<>();
+
+    //Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
     public CreateOfferPaymentMethodModel() {
+    }
+
+    void setPaymentRailBasedTradeLimitInUsd(Fiat paymentRailBasedTradeLimitInUsd) {
+        this.paymentRailBasedTradeLimitInUsd.set(paymentRailBasedTradeLimitInUsd);
+    }
+
+    @Override
+    public ReadOnlyObservable<Fiat> paymentRailBasedTradeLimitInUsdObservable() {
+        return paymentRailBasedTradeLimitInUsd;
+    }
+
+    @Override
+    public Fiat getPaymentRailBasedTradeLimitInUsd() {
+        return paymentRailBasedTradeLimitInUsd.get();
     }
 
     /* --------------------------------------------------------------------- */
@@ -67,29 +87,37 @@ public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodRe
     // selectedAccountByPaymentMethod
     /* --------------------------------------------------------------------- */
 
-    void clearSelectedAccountByPaymentMethod() {
-        selectedAccountByPaymentMethod.clear();
+    void clearAccountByPaymentMethod() {
+        accountByPaymentMethod.clear();
     }
 
-    void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
-        selectedAccountByPaymentMethod.put(paymentMethod, account);
+    void addAccountByPaymentMethodEntry(Map.Entry<PaymentMethod<?>, Account<?, ?>> entry) {
+        accountByPaymentMethod.put(entry.getKey(), entry.getValue());
     }
 
-    void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        selectedAccountByPaymentMethod.remove(paymentMethod);
+    void removeAccountByPaymentMethodEntry(Map.Entry<PaymentMethod<?>, Account<?, ?>> entry) {
+        accountByPaymentMethod.remove(entry.getKey(), entry.getValue());
     }
 
-    void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        this.selectedAccountByPaymentMethod.putAll(selectedAccountByPaymentMethod);
+    void putAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
+        accountByPaymentMethod.put(paymentMethod, account);
+    }
+
+    void removeAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
+        accountByPaymentMethod.remove(paymentMethod);
+    }
+
+    void putAllAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> map) {
+        this.accountByPaymentMethod.putAll(map);
     }
 
     @Override
-    public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable() {
-        return selectedAccountByPaymentMethod;
+    public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodObservable() {
+        return accountByPaymentMethod;
     }
 
     @Override
-    public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod() {
-        return ImmutableMap.copyOf(selectedAccountByPaymentMethod);
+    public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getAccountByPaymentMethod() {
+        return ImmutableMap.copyOf(accountByPaymentMethod);
     }
 }

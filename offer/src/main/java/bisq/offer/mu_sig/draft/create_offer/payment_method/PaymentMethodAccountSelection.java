@@ -15,32 +15,34 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft.create_offer;
+package bisq.offer.mu_sig.draft.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
-                                           List<Account<?, ?>> accountsRequiringSelection) {
-    public PaymentMethodSelectionResult {
-        checkNotNull(status, "status must not be null");
+public record PaymentMethodAccountSelection(Optional<Account<?, ?>> accountToAutoSelect,
+                                            List<Account<?, ?>> accountsRequiringSelection) {
+    public PaymentMethodAccountSelection {
+        checkNotNull(accountToAutoSelect, "accountToAutoSelect must not be null");
         checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
         accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
     }
 
-    public static PaymentMethodSelectionResult noAccountAvailable() {
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of());
+    public static PaymentMethodAccountSelection noAccount() {
+        return new PaymentMethodAccountSelection(Optional.empty(), List.of());
     }
 
-    public static PaymentMethodSelectionResult singleAccountSelected() {
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of());
+    public static PaymentMethodAccountSelection singleAccount(Account<?, ?> accountToAutoSelect) {
+        checkNotNull(accountToAutoSelect, "accountToAutoSelect must not be null");
+        return new PaymentMethodAccountSelection(Optional.of(accountToAutoSelect), List.of());
     }
 
-    public static PaymentMethodSelectionResult accountSelectionRequired(List<Account<?, ?>> accountsRequiringSelection) {
+    public static PaymentMethodAccountSelection multipleAccounts(List<Account<?, ?>> accountsRequiringSelection) {
         checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection);
+        return new PaymentMethodAccountSelection(Optional.empty(), accountsRequiringSelection);
     }
 }

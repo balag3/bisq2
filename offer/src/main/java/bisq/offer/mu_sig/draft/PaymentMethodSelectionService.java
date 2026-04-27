@@ -22,6 +22,8 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.MarketAccounts;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodAccountSelection;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 
@@ -87,21 +89,21 @@ public class PaymentMethodSelectionService {
         return account.equals(existing) ? Optional.empty() : Optional.of(account);
     }
 
-    public PaymentMethodAccountsSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
-                                                                PaymentMethod<?> paymentMethod) {
+    public PaymentMethodAccountSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
+                                                               PaymentMethod<?> paymentMethod) {
         checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
         checkNotNull(paymentMethod, "paymentMethod must not be null");
 
         List<Account<?, ?>> accountsForPaymentMethod = accountsByPaymentMethod.get(paymentMethod);
         if (accountsForPaymentMethod == null || accountsForPaymentMethod.isEmpty()) {
-            return PaymentMethodAccountsSelection.noAccount();
+            return PaymentMethodAccountSelection.noAccount();
         }
 
         if (accountsForPaymentMethod.size() == 1) {
-            return PaymentMethodAccountsSelection.singleAccount(accountsForPaymentMethod.getFirst());
+            return PaymentMethodAccountSelection.singleAccount(accountsForPaymentMethod.getFirst());
         }
 
-        return PaymentMethodAccountsSelection.multipleAccounts(accountsForPaymentMethod);
+        return PaymentMethodAccountSelection.multipleAccounts(accountsForPaymentMethod);
     }
 
     /* --------------------------------------------------------------------- */
@@ -117,37 +119,4 @@ public class PaymentMethodSelectionService {
                 .orElse(null);
     }
 
-    /**
-     * Snapshot of all market-eligible accounts plus a list of accounts keyed by payment method.
-     */
-    public record MarketAccounts(List<Account<?, ?>> accountsForMarket,
-                          Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
-        public MarketAccounts {
-            checkNotNull(accountsForMarket, "accountsForMarket must not be null");
-            checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
-        }
-    }
-
-    public record PaymentMethodAccountsSelection(Optional<Account<?, ?>> accountToAutoSelect,
-                                                 List<Account<?, ?>> accountsRequiringSelection) {
-        public PaymentMethodAccountsSelection {
-            checkNotNull(accountToAutoSelect, "accountToAutoSelect must not be null");
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
-        }
-
-        static PaymentMethodAccountsSelection noAccount() {
-            return new PaymentMethodAccountsSelection(Optional.empty(), List.of());
-        }
-
-        static PaymentMethodAccountsSelection singleAccount(Account<?, ?> accountToAutoSelect) {
-            checkNotNull(accountToAutoSelect, "accountToAutoSelect must not be null");
-            return new PaymentMethodAccountsSelection(Optional.of(accountToAutoSelect), List.of());
-        }
-
-        static PaymentMethodAccountsSelection multipleAccounts(List<Account<?, ?>> accountsRequiringSelection) {
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            return new PaymentMethodAccountsSelection(Optional.empty(), accountsRequiringSelection);
-        }
-    }
 }

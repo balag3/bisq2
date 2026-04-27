@@ -168,7 +168,7 @@ public class CreateOfferAmountService {
         model.setMaxAmountSliderValue(sliderValue);
     }
 
-    public AmountSpec getAmountSpec(Market market) {
+    public AmountSpec createAndGetAmountSpec(Market market) {
         checkNotNull(market, "market must not be null");
         boolean isBtcFiatMarket = market.isBtcFiatMarket();
         boolean useRangeAmount = getUseRangeAmount();
@@ -214,6 +214,4 @@ public class CreateOfferAmountService {
                 inputAmountLimits,
                 getUseBaseCurrencyForAmountInput());
     }
-
-
 }

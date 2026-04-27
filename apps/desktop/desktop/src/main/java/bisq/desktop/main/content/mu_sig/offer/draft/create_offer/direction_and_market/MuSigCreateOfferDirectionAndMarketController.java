@@ -33,6 +33,7 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -58,13 +59,15 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigOfferbookService muSigOfferbookService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
-    private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferDirectionService directionService;
+    private final CreateOfferMarketService marketService;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
                                                         CreateOfferService createOfferService,
                                                         Runnable onNextHandler) {
         this.createOfferService = createOfferService;
-        createOfferDirectionService = createOfferService.getDirectionService();
+        marketService = createOfferService.getMarketService();
+        directionService = createOfferService.getDirectionService();
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigOfferbookService = serviceProvider.getOfferService().getMuSigOfferService().getMuSigOfferbookService();
@@ -81,9 +84,9 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public void onActivate() {
         model.getPaymentCurrencySearchText().set("");
 
-        pins.add(FxBindings.bind(model.getDirection()).to(createOfferDirectionService.directionObservable()));
+        pins.add(FxBindings.bind(model.getDirection()).to(directionService.directionObservable()));
 
-        pins.add(createOfferService.marketObservable().addObserver(market
+        pins.add(marketService.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
             String baseCurrencyName = market.getBaseCurrencyName();
             String quoteCurrencyName = market.getQuoteCurrencyName();
@@ -146,13 +149,13 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     }
 
     void onSelectDirection(Direction direction) {
-        createOfferService.setDirection(direction);
+        directionService.onSelectDirection(direction);
         onNextHandler.run();
     }
 
     void onSelectMarketListItem(MarketListItem item) {
         if (item != null) {
-            createOfferService.setMarket(item.getMarket());
+            marketService.onSelectMarket(item.getMarket());
         }
     }
 

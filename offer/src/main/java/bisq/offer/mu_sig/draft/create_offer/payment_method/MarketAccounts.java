@@ -19,25 +19,19 @@ package bisq.offer.mu_sig.draft.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.common.monetary.Fiat;
-import bisq.common.observable.ReadOnlyObservable;
-import bisq.common.observable.map.ReadOnlyObservableMap;
-import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
+import java.util.Map;
 
-public interface CreateOfferPaymentMethodReadOnlyModel {
+import static com.google.common.base.Preconditions.checkNotNull;
 
-    Fiat getPaymentRailBasedTradeLimitInUsd();
-
-    ReadOnlyObservable<Fiat> paymentRailBasedTradeLimitInUsdObservable();
-
-    ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, Account<?, ?>> getAccountByPaymentMethod();
-
-    ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable();
-
-    ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod();
-
+/**
+ * Snapshot of all market-eligible accounts plus a list of accounts keyed by payment method.
+ */
+public record MarketAccounts(List<Account<?, ?>> accountsForMarket,
+                             Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
+    public MarketAccounts {
+        checkNotNull(accountsForMarket, "accountsForMarket must not be null");
+        checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
+    }
 }

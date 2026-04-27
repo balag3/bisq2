@@ -53,6 +53,7 @@ public class CreateOfferDraftStateEngineTest {
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftCookieStore cookieStore;
     private CreateOfferDraftStateEngine stateEngine;
+    private CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
 
     @BeforeEach
     public void setUp() {
@@ -79,7 +80,8 @@ public class CreateOfferDraftStateEngineTest {
         directionService = new CreateOfferDirectionService(cookieStore);
         priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
         amountService = new CreateOfferAmountService(marketPriceService, cookieStore, amountMappingService);
-        paymentMethodService = new CreateOfferPaymentMethodService(market -> List.of());
+        paymentMethodService = new CreateOfferPaymentMethodService(market -> List.of() );
+        tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
@@ -88,6 +90,7 @@ public class CreateOfferDraftStateEngineTest {
                 amountService,
                 marketPriceService,
                 amountMappingService,
+                tradeAmountConstraintsService,
                 CreateOfferService.DEFAULT_TRADE_AMOUNT_IN_USD);
     }
 
@@ -107,19 +110,17 @@ public class CreateOfferDraftStateEngineTest {
     }
 
     @Test
-    public void applyDirectionChangedReturnsFalseWithoutPricingContext() {
-        boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
-
-        assertFalse(recalculated);
+    public void onDirectionChangedReturnsFalseWithoutPricingContext() {
+        directionService.onSelectDirection(Direction.BUY);
         assertEquals(Direction.BUY, directionService.getDirection());
     }
 
     @Test
-    public void applyDirectionChangedReturnsTrueWithPricingContext() {
+    public void onDirectionChangedReturnsTrueWithPricingContext() {
         initializeStateForMarket(usdBtcMarket);
         stateEngine.initialize();
 
-        boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
+        boolean recalculated = stateEngine.onDirectionChanged(Direction.BUY);
 
         assertTrue(recalculated);
         Optional<TradeAmount> userSpecificTradeAmountLimit = amountService.getUserSpecificTradeAmountLimit();
@@ -150,7 +151,7 @@ public class CreateOfferDraftStateEngineTest {
 
         PaymentMethod<?> paymentMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account = createAccount(paymentMethod);
-        paymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account);
+        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(paymentMethod, account));
 
         stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
 

@@ -17,7 +17,6 @@
 
 package bisq.offer.mu_sig.draft.create_offer;
 
-import bisq.account.payment_method.PaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
@@ -54,24 +53,24 @@ class CreateOfferTradeAmountConstraintsService {
     TradeAmountConstraints compute(Market market,
                                    Direction direction,
                                    PriceQuote offerPriceQuote,
-                                   PriceQuote marketPriceQuote,
-                                   PaymentRail paymentRail) {
+                                   Fiat paymentRailBasedTradeLimitInUsd) {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
         checkNotNull(offerPriceQuote, "offerPriceQuote must not be null");
+
+        PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         checkNotNull(marketPriceQuote, "marketPriceQuote must not be null");
 
         Market usdBitcoinMarket = MarketRepository.getUSDBitcoinMarket();
         PriceQuote btcUsdPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(usdBitcoinMarket);
 
-        Fiat maxTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
         Fiat minTradeAmountInUsd = MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
                 offerPriceQuote,
                 btcUsdPriceQuote,
                 marketPriceQuote,
                 minTradeAmountInUsd,
-                maxTradeLimitInUsd);
+                paymentRailBasedTradeLimitInUsd);
 
         if (direction.isSell()) {
             return new TradeAmountConstraints(tradeAmountLimits, Optional.empty());

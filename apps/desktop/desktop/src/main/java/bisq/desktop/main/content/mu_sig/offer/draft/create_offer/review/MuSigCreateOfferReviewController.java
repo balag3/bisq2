@@ -47,8 +47,11 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
@@ -88,7 +91,11 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MarketPriceService marketPriceService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
     private final MuSigService muSigService;
-    private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferMarketService marketService;
+    private final CreateOfferDirectionService directionService;
+    private final CreateOfferPaymentMethodService paymentMethodService;
+    private final CreateOfferPriceService priceService;
+    private final CreateOfferAmountService amountService;
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
                                             CreateOfferService createOfferService,
@@ -96,11 +103,12 @@ public class MuSigCreateOfferReviewController implements Controller {
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferService = createOfferService;
-        createOfferDirectionService = createOfferService.getDirectionService();
-        createOfferService.getDirectionService();
-        createOfferService.getPriceService();
-        createOfferService.getAmountService();
-        
+        marketService = createOfferService.getMarketService();
+        directionService = createOfferService.getDirectionService();
+        paymentMethodService = createOfferService.getPaymentMethodService();
+        priceService = createOfferService.getPriceService();
+        amountService = createOfferService.getAmountService();
+
         this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
@@ -115,40 +123,37 @@ public class MuSigCreateOfferReviewController implements Controller {
         view = new MuSigCreateOfferReviewView(model, this, muSigReviewDataDisplay.getRoot());
     }
 
-    public void prepareForCreateOffer(PriceSpec priceSpec) {
-        AmountSpec amountSpec = createOfferService.getAmountSpec();
-        Direction direction = createOfferDirectionService.getDirection();
-        Market market = createOfferService.getMarket();
-        List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
-        List<Account<?, ?>> accounts = new ArrayList<>();
-        Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = createOfferPaymentMethodService.getSelectedAccountByPaymentMethod();
-        selectedAccountByPaymentMethod.entrySet().stream()
-                .sorted(Comparator.comparing(o -> o.getKey().getPaymentRailName()))
-                .forEach(e -> {
-                    paymentMethods.add(e.getKey());
-                    accounts.add(e.getValue());
-                });
+    public void initialize() {
+        Market market = marketService.getMarket();
+        Direction direction = directionService.getDirection();
+        AmountSpec amountSpec = amountService.createAndGetAmountSpec(market);
+        PriceSpec priceSpec = priceService.createAndGetPriceSpec();
 
+        Map<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = paymentMethodService.getAccountByPaymentMethod();
+        List<PaymentMethod<?>> paymentMethods = accountByPaymentMethod.keySet().stream()
+                .sorted(Comparator.comparing(PaymentMethod::getPaymentRailName))
+                .toList();
         model.setPaymentMethods(paymentMethods);
         model.setPaymentMethodDescription(
                 paymentMethods.size() == 1
                         ? Res.get("muSig.offer.create.review.paymentMethod.description")
                         : Res.get("muSig.offer.create.review.paymentMethods.description")
         );
-        model.setPaymentMethodsDisplayString(PaymentMethodSpecFormatter.fromPaymentMethods(paymentMethods));
-        List<String> accountNames = accounts.stream()
-                .map(Account::getAccountName)
-                .collect(Collectors.toList());
-        model.setPaymentMethodDetails(Joiner.on(", ").join(accountNames));
-
         verifyPaymentMethods(paymentMethods);
 
-        applyData(direction,
-                amountSpec,
-                priceSpec);
+        List<String> accountNames = accountByPaymentMethod.values().stream()
+                .sorted(Comparator.comparing(o -> o.getPaymentMethod().getPaymentRailName()))
+                .map(Account::getAccountName)
+                .toList();
+        model.setPaymentMethodDetails(Joiner.on(", ").join(accountNames));
+
+
+        model.setPaymentMethodsDisplayString(PaymentMethodSpecFormatter.fromPaymentMethods(paymentMethods));
+
+        applyData(direction, amountSpec, priceSpec);
 
         String offerId = StringUtils.createUid();
-        List<OfferOption> offerOptions = selectedAccountByPaymentMethod.values().stream()
+        List<OfferOption> offerOptions = accountByPaymentMethod.values().stream()
                 .map(account -> {
                     AccountPayload<?> accountPayload = account.getAccountPayload();
                     String saltedAccountId = OfferOptionUtil.createdSaltedAccountId(account.getId(), offerId);

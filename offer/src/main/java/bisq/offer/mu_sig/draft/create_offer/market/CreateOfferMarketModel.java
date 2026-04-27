@@ -23,7 +23,6 @@ import bisq.common.observable.ReadOnlyObservable;
 
 public class CreateOfferMarketModel implements CreateOfferMarketReadOnlyModel {
     protected final Observable<Market> market = new Observable<>();
-    protected final Observable<Boolean> marketChanged = new Observable<>(false);
 
     public CreateOfferMarketModel() {
     }
@@ -44,14 +43,5 @@ public class CreateOfferMarketModel implements CreateOfferMarketReadOnlyModel {
     @Override
     public Market getMarket() {
         return market.get();
-    }
-
-    void setMarketChanged(Boolean marketChanged) {
-        this.marketChanged.set(marketChanged);
-    }
-
-    @Override
-    public ReadOnlyObservable<Boolean> marketChangedObservable() {
-        return marketChanged;
     }
 }

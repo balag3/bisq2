@@ -23,11 +23,16 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Consumer;
+
 public class CreateOfferDirectionService {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
+    private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferDirectionService(CreateOfferDraftCookieStore cookieStore) {
         this.cookieStore = cookieStore;
@@ -36,17 +41,34 @@ public class CreateOfferDirectionService {
 
     public void initialize() {
         Direction direction = cookieStore.getDirection();
-        setDirection(direction);
+        applyDirection(direction, false);
     }
 
-    public void setDirection(Direction direction) {
+
+    /* --------------------------------------------------------------------- */
+    // User input
+    /* --------------------------------------------------------------------- */
+
+    public void onSelectDirection(Direction direction) {
+        applyDirection(direction, true);
+    }
+
+
+    private void applyDirection(Direction direction, boolean notifyListeners) {
         if (direction != model.getDirection()) {
             model.setDirection(direction);
-            model.setDirectionChanged(true);
+            cookieStore.persistDirection(direction);
+            if (notifyListeners) {
+                listeners.forEach(listener -> listener.accept(direction));
+            }
         }
     }
 
-    public void resetDirectionChanged() {
-        model.setDirectionChanged(false);
+    public void addListener(Consumer<Direction> listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(Consumer<Direction> listener) {
+        listeners.remove(listener);
     }
 }

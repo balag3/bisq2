@@ -18,13 +18,17 @@
 package bisq.offer.mu_sig.draft.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
+import bisq.account.payment_method.PaymentMethod;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
-                                           List<Account<?, ?>> accountsRequiringSelection) {
+                                           List<Account<?, ?>> accountsRequiringSelection,
+                                           Optional<Map.Entry<PaymentMethod<?>, Account<?, ?>>> methodAccountEntry) {
     public PaymentMethodSelectionResult {
         checkNotNull(status, "status must not be null");
         checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
@@ -32,15 +36,15 @@ public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
     }
 
     public static PaymentMethodSelectionResult noAccountAvailable() {
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of());
+        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of(), Optional.empty());
     }
 
-    public static PaymentMethodSelectionResult singleAccountSelected() {
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of());
+    public static PaymentMethodSelectionResult singleAccountSelected(Map.Entry<PaymentMethod<?>, Account<?, ?>> methodAccountEntry) {
+        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of(), Optional.of(methodAccountEntry));
     }
 
     public static PaymentMethodSelectionResult accountSelectionRequired(List<Account<?, ?>> accountsRequiringSelection) {
         checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection);
+        return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection, Optional.empty());
     }
 }
