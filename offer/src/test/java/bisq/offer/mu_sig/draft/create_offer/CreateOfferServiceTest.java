@@ -23,6 +23,8 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionResult;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionStatus;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -163,11 +165,11 @@ public class CreateOfferServiceTest {
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
         assertEquals(Fiat.fromFaceValue(10000, "USD"),
                 createOfferAmountService.getTradeAmountLimits().getMax().getQuoteSideAmount());
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         assertEquals(Fiat.fromFaceValue(5000, "USD"),
                 createOfferAmountService.getTradeAmountLimits().getMax().getQuoteSideAmount());
     }
@@ -183,10 +185,10 @@ public class CreateOfferServiceTest {
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
         assertEquals(Fiat.fromFaceValue(9000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         assertEquals(Fiat.fromFaceValue(5000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
     }
 
@@ -227,10 +229,10 @@ public class CreateOfferServiceTest {
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         int recalculationCountAfterFirstSelection = marketPriceService.btcUsdPriceQuoteRequests;
 
-        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        createOfferService.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
 
         assertEquals(recalculationCountAfterFirstSelection, marketPriceService.btcUsdPriceQuoteRequests);
     }
@@ -450,9 +452,9 @@ public class CreateOfferServiceTest {
         createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
 
-        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
+        PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, result.status());
+        assertEquals(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, result.status());
         assertTrue(result.accountsRequiringSelection().isEmpty());
         assertTrue(paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().isEmpty());
     }
@@ -464,9 +466,9 @@ public class CreateOfferServiceTest {
         Account<?, ?> account = createAccount(method);
         paymentMethodDraftFacade.putAccountsByPaymentMethod(method, List.of(account));
 
-        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
+        PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, result.status());
+        assertEquals(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, result.status());
         assertTrue(result.accountsRequiringSelection().isEmpty());
         assertEquals(account, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().get(method));
     }
@@ -479,9 +481,9 @@ public class CreateOfferServiceTest {
         Account<?, ?> account2 = createAccount(method);
         paymentMethodDraftFacade.putAccountsByPaymentMethod(method, List.of(account1, account2));
 
-        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
+        PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
+        assertEquals(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
         assertEquals(List.of(account1, account2), result.accountsRequiringSelection());
         assertTrue(paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().isEmpty());
     }

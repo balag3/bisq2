@@ -26,7 +26,6 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,7 +43,6 @@ public class CreateOfferDraftStateEngineTest {
     private CreateOfferAmountService createOfferAmountService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
-    private AtomicInteger paymentMethodUpdateCalls;
     private AtomicReference<PaymentRail> selectedPaymentRail;
 
     @BeforeEach
@@ -62,7 +60,6 @@ public class CreateOfferDraftStateEngineTest {
         marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
-        paymentMethodUpdateCalls = new AtomicInteger();
         selectedPaymentRail = new AtomicReference<>();
 
         stateEngine = new CreateOfferDraftStateEngine(createOfferMarketService,
@@ -73,12 +70,11 @@ public class CreateOfferDraftStateEngineTest {
                 new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
                 selectedPaymentRail::get,
-                paymentMethodUpdateCalls::incrementAndGet,
                 CreateOfferService.DEFAULT_TRADE_AMOUNT_IN_USD);
     }
 
     @Test
-    public void initializeSetsDerivedStateAndCallsPaymentMethodUpdater() {
+    public void initializeSetsDerivedState() {
         stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true, false, 0, Optional.empty());
 
         assertEquals(usdBtcMarket, createOfferMarketService.getMarket());
@@ -89,7 +85,6 @@ public class CreateOfferDraftStateEngineTest {
         assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getMaxTradeAmount());
         assertNotNull(createOfferAmountService.getTradeAmountLimits());
         assertNotNull(createOfferAmountService.getInputAmountLimits());
-        assertEquals(1, paymentMethodUpdateCalls.get());
     }
 
     @Test

@@ -34,10 +34,10 @@ import bisq.offer.mu_sig.draft.TradeAmountLimits;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -57,9 +57,8 @@ public class CreateOfferDraftStateEngine {
     private final MarketPriceService marketPriceService;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
-    private final Supplier<PaymentRail> selectedPaymentRailSupplier;
-    private final Runnable updatePaymentMethodsHandler;
     private final Fiat defaultTradeAmountInUsd;
+    private final CreateOfferPaymentMethodService paymentMethodService;
 
 
     /* --------------------------------------------------------------------- */
@@ -68,24 +67,23 @@ public class CreateOfferDraftStateEngine {
 
     CreateOfferDraftStateEngine(CreateOfferMarketService createOfferMarketService,
                                 CreateOfferDirectionService createOfferDirectionService,
+                                CreateOfferPaymentMethodService paymentMethodService,
                                 CreateOfferPriceService createOfferPriceService,
                                 CreateOfferAmountService createOfferAmountService,
                                 MarketPriceService marketPriceService,
-                                CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                                 AmountMappingService amountMappingService,
-                                Supplier<PaymentRail> selectedPaymentRailSupplier,
-                                Runnable updatePaymentMethodsHandler,
                                 Fiat defaultTradeAmountInUsd) {
         this.createOfferMarketService = checkNotNull(createOfferMarketService, "createOfferMarketService must not be null");
         this.createOfferDirectionService = checkNotNull(createOfferDirectionService, "createOfferDirectionService must not be null");
+        this.paymentMethodService = checkNotNull(paymentMethodService, "paymentMethodService must not be null");
         this.createOfferPriceService = checkNotNull(createOfferPriceService, "createOfferPriceService must not be null");
         this.createOfferAmountService = checkNotNull(createOfferAmountService, "createOfferAmountService must not be null");
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
-        this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
-        this.selectedPaymentRailSupplier = checkNotNull(selectedPaymentRailSupplier, "selectedPaymentRailSupplier must not be null");
-        this.updatePaymentMethodsHandler = checkNotNull(updatePaymentMethodsHandler, "updatePaymentMethodsHandler must not be null");
         this.defaultTradeAmountInUsd = checkNotNull(defaultTradeAmountInUsd, "defaultTradeAmountInUsd must not be null");
+
+         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
+
     }
 
     /* --------------------------------------------------------------------- */
@@ -118,7 +116,7 @@ public class CreateOfferDraftStateEngine {
         // Amount
         createOfferAmountService.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
         createOfferAmountService.setUseRangeAmount(useRangeAmount);
-        PaymentRail selectedPaymentRail = getSelectedPaymentRail();
+        PaymentRail selectedPaymentRail = paymentMethodService.getSelectedPaymentRail();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 direction,
                 priceQuote,
@@ -134,7 +132,6 @@ public class CreateOfferDraftStateEngine {
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, createOfferAmountService.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
-        updatePaymentMethodsHandler.run();
     }
 
     void applyMarketChanged(Market market) {
@@ -151,7 +148,7 @@ public class CreateOfferDraftStateEngine {
                 direction,
                 marketPriceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
@@ -162,7 +159,7 @@ public class CreateOfferDraftStateEngine {
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, createOfferAmountService.getUserSpecificTradeAmountLimit());
         updateAmountSliderValues();
-        updatePaymentMethodsHandler.run();
+      //  updatePaymentMethodsHandler.run();
     }
 
     boolean applyDirectionChanged(Direction direction) {
@@ -179,7 +176,7 @@ public class CreateOfferDraftStateEngine {
                 direction,
                 offerPriceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, createOfferAmountService.getUserSpecificTradeAmountLimit());
@@ -222,7 +219,7 @@ public class CreateOfferDraftStateEngine {
                 direction,
                 priceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmountRange newClampLimits = getClampLimits(true);
@@ -308,7 +305,7 @@ public class CreateOfferDraftStateEngine {
                 direction,
                 offerPriceQuote,
                 marketPriceQuote,
-                getSelectedPaymentRail());
+                paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         if (createOfferAmountService.getFixTradeAmount() != null) {
@@ -471,13 +468,5 @@ public class CreateOfferDraftStateEngine {
     private TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
         return TradeAmountLimits.clampTradeAmount(limits, tradeAmount);
-    }
-
-    /* --------------------------------------------------------------------- */
-    // Internal callbacks
-    /* --------------------------------------------------------------------- */
-
-    private PaymentRail getSelectedPaymentRail() {
-        return selectedPaymentRailSupplier.get();
     }
 }

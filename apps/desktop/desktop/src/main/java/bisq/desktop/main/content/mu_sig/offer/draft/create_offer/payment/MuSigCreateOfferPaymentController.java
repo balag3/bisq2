@@ -37,6 +37,7 @@ import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionResult;
 import bisq.presentation.formatters.AmountFormatter;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -192,7 +193,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
                 return;
             }
 
-            CreateOfferPaymentMethodService.PaymentMethodSelectionResult selectionResult = createOfferPaymentMethodService.onPaymentMethodSelected(paymentMethod);
+            PaymentMethodSelectionResult selectionResult = createOfferPaymentMethodService.onPaymentMethodSelected(paymentMethod);
             switch (selectionResult.status()) {
                 case ACCOUNT_SELECTION_REQUIRED -> {
                     model.getAccountsForSelectedPaymentMethod().clear();

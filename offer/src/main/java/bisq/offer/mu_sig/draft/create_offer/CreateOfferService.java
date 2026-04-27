@@ -18,7 +18,8 @@
 package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.AccountService;
-import bisq.account.payment_method.PaymentRail;
+import bisq.account.accounts.Account;
+import bisq.account.payment_method.PaymentMethod;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
@@ -31,11 +32,12 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.DraftOfferService;
-import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionResult;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.PaymentMethodSelectionStatus;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -49,6 +51,7 @@ import bisq.settings.SettingsService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -94,42 +97,26 @@ public class CreateOfferService extends DraftOfferService {
     CreateOfferService(MarketPriceService marketPriceService,
                        CreateOfferDraftCookieStore cookieStore,
                        AccountsProvider accountsProvider) {
+        checkNotNull(accountsProvider, "accountsProvider must not be null");
+        checkNotNull(marketPriceService, "marketPriceProvider must not be null");
+        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
+
         marketService = new CreateOfferMarketService();
         directionService = new CreateOfferDirectionService();
+        paymentMethodService = new CreateOfferPaymentMethodService(accountsProvider);
         priceService = new CreateOfferPriceService();
         amountService = new CreateOfferAmountService();
 
-        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
-        checkNotNull(accountsProvider, "accountsProvider must not be null");
-        checkNotNull(marketPriceService, "marketPriceProvider must not be null");
-
         amountMappingService = new AmountMappingService();
-        CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
-        PaymentMethodSelectionService paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
-
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
+                paymentMethodService,
                 priceService,
                 amountService,
                 marketPriceService,
-                tradeAmountConstraintsService,
                 amountMappingService,
-                this::getSelectedPaymentRail,
-                this::updatePaymentMethods,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
-
-        paymentMethodService = new CreateOfferPaymentMethodService(paymentMethodSelectionService, stateEngine);
-    }
-
-    //todo  method hides circular reference of stateEngine and paymentMethodDraftFacade
-    private void updatePaymentMethods() {
-        paymentMethodService.updatePaymentMethods(getMarket());
-    }
-
-    //todo  method hides circular reference of stateEngine and paymentMethodDraftFacade
-    private PaymentRail getSelectedPaymentRail() {
-        return paymentMethodService.getSelectedPaymentRail();
     }
 
 
@@ -154,6 +141,12 @@ public class CreateOfferService extends DraftOfferService {
                 useFixPrice,
                 pricePercentage,
                 fixPrice);
+
+        boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
+        if (selectedAccountsChanged) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+
         priceService.setUseFixPrice(useFixPrice);
         priceService.setPricePercentage(pricePercentage);
     }
@@ -225,6 +218,10 @@ public class CreateOfferService extends DraftOfferService {
             return;
         }
         stateEngine.applyMarketChanged(market);
+        boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
+        if (selectedAccountsChanged) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
     }
 
     public void setDirection(Direction direction) {
@@ -311,6 +308,44 @@ public class CreateOfferService extends DraftOfferService {
 
     public void setMaxTradeAmount(TradeAmount tradeAmount) {
         stateEngine.setMaxTradeAmount(tradeAmount);
+    }
+
+    // Payment account state
+    public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
+        checkNotNull(paymentMethod, "paymentMethod must not be null");
+        checkNotNull(account, "account must not be null");
+        if (paymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account)) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+    }
+
+    public void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
+        checkNotNull(paymentMethod, "paymentMethod must not be null");
+        if (paymentMethodService.removeSelectedAccountByPaymentMethod(paymentMethod)) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+    }
+
+    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
+        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
+        if (paymentMethodService.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod)) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+    }
+
+    public void clearSelectedAccountByPaymentMethod() {
+        if (paymentMethodService.clearSelectedAccountByPaymentMethod()) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+    }
+
+    public PaymentMethodSelectionResult onPaymentMethodSelected(PaymentMethod<?> paymentMethod) {
+        checkNotNull(paymentMethod, "paymentMethod must not be null");
+        PaymentMethodSelectionResult selectionResult = paymentMethodService.onPaymentMethodSelected(paymentMethod);
+        if (selectionResult.status() == PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED) {
+            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
+        }
+        return selectionResult;
     }
 
 
