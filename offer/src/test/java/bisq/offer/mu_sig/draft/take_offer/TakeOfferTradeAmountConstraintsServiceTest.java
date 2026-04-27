@@ -1,4 +1,4 @@
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.take_offer;
 
 import bisq.bonded_roles.bonded_role.AuthorizedBondedRole;
 import bisq.bonded_roles.market_price.MarketPrice;
@@ -13,6 +13,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.amount.spec.QuoteSideRangeAmountSpec;
+import bisq.offer.mu_sig.draft.TradeAmountConstraints;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;

@@ -179,7 +179,7 @@ class CreateOfferDraftStateEngine {
         PriceQuote priceQuote = offerDraft.getPriceQuote();
         if (priceQuote != null) {
             if (useFixPrice) {
-               // offerDraft.setFixPrice(priceQuote);
+                // offerDraft.setFixPrice(priceQuote);
             } else {
                 // todo
                 offerDraft.setPricePercentage(0L);

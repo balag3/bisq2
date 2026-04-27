@@ -42,7 +42,7 @@ import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import bisq.offer.options.OfferOptionUtil;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FloatPriceSpec;

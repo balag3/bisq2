@@ -34,7 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
 import lombok.EqualsAndHashCode;

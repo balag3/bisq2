@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 

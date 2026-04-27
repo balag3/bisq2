@@ -27,7 +27,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;

@@ -34,7 +34,7 @@ import bisq.offer.Direction;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import bisq.offer.price.PriceUtil;
 import bisq.presentation.formatters.AmountFormatter;
 import bisq.presentation.formatters.PriceFormatter;

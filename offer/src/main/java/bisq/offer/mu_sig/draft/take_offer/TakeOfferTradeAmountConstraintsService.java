@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.take_offer;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
@@ -31,6 +31,8 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecUtil;
 import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
+import bisq.offer.mu_sig.draft.TradeAmountConstraints;
+import bisq.offer.mu_sig.draft.TradeAmountLimits;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;

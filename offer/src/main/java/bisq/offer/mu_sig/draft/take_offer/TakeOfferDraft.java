@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.take_offer;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
@@ -32,6 +32,7 @@ import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.draft.ReadOnlyTakeOfferDraft;
 import com.google.common.collect.ImmutableMap;
 import lombok.extern.slf4j.Slf4j;
 

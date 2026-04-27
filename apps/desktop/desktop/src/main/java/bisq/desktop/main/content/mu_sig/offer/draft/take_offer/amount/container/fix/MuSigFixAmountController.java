@@ -25,7 +25,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.MuSigPassiveAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.fix.slider.MuSigFixAmountSliderController;
-import bisq.offer.mu_sig.draft.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
