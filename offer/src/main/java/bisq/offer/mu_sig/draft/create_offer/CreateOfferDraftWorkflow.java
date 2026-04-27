@@ -40,6 +40,8 @@ import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
@@ -74,6 +76,8 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     private final CreateOfferMarketService marketService;
     @Getter
     private final CreateOfferDirectionService directionService;
+    @Getter
+    private final CreateOfferPriceService priceService;
 
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
@@ -136,8 +140,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         CreateOfferMarketModel marketModel = createOfferDraft.getMarketModel();
         CreateOfferDirectionModel directionModel = createOfferDraft.getDirectionModel();
         CreateOfferPaymentMethodModel paymentMethodModel = createOfferDraft.getPaymentMethodModel();
+        CreateOfferPriceModel priceModel = createOfferDraft.getPriceModel();
         marketService = new CreateOfferMarketService(marketModel);
         directionService = new CreateOfferDirectionService(directionModel);
+        priceService = new CreateOfferPriceService(priceModel);
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
@@ -149,10 +155,9 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
 
         stateEngine = new CreateOfferDraftStateEngine(createOfferDraft,
-                marketModel,
                 marketService,
-                directionModel,
                 directionService,
+                priceService,
                 marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
@@ -197,8 +202,8 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                 useFixPrice,
                 pricePercentage,
                 fixPrice);
-        offerDraft.setUseFixPrice(useFixPrice);
-        offerDraft.setPricePercentage(pricePercentage);
+        priceService.setUseFixPrice(useFixPrice);
+        priceService.setPricePercentage(pricePercentage);
     }
 
 
@@ -283,14 +288,14 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
 
     public void setPriceQuote(PriceQuote priceQuote) {
         checkNotNull(priceQuote, "PriceQuote must not be null");
-        if (priceQuote.equals(getPriceQuote())) {
+        if (priceQuote.equals(priceService.getPriceQuote())) {
             return;
         }
         stateEngine.applyPriceQuoteChanged(priceQuote);
     }
 
     public void setUseFixPrice(boolean useFixPrice) {
-        if (useFixPrice == getUseFixPrice()) {
+        if (useFixPrice == priceService.getUseFixPrice()) {
             return;
         }
         Market market = getMarket();
@@ -388,10 +393,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     }
 
     public PriceSpec getPriceSpec() {
-        if (getUseFixPrice()) {
-            return new FixPriceSpec(checkNotNull(getPriceQuote(), "priceQuote must not be null"));
+        if (priceService.getUseFixPrice()) {
+            return new FixPriceSpec(checkNotNull(priceService.getPriceQuote(), "priceQuote must not be null"));
         }
-        double pricePercentage = getPricePercentage();
+        double pricePercentage = priceService.getPricePercentage();
         if (pricePercentage == 0d) {
             return new MarketPriceSpec();
         }

@@ -27,6 +27,7 @@ import bisq.desktop.components.controls.validator.NumberValidator;
 import bisq.desktop.main.content.bisq_easy.BisqEasyViewUtils;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
 import bisq.presentation.formatters.PriceFormatter;
 import bisq.presentation.parser.PriceParser;
@@ -128,7 +129,7 @@ public class MuSigPriceInput {
         @Getter
         private final View view;
         private final OfferDraftWorkflow<?> offerDraftWorkflow;
-        private final Optional<CreateOfferDraftWorkflow> createOfferDraftWorkflow;
+        private final Optional<CreateOfferPriceService> createOfferPriceService;
         private final MarketPriceService marketPriceService;
         private final NumberValidator validator = new NumberValidator(Res.get("muSig.offer.create.price.warn.invalidPrice.numberFormatException"));
         private Pin marketPricePin;
@@ -139,9 +140,9 @@ public class MuSigPriceInput {
             this.marketPriceService = marketPriceService;
             this.offerDraftWorkflow = offerDraftWorkflow;
             if (offerDraftWorkflow instanceof CreateOfferDraftWorkflow workflow) {
-                createOfferDraftWorkflow = Optional.of(workflow);
+                createOfferPriceService = Optional.of(workflow.getPriceService());
             } else {
-                createOfferDraftWorkflow = Optional.empty();
+                createOfferPriceService = Optional.empty();
             }
             model = new Model();
             view = new View(model, this, validator);
@@ -150,7 +151,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+            createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -186,8 +187,8 @@ public class MuSigPriceInput {
             subscriptions.add(EasyBind.subscribe(model.priceString, this::onPriceInput));
             // quotePin = EasyBind.subscribe(model.priceQuote, this::onQuoteChanged);
 
-            createOfferDraftWorkflow.map(workflow ->
-                            workflow.priceQuoteObservable().addObserver(this::onQuoteChanged))
+            createOfferPriceService.map(service ->
+                            service.priceQuoteObservable().addObserver(this::onQuoteChanged))
                     .ifPresent(pins::add);
         }
 
@@ -216,9 +217,9 @@ public class MuSigPriceInput {
                 PriceQuote priceQuote = PriceParser.parse(price, offerDraftWorkflow.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+                createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
             } catch (Throwable ignore) {
-                createOfferDraftWorkflow.map(CreateOfferDraftWorkflow::getPriceQuote)
+                createOfferPriceService.map(CreateOfferPriceService::getPriceQuote)
                         .ifPresent(this::onQuoteChanged);
                 // onQuoteChanged(model.priceQuote.get());
             }
@@ -243,7 +244,7 @@ public class MuSigPriceInput {
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+                        createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
                     });
         }
     }

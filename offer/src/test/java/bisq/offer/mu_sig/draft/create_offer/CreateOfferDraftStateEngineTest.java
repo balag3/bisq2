@@ -20,6 +20,8 @@ import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +45,8 @@ public class CreateOfferDraftStateEngineTest {
     private CreateOfferMarketService createOfferMarketService;
     private CreateOfferDirectionModel directionModel;
     private CreateOfferDirectionService createOfferDirectionService;
+    private CreateOfferPriceModel priceModel;
+    private CreateOfferPriceService createOfferPriceService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
@@ -61,6 +65,8 @@ public class CreateOfferDraftStateEngineTest {
         createOfferMarketService = new CreateOfferMarketService(marketModel);
         directionModel = offerDraft.getDirectionModel();
         createOfferDirectionService = new CreateOfferDirectionService(directionModel);
+        priceModel = offerDraft.getPriceModel();
+        createOfferPriceService = new CreateOfferPriceService(priceModel);
         marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
@@ -68,10 +74,9 @@ public class CreateOfferDraftStateEngineTest {
         selectedPaymentRail = new AtomicReference<>();
 
         stateEngine = new CreateOfferDraftStateEngine(offerDraft,
-                marketModel,
                 createOfferMarketService,
-                directionModel,
                 createOfferDirectionService,
+                createOfferPriceService,
                 marketPriceService,
                 new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
@@ -86,7 +91,7 @@ public class CreateOfferDraftStateEngineTest {
 
         assertEquals(usdBtcMarket, marketModel.getMarket());
         assertEquals(Direction.SELL, directionModel.getDirection());
-        assertEquals(usdBtcPriceQuote, offerDraft.getPriceQuote());
+        assertEquals(usdBtcPriceQuote, priceModel.getPriceQuote());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getFixTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMinTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMaxTradeAmount());

@@ -19,7 +19,6 @@ package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
-import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
@@ -27,6 +26,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
 import lombok.AccessLevel;
 import lombok.Getter;
 
@@ -39,11 +39,8 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     private final CreateOfferDirectionModel directionModel;
     @Getter(AccessLevel.PACKAGE)
     private final CreateOfferPaymentMethodModel paymentMethodModel;
-
-    private final Observable<PriceQuote> priceQuote = new Observable<>();
-    private final Observable<Boolean> useFixPrice = new Observable<>(false);
-    private final Observable<Double> pricePercentage = new Observable<>(0d);
-    private final Observable<PriceQuote> fixPrice = new Observable<>();
+    @Getter(AccessLevel.PACKAGE)
+    private final CreateOfferPriceModel priceModel;
 
     private final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
     private final Observable<Boolean> useRangeAmount = new Observable<>(false);
@@ -63,61 +60,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
         marketModel = new CreateOfferMarketModel();
         directionModel = new CreateOfferDirectionModel();
         paymentMethodModel = new CreateOfferPaymentMethodModel();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // PriceQuote
-    /* --------------------------------------------------------------------- */
-
-    void setPriceQuote(PriceQuote priceQuote) {
-        this.priceQuote.set(priceQuote);
-    }
-
-    @Override
-    public ReadOnlyObservable<PriceQuote> priceQuoteObservable() {
-        return priceQuote;
-    }
-
-    @Override
-    public PriceQuote getPriceQuote() {
-        return priceQuote.get();
-    }
-
-    /* --------------------------------------------------------------------- */
-    // useFixPrice
-    /* --------------------------------------------------------------------- */
-
-    void setUseFixPrice(boolean useFixPrice) {
-        this.useFixPrice.set(useFixPrice);
-    }
-
-    @Override
-    public ReadOnlyObservable<Boolean> useFixPriceObservable() {
-        return useFixPrice;
-    }
-
-    @Override
-    public boolean getUseFixPrice() {
-        return useFixPrice.get();
-    }
-
-    /* --------------------------------------------------------------------- */
-    // pricePercentage
-    /* --------------------------------------------------------------------- */
-
-    void setPricePercentage(double pricePercentage) {
-        this.pricePercentage.set(pricePercentage);
-    }
-
-    @Override
-    public ReadOnlyObservable<Double> pricePercentageObservable() {
-        return pricePercentage;
-    }
-
-    @Override
-    public double getPricePercentage() {
-        return pricePercentage.get();
+        priceModel = new CreateOfferPriceModel();
     }
 
 

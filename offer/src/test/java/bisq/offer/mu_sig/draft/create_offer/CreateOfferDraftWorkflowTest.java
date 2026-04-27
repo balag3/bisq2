@@ -22,6 +22,7 @@ import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,6 +56,7 @@ public class CreateOfferDraftWorkflowTest {
     private CreateOfferDraftWorkflow workflow;
     private CreateOfferPaymentMethodService paymentMethodDraftFacade;
     private CreateOfferDirectionService createOfferDirectionService;
+    private CreateOfferPriceService createOfferPriceService;
 
     @BeforeEach
     public void setUp() {
@@ -86,6 +88,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
         paymentMethodDraftFacade = workflow.getPaymentMethodService();
         createOfferDirectionService = workflow.getDirectionService();
+        createOfferPriceService = workflow.getPriceService();
     }
 
     @Test
@@ -94,7 +97,7 @@ public class CreateOfferDraftWorkflowTest {
 
         assertEquals(defaultMarket, workflow.getMarket());
         assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
-        assertEquals(defaultMarketPriceQuote, workflow.getPriceQuote());
+        assertEquals(defaultMarketPriceQuote, createOfferPriceService.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getFixTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getMinTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, workflow.getMaxTradeAmount());
@@ -109,7 +112,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow.setMarket(xmrBtcMarket);
 
         assertEquals(xmrBtcMarket, workflow.getMarket());
-        assertEquals(xmrBtcPriceQuote, workflow.getPriceQuote());
+        assertEquals(xmrBtcPriceQuote, createOfferPriceService.getPriceQuote());
         assertEquals(xmrBtcDefaultTradeAmount, workflow.getFixTradeAmount());
         assertEquals(xmrBtcDefaultTradeAmount, workflow.getMinTradeAmount());
         assertEquals(xmrBtcDefaultTradeAmount, workflow.getMaxTradeAmount());
@@ -200,7 +203,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(usdBtcMarket);
         int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
-        workflow.setPriceQuote(workflow.getPriceQuote());
+        workflow.setPriceQuote(createOfferPriceService.getPriceQuote());
 
         assertEquals(recalculationCountBefore, marketPriceService.btcUsdPriceQuoteRequests);
     }

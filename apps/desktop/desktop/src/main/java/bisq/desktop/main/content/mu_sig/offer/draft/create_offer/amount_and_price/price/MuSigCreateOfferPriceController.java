@@ -31,6 +31,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.components.MuSigPriceInput;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
+import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -71,6 +72,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private final Set<Pin> pins = new HashSet<>();
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferPriceService createOfferPriceService;
 
     public MuSigCreateOfferPriceController(ServiceProvider serviceProvider,
                                            CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -78,7 +80,8 @@ public class MuSigCreateOfferPriceController implements Controller {
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         settingsService = serviceProvider.getSettingsService();
-        createOfferDirectionService=  createOfferDraftWorkflow.getDirectionService();
+        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
+        createOfferPriceService = createOfferDraftWorkflow.getPriceService();
 
         priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferDraftWorkflow);
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
@@ -129,7 +132,7 @@ public class MuSigCreateOfferPriceController implements Controller {
             model.getPriceSpec().set(new MarketPriceSpec());
         }
 
-        pins.add(createOfferDraftWorkflow.priceQuoteObservable().addObserver(priceQuote ->
+        pins.add(createOfferPriceService.priceQuoteObservable().addObserver(priceQuote ->
                 UIThread.run(() -> onQuoteInput(priceQuote))));
 
         subscriptions.add(EasyBind.subscribe(priceInput.isPriceValid(), isPriceValid -> {
@@ -258,7 +261,7 @@ public class MuSigCreateOfferPriceController implements Controller {
         if (!useFixPrice && !priceInput.isPriceValid().get()) {
             applyPercentageString(model.getPercentageInput().get());
         } else if (useFixPrice && model.getErrorMessage().get() != null) {
-            onQuoteInput(createOfferDraftWorkflow.getPriceQuote());
+            onQuoteInput(createOfferPriceService.getPriceQuote());
         }
         model.getUseFixPrice().set(useFixPrice);
         settingsService.setCookie(CookieKey.CREATE_OFFER_USE_FIX_PRICE, getCookieSubKey(), useFixPrice);
@@ -299,7 +302,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     private void applyPriceSpec() {
         if (model.getUseFixPrice().get()) {
-            model.getPriceSpec().set(new FixPriceSpec(createOfferDraftWorkflow.getPriceQuote()));
+            model.getPriceSpec().set(new FixPriceSpec(createOfferPriceService.getPriceQuote()));
             settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, priceInput.getPriceString().get());
         } else {
             double percentage = model.getPercentage().get();
@@ -412,7 +415,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private void applyPriceFromCookie(String price) {
         if (model.getUseFixPrice().get()) {
             priceInput.setPriceString(price);
-            applyPercentageFromQuote(createOfferDraftWorkflow.getPriceQuote());
+            applyPercentageFromQuote(createOfferPriceService.getPriceQuote());
             applyPriceSliderValue(model.getPercentage().get());
         } else {
             try {
