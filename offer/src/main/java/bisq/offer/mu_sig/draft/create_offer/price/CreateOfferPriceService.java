@@ -64,6 +64,14 @@ public class CreateOfferPriceService {
         model.setUseFixPrice(useFixPrice);
     }
 
+    public void applyUseFixPriceChanged(boolean useFixPrice) {
+        setUseFixPrice(useFixPrice);
+        PriceQuote priceQuote = getPriceQuote();
+        if (priceQuote != null && !useFixPrice) {
+            setPricePercentage(0L);
+        }
+    }
+
     public void setPricePercentage(double pricePercentage) {
         model.setPricePercentage(pricePercentage);
     }

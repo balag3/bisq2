@@ -100,13 +100,13 @@ public class CreateOfferService extends DraftOfferService {
         checkNotNull(marketPriceService, "marketPriceProvider must not be null");
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
+        amountMappingService = new AmountMappingService();
+
         marketService = new CreateOfferMarketService();
         directionService = new CreateOfferDirectionService(cookieStore);
         paymentMethodService = new CreateOfferPaymentMethodService(accountsProvider);
         priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
-        amountService = new CreateOfferAmountService(marketPriceService, cookieStore);
-
-        amountMappingService = new AmountMappingService();
+        amountService = new CreateOfferAmountService(marketPriceService, cookieStore, amountMappingService);
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
@@ -148,35 +148,35 @@ public class CreateOfferService extends DraftOfferService {
 
     public void setFixTradeAmountFromInputAmount(Monetary amount) {
         TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setFixTradeAmount(tradeAmount);
+        amountService.setFixTradeAmount(tradeAmount);
     }
 
     public void setMinTradeAmountFromInputAmount(Monetary amount) {
         TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setMinTradeAmount(tradeAmount);
+        amountService.setMinTradeAmount(tradeAmount);
     }
 
     public void setMaxTradeAmountFromInputAmount(Monetary amount) {
         TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setMaxTradeAmount(tradeAmount);
+        amountService.setMaxTradeAmount(tradeAmount);
     }
 
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
         TradeAmount fixTradeAmount = checkNotNull(amountService.getFixTradeAmount(), "fixTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
-        setFixTradeAmount(tradeAmount);
+        amountService.setFixTradeAmount(tradeAmount);
     }
 
     public void setMinTradeAmountFromSliderValue(double sliderValue) {
         TradeAmount minTradeAmount = checkNotNull(amountService.getMinTradeAmount(), "minTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(minTradeAmount, sliderValue);
-        setMinTradeAmount(tradeAmount);
+        amountService.setMinTradeAmount(tradeAmount);
     }
 
     public void setMaxTradeAmountFromSliderValue(double sliderValue) {
         TradeAmount maxTradeAmount = checkNotNull(amountService.getMaxTradeAmount(), "maxTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(maxTradeAmount, sliderValue);
-        setMaxTradeAmount(tradeAmount);
+        amountService.setMaxTradeAmount(tradeAmount);
     }
 
 
@@ -285,19 +285,6 @@ public class CreateOfferService extends DraftOfferService {
         if (stateEngine.applyUseRangeAmountChanged(useRangeAmount)) {
             cookieStore.persistUseRangeAmount(useRangeAmount);
         }
-    }
-
-    // Amount state
-    public void setFixTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setFixTradeAmount(tradeAmount);
-    }
-
-    public void setMinTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setMaxTradeAmount(tradeAmount);
     }
 
     // Payment account state

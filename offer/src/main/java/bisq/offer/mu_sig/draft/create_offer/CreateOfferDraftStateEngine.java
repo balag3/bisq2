@@ -30,7 +30,6 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.AmountUtils;
 import bisq.offer.mu_sig.draft.TradeAmountConstraints;
-import bisq.offer.mu_sig.draft.TradeAmountLimits;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
@@ -39,7 +38,6 @@ import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 
 import java.util.Optional;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
@@ -82,7 +80,7 @@ public class CreateOfferDraftStateEngine {
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
         this.defaultTradeAmountInUsd = checkNotNull(defaultTradeAmountInUsd, "defaultTradeAmountInUsd must not be null");
 
-         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
+        tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
     }
 
@@ -105,20 +103,10 @@ public class CreateOfferDraftStateEngine {
                 selectedPaymentRail);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        amountService.setFixTradeAmount(clampTradeAmount(amountService.getFixTradeAmount(), true));
-        amountService.setMinTradeAmount(clampTradeAmount(amountService.getMinTradeAmount(), true));
-        amountService.setMaxTradeAmount(clampTradeAmount(amountService.getMaxTradeAmount(), true));
-
-       /*
-
-        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
-        TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
-        amountService.setFixTradeAmount(clampedDefaultTradeAmount);
-        amountService.setMinTradeAmount(clampedDefaultTradeAmount);
-        amountService.setMaxTradeAmount(clampedDefaultTradeAmount);*/
+        amountService.clampCurrentTradeAmounts(true);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
     }
 
     void applyMarketChanged(Market market) {
@@ -139,14 +127,14 @@ public class CreateOfferDraftStateEngine {
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
-        TradeAmount clampedDefaultTradeAmount = clampTradeAmount(defaultTradeAmount, true);
+        TradeAmount clampedDefaultTradeAmount = amountService.clampTradeAmount(defaultTradeAmount, true);
         amountService.setFixTradeAmount(clampedDefaultTradeAmount);
         amountService.setMinTradeAmount(clampedDefaultTradeAmount);
         amountService.setMaxTradeAmount(clampedDefaultTradeAmount);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
-      //  updatePaymentMethodsHandler.run();
+        amountService.updateAmountSliderValues();
+        //  updatePaymentMethodsHandler.run();
     }
 
     boolean applyDirectionChanged(Direction direction) {
@@ -167,22 +155,12 @@ public class CreateOfferDraftStateEngine {
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
         return true;
     }
 
     void applyUseFixPriceChanged(boolean useFixPrice) {
-        priceService.setUseFixPrice(useFixPrice);
-
-        PriceQuote priceQuote = priceService.getPriceQuote();
-        if (priceQuote != null) {
-            if (useFixPrice) {
-                // offerDraft.setFixPrice(priceQuote);
-            } else {
-                // todo
-                priceService.setPricePercentage(0L);
-            }
-        }
+        priceService.applyUseFixPriceChanged(useFixPrice);
     }
 
     void applyPriceQuoteChanged(PriceQuote priceQuote) {
@@ -199,7 +177,7 @@ public class CreateOfferDraftStateEngine {
         TradeAmount fixTradeAmount = amountService.getFixTradeAmount();
         TradeAmount minTradeAmount = amountService.getMinTradeAmount();
         TradeAmount maxTradeAmount = amountService.getMaxTradeAmount();
-        TradeAmountRange oldClampLimits = getClampLimits(true);
+        TradeAmountRange oldClampLimits = amountService.getClampLimits(true);
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
@@ -209,7 +187,7 @@ public class CreateOfferDraftStateEngine {
                 paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        TradeAmountRange newClampLimits = getClampLimits(true);
+        TradeAmountRange newClampLimits = amountService.getClampLimits(true);
         if (fixTradeAmount != null) {
             amountService.setFixTradeAmount(toUpdatedPassiveAmount(market, priceQuote, fixTradeAmount, oldClampLimits, newClampLimits));
         }
@@ -221,62 +199,35 @@ public class CreateOfferDraftStateEngine {
         }
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
     }
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         amountService.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
         Direction direction = directionService.getDirection();
-        if (!isDerivedStateInitialized() || direction == null) {
+        if (!amountService.isDerivedStateInitialized() || direction == null) {
             return false;
         }
 
         updateInputAmountLimits(amountService.getTradeAmountLimits());
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
         return true;
     }
 
     boolean applyUseRangeAmountChanged(boolean useRangeAmount) {
         amountService.setUseRangeAmount(useRangeAmount);
-        if (!isDerivedStateInitialized()) {
+        if (!amountService.isDerivedStateInitialized()) {
             return false;
         }
 
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
         return true;
     }
 
     /* --------------------------------------------------------------------- */
     // Amount writes
     /* --------------------------------------------------------------------- */
-
-    void setFixTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        amountService.setFixTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateFixAmountSliderValue();
-        }
-    }
-
-    void setMinTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        amountService.setMinTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMinAmountSliderValue();
-        }
-    }
-
-    void setMaxTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        amountService.setMaxTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMaxAmountSliderValue();
-        }
-    }
 
     public void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
         if (!hasPricingContext()) {
@@ -294,19 +245,10 @@ public class CreateOfferDraftStateEngine {
                 marketPriceQuote,
                 paymentMethodService.getSelectedPaymentRail());
         applyTradeAmountConstraints(tradeAmountConstraints);
-
-        if (amountService.getFixTradeAmount() != null) {
-            amountService.setFixTradeAmount(clampTradeAmount(amountService.getFixTradeAmount(), true));
-        }
-        if (amountService.getMinTradeAmount() != null) {
-            amountService.setMinTradeAmount(clampTradeAmount(amountService.getMinTradeAmount(), true));
-        }
-        if (amountService.getMaxTradeAmount() != null) {
-            amountService.setMaxTradeAmount(clampTradeAmount(amountService.getMaxTradeAmount(), true));
-        }
+        amountService.clampCurrentTradeAmounts(true);
 
         updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
-        updateAmountSliderValues();
+        amountService.updateAmountSliderValues();
     }
 
     /* --------------------------------------------------------------------- */
@@ -337,15 +279,11 @@ public class CreateOfferDraftStateEngine {
     }
 
     TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
-        TradeAmountRange tradeAmountLimits = amountService.getTradeAmountLimits();
-        Optional<TradeAmount> userSpecificTradeAmountLimit = amountService.getUserSpecificTradeAmountLimit();
-        return TradeAmountLimits.getClampLimits(tradeAmountLimits,
-                userSpecificTradeAmountLimit,
-                includeUserSpecificTradeAmountLimit);
+        return amountService.getClampLimits(includeUserSpecificTradeAmountLimit);
     }
 
     boolean isDerivedStateInitialized() {
-        return amountService.getTradeAmountLimits() != null && amountService.getInputAmountLimits() != null;
+        return amountService.isDerivedStateInitialized();
     }
 
     /* --------------------------------------------------------------------- */
@@ -356,7 +294,7 @@ public class CreateOfferDraftStateEngine {
         return marketService.getMarket() != null
                 && directionService.getDirection() != null
                 && priceService.getPriceQuote() != null
-                && isDerivedStateInitialized();
+                && amountService.isDerivedStateInitialized();
     }
 
     private void applyTradeAmountConstraints(TradeAmountConstraints tradeAmountConstraints) {
@@ -375,10 +313,10 @@ public class CreateOfferDraftStateEngine {
     private void updateUserSpecificTradeAmountLimitAsSliderValue(Direction direction,
                                                                  Optional<TradeAmount> userSpecificTradeAmountLimit) {
         if (direction.isBuy() && userSpecificTradeAmountLimit.isPresent() && amountService.getInputAmountLimits() != null) {
-            double sliderValue = toSliderValue(userSpecificTradeAmountLimit.get());
-            setUserSpecificTradeAmountLimitAsSliderValue(Optional.of(sliderValue));
+            double sliderValue = amountService.toSliderValue(userSpecificTradeAmountLimit.get());
+            amountService.setUserSpecificTradeAmountLimitAsSliderValue(Optional.of(sliderValue));
         } else {
-            setUserSpecificTradeAmountLimitAsSliderValue(Optional.empty());
+            amountService.setUserSpecificTradeAmountLimitAsSliderValue(Optional.empty());
         }
     }
 
@@ -393,67 +331,5 @@ public class CreateOfferDraftStateEngine {
                 oldClampLimits,
                 newClampLimits,
                 amountService.getUseBaseCurrencyForAmountInput());
-    }
-
-    private double toSliderValue(TradeAmount tradeAmount) {
-        TradeAmountRange limits = getClampLimits(true);
-        MonetaryRange inputAmountLimits = checkNotNull(amountService.getInputAmountLimits(), "inputAmountLimits must not be null");
-        return amountMappingService.toSliderValue(tradeAmount,
-                limits,
-                inputAmountLimits,
-                amountService.getUseBaseCurrencyForAmountInput());
-    }
-
-    /* --------------------------------------------------------------------- */
-    // Internal slider helpers
-    /* --------------------------------------------------------------------- */
-
-    private void updateAmountSliderValues() {
-        if (amountService.getFixTradeAmount() != null) {
-            updateFixAmountSliderValue();
-        }
-        if (amountService.getMinTradeAmount() != null) {
-            updateMinAmountSliderValue();
-        }
-        if (amountService.getMaxTradeAmount() != null) {
-            updateMaxAmountSliderValue();
-        }
-    }
-
-    private void updateFixAmountSliderValue() {
-        setFixAmountSliderValue(toSliderValue(amountService.getFixTradeAmount()));
-    }
-
-    private void updateMinAmountSliderValue() {
-        setMinAmountSliderValue(toSliderValue(amountService.getMinTradeAmount()));
-    }
-
-    private void updateMaxAmountSliderValue() {
-        setMaxAmountSliderValue(toSliderValue(amountService.getMaxTradeAmount()));
-    }
-
-    private void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> value) {
-        value.ifPresent(v -> checkArgument(v >= 0 && v <= 1, "value must be in range of 0 and 1"));
-        amountService.setUserSpecificTradeAmountLimitAsSliderValue(value);
-    }
-
-    private void setFixAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        amountService.setFixAmountSliderValue(sliderValue);
-    }
-
-    private void setMinAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        amountService.setMinAmountSliderValue(sliderValue);
-    }
-
-    private void setMaxAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        amountService.setMaxAmountSliderValue(sliderValue);
-    }
-
-    private TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return TradeAmountLimits.clampTradeAmount(limits, tradeAmount);
     }
 }

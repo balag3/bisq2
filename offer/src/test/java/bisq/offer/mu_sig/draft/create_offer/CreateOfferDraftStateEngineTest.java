@@ -45,11 +45,11 @@ public class CreateOfferDraftStateEngineTest {
     private Market usdBtcMarket;
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
-    private CreateOfferMarketService createOfferMarketService;
-    private CreateOfferDirectionService createOfferDirectionService;
-    private CreateOfferPaymentMethodService createOfferPaymentMethodService;
-    private CreateOfferPriceService createOfferPriceService;
-    private CreateOfferAmountService createOfferAmountService;
+    private CreateOfferMarketService marketService;
+    private CreateOfferDirectionService directionService;
+    private CreateOfferPaymentMethodService paymentMethodService;
+    private CreateOfferPriceService priceService;
+    private CreateOfferAmountService amountService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftCookieStore cookieStore;
     private CreateOfferDraftStateEngine stateEngine;
@@ -73,19 +73,21 @@ public class CreateOfferDraftStateEngineTest {
         when(cookieStore.getPricePercentage(any())).thenReturn(0d);
         when(cookieStore.getFixPrice(any())).thenReturn(Optional.empty());
 
-        createOfferMarketService = new CreateOfferMarketService();
-        createOfferDirectionService = new CreateOfferDirectionService(cookieStore);
-        createOfferPriceService = new CreateOfferPriceService(marketPriceService, cookieStore);
-        createOfferAmountService = new CreateOfferAmountService(marketPriceService, cookieStore);
-        createOfferPaymentMethodService = new CreateOfferPaymentMethodService(market -> List.of());
+        AmountMappingService amountMappingService = new AmountMappingService();
 
-        stateEngine = new CreateOfferDraftStateEngine(createOfferMarketService,
-                createOfferDirectionService,
-                createOfferPaymentMethodService,
-                createOfferPriceService,
-                createOfferAmountService,
+        marketService = new CreateOfferMarketService();
+        directionService = new CreateOfferDirectionService(cookieStore);
+        priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
+        amountService = new CreateOfferAmountService(marketPriceService, cookieStore, amountMappingService);
+        paymentMethodService = new CreateOfferPaymentMethodService(market -> List.of());
+
+        stateEngine = new CreateOfferDraftStateEngine(marketService,
+                directionService,
+                paymentMethodService,
+                priceService,
+                amountService,
                 marketPriceService,
-                new AmountMappingService(),
+                amountMappingService,
                 CreateOfferService.DEFAULT_TRADE_AMOUNT_IN_USD);
     }
 
@@ -94,14 +96,14 @@ public class CreateOfferDraftStateEngineTest {
         initializeStateForMarket(usdBtcMarket);
         stateEngine.initialize();
 
-        assertEquals(usdBtcMarket, createOfferMarketService.getMarket());
-        assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
-        assertEquals(usdBtcPriceQuote, createOfferPriceService.getPriceQuote());
-        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getMinTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getMaxTradeAmount());
-        assertNotNull(createOfferAmountService.getTradeAmountLimits());
-        assertNotNull(createOfferAmountService.getInputAmountLimits());
+        assertEquals(usdBtcMarket, marketService.getMarket());
+        assertEquals(Direction.SELL, directionService.getDirection());
+        assertEquals(usdBtcPriceQuote, priceService.getPriceQuote());
+        assertEquals(usdBtcDefaultTradeAmount, amountService.getFixTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, amountService.getMinTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, amountService.getMaxTradeAmount());
+        assertNotNull(amountService.getTradeAmountLimits());
+        assertNotNull(amountService.getInputAmountLimits());
     }
 
     @Test
@@ -109,7 +111,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertFalse(recalculated);
-        assertEquals(Direction.BUY, createOfferDirectionService.getDirection());
+        assertEquals(Direction.BUY, directionService.getDirection());
     }
 
     @Test
@@ -120,7 +122,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertTrue(recalculated);
-        Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = amountService.getUserSpecificTradeAmountLimit();
         assertTrue(userSpecificTradeAmountLimit.isPresent());
     }
 
@@ -132,7 +134,7 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine.initialize();
 
         assertTrue(stateEngine.applyUseBaseCurrencyForAmountInputChanged(true));
-        assertTrue(createOfferAmountService.getUseBaseCurrencyForAmountInput());
+        assertTrue(amountService.getUseBaseCurrencyForAmountInput());
     }
 
     @Test
@@ -143,24 +145,24 @@ public class CreateOfferDraftStateEngineTest {
         TradeAmount nineThousandUsd = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(9000, "USD"));
-        stateEngine.setFixTradeAmount(nineThousandUsd);
-        assertEquals(Fiat.fromFaceValue(9000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
+        amountService.setFixTradeAmount(nineThousandUsd);
+        assertEquals(Fiat.fromFaceValue(9000, "USD"), amountService.getFixTradeAmount().getQuoteSideAmount());
 
         PaymentMethod<?> paymentMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account = createAccount(paymentMethod);
-        createOfferPaymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account);
+        paymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account);
 
         stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
 
-        assertEquals(Fiat.fromFaceValue(5000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5000, "USD"), amountService.getFixTradeAmount().getQuoteSideAmount());
     }
 
     private void initializeStateForMarket(Market market) {
-        createOfferMarketService.initialize(market);
-        createOfferDirectionService.initialize();
-        createOfferPaymentMethodService.initialize(market);
-        createOfferPriceService.initialize(market);
-        createOfferAmountService.initialize(market);
+        marketService.initialize(market);
+        directionService.initialize();
+        paymentMethodService.initialize(market);
+        priceService.initialize(market);
+        amountService.initialize(market);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
