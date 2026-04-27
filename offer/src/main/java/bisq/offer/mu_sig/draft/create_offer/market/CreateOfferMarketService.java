@@ -36,7 +36,13 @@ public class CreateOfferMarketService {
     }
 
     public void setMarket(Market market) {
-        model.setMarket(market);
+        if (market != model.getMarket()) {
+            model.setMarket(market);
+            model.setMarketChanged(true);
+        }
     }
 
+    public void resetMarketChanged() {
+        model.setMarketChanged(false);
+    }
 }

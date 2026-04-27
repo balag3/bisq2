@@ -27,6 +27,7 @@ import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
+import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.Direction;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
@@ -79,6 +80,7 @@ public class CreateOfferService extends DraftOfferService {
     @Getter
     private final CreateOfferPaymentMethodService paymentMethodService;
     private final CreateOfferDraftStateEngine stateEngine;
+    private final CreateOfferStateUpdateHandler stateUpdateHandler;
 
 
     /* --------------------------------------------------------------------- */
@@ -108,6 +110,12 @@ public class CreateOfferService extends DraftOfferService {
         priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
         amountService = new CreateOfferAmountService(marketPriceService, cookieStore, amountMappingService);
 
+        stateUpdateHandler = new CreateOfferStateUpdateHandler(marketService,
+                directionService,
+                paymentMethodService,
+                priceService,
+                amountService);
+
         stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
                 paymentMethodService,
@@ -133,12 +141,20 @@ public class CreateOfferService extends DraftOfferService {
         amountService.initialize(market);
         Direction direction = directionService.getDirection();
 
+        stateUpdateHandler.initialize();
+
         stateEngine.initialize();
 
         boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
         if (selectedAccountsChanged) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        stateUpdateHandler.dispose();
     }
 
 
@@ -214,15 +230,16 @@ public class CreateOfferService extends DraftOfferService {
         }
     }
 
+
     public void setDirection(Direction direction) {
         checkNotNull(direction, "Direction must not be null");
         if (direction.equals(directionService.getDirection())) {
             return;
         }
 
-        if (stateEngine.applyDirectionChanged(direction)) {
-            cookieStore.persistDirection(direction);
-        }
+        cookieStore.persistDirection(direction);
+
+        stateEngine.applyDirectionChanged(direction);
     }
 
     public void setPriceQuote(PriceQuote priceQuote) {
@@ -353,11 +370,21 @@ public class CreateOfferService extends DraftOfferService {
     }
 
 
-    //todo
+    /* --------------------------------------------------------------------- */
+    // Delegate read methods
+    /* --------------------------------------------------------------------- */
+
     @Override
     public Market getMarket() {
         return marketService.getMarket();
     }
+
+    public ReadOnlyObservable<Market> marketObservable() {
+        return marketService.marketObservable();
+    }
+
+
+
 
     /* --------------------------------------------------------------------- */
     // Internal helpers
@@ -371,4 +398,6 @@ public class CreateOfferService extends DraftOfferService {
     private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
         return stateEngine.getClampLimits(includeUserSpecificTradeAmountLimit);
     }
+
+
 }

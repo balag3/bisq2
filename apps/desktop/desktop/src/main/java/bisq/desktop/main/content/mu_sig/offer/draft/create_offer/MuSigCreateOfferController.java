@@ -34,7 +34,6 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
@@ -66,7 +65,6 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferService createOfferService;
-    private final CreateOfferMarketService createOfferMarketService;
     private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final OverlayController overlayController;
     @Getter
@@ -88,7 +86,6 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        createOfferMarketService = createOfferService.getMarketService();
         createOfferPaymentMethodService = createOfferService.getPaymentMethodService();
 
         overlayController = OverlayController.getInstance();
@@ -135,7 +132,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
-        pins.add(createOfferMarketService.marketObservable().addObserver(market -> {
+        pins.add(createOfferService.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
                 updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();

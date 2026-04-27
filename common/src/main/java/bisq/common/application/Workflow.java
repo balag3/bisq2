@@ -29,7 +29,7 @@ public abstract class Workflow {
     public Workflow() {
     }
 
-    public final void dispose() {
+    public void dispose() {
         if (pins != null) {
             pins.forEach(Pin::unbind);
             pins.clear();

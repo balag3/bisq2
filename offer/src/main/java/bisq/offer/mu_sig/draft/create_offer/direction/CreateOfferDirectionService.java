@@ -36,12 +36,17 @@ public class CreateOfferDirectionService {
 
     public void initialize() {
         Direction direction = cookieStore.getDirection();
-        model.setDirection(direction);
+        setDirection(direction);
     }
 
     public void setDirection(Direction direction) {
-        model.setDirection(direction);
+        if (direction != model.getDirection()) {
+            model.setDirection(direction);
+            model.setDirectionChanged(true);
+        }
     }
 
-
+    public void resetDirectionChanged() {
+        model.setDirectionChanged(false);
+    }
 }

@@ -25,4 +25,6 @@ public interface CreateOfferMarketReadOnlyModel {
     ReadOnlyObservable<Market> marketObservable();
 
     Market getMarket();
+
+    ReadOnlyObservable<Boolean> marketChangedObservable();
 }

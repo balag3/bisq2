@@ -33,7 +33,6 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -60,13 +59,11 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
     private final CreateOfferDirectionService createOfferDirectionService;
-    private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
                                                         CreateOfferService createOfferService,
                                                         Runnable onNextHandler) {
         this.createOfferService = createOfferService;
-        createOfferMarketService = createOfferService.getMarketService();
         createOfferDirectionService = createOfferService.getDirectionService();
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
@@ -86,7 +83,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
 
         pins.add(FxBindings.bind(model.getDirection()).to(createOfferDirectionService.directionObservable()));
 
-        pins.add(createOfferMarketService.marketObservable().addObserver(market
+        pins.add(createOfferService.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
             String baseCurrencyName = market.getBaseCurrencyName();
             String quoteCurrencyName = market.getQuoteCurrencyName();
