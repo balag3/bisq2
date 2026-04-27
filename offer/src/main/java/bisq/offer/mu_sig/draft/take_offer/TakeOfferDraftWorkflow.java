@@ -55,7 +55,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * and isolated domain services.
  */
 @Slf4j
-public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
+public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
 
     private final TakeOfferDraftCookieStore cookieStore;
@@ -63,7 +63,8 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     private final PaymentMethodSelectionService paymentMethodSelectionService;
     private final TakeOfferDraftStateEngine stateEngine;
     @Delegate
-    protected TakeOfferDraft takeOfferDraft;
+    protected final TakeOfferDraft takeOfferDraft;
+
 
     public enum PaymentMethodSelectionStatus {
         NO_ACCOUNT_AVAILABLE,
@@ -108,8 +109,6 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
                            TakeOfferDraftCookieStore cookieStore,
                            AccountsProvider accountsProvider) {
-        super(new TakeOfferDraft());
-
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
         checkNotNull(marketPriceService, "marketPriceProvider must not be null");
@@ -118,7 +117,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService = new TakeOfferTradeAmountConstraintsService(marketPriceService);
         paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
-        takeOfferDraft = offerDraft;
+        takeOfferDraft = new TakeOfferDraft();
         stateEngine = new TakeOfferDraftStateEngine(takeOfferDraft,
                 marketPriceService,
                 tradeAmountConstraintsService,
@@ -136,7 +135,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     public void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 
-        offerDraft.setOffer(muSigOffer);
+        takeOfferDraft.setOffer(muSigOffer);
 
         Market market = muSigOffer.getMarket();
         boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
@@ -144,7 +143,10 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         stateEngine.initialize(muSigOffer, useBaseCurrencyForAmountInput);
     }
 
-
+    @Override
+    public Market getMarket() {
+        return takeOfferDraft.getOffer().getMarket();
+    }
     /* --------------------------------------------------------------------- */
     // Amount input entry points
     /* --------------------------------------------------------------------- */
@@ -199,7 +201,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
 
         Market market = getMarket();
         if (market == null) {
-            offerDraft.setUseBaseCurrencyForAmountInput(value);
+            takeOfferDraft.setUseBaseCurrencyForAmountInput(value);
             return;
         }
 
@@ -215,17 +217,17 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
 
     public void setTradeAmountLimits(TradeAmountRange tradeAmountRange) {
         checkNotNull(tradeAmountRange, "TradeAmountRange must not be null");
-        offerDraft.setTradeAmountLimits(tradeAmountRange);
+        takeOfferDraft.setTradeAmountLimits(tradeAmountRange);
     }
 
     public void setUserSpecificTradeAmountLimit(Optional<TradeAmount> tradeAmount) {
         tradeAmount.ifPresent(amount -> checkNotNull(amount, "tradeAmount must not be null"));
-        offerDraft.setUserSpecificTradeAmountLimit(tradeAmount);
+        takeOfferDraft.setUserSpecificTradeAmountLimit(tradeAmount);
     }
 
     public void setInputAmountLimits(MonetaryRange inputAmountLimits) {
         checkNotNull(inputAmountLimits, "inputAmountLimits must not be null");
-        offerDraft.setInputAmountLimits(inputAmountLimits);
+        takeOfferDraft.setInputAmountLimits(inputAmountLimits);
     }
 
     // Payment account state
@@ -236,16 +238,16 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
     }
 
     public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
-        offerDraft.removeAccountsByPaymentMethod(paymentMethod);
+        takeOfferDraft.removeAccountsByPaymentMethod(paymentMethod);
     }
 
     public void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> selectedAccountByPaymentMethod) {
         checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        offerDraft.putAllAccountsByPaymentMethod(selectedAccountByPaymentMethod);
+        takeOfferDraft.putAllAccountsByPaymentMethod(selectedAccountByPaymentMethod);
     }
 
     public void clearAccountsByPaymentMethod() {
-        offerDraft.clearAccountsByPaymentMethod();
+        takeOfferDraft.clearAccountsByPaymentMethod();
     }
 
     public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
@@ -347,7 +349,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         if (!getSelectedAccountByPaymentMethod().containsKey(paymentMethod)) {
             return false;
         }
-        offerDraft.removeSelectedAccountByPaymentMethod(paymentMethod);
+        takeOfferDraft.removeSelectedAccountByPaymentMethod(paymentMethod);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
@@ -365,7 +367,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         if (!changed) {
             return false;
         }
-        offerDraft.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
+        takeOfferDraft.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
@@ -376,7 +378,7 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow<TakeOfferDraft> {
         if (getSelectedAccountByPaymentMethod().isEmpty()) {
             return false;
         }
-        offerDraft.clearSelectedAccountByPaymentMethod();
+        takeOfferDraft.clearSelectedAccountByPaymentMethod();
         if (recalculateTradeAmountConstraints) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }

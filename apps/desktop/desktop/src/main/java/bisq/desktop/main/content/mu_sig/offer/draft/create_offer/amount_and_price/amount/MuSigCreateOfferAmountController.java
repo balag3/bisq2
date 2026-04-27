@@ -27,6 +27,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;
@@ -52,6 +53,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
+    private final CreateOfferAmountService createOfferAmountService;
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow,
@@ -62,6 +64,7 @@ public class MuSigCreateOfferAmountController implements Controller {
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
+        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
         model = new MuSigCreateOfferAmountModel();
 
         MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferDraftWorkflow);
@@ -75,15 +78,15 @@ public class MuSigCreateOfferAmountController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(createOfferDraftWorkflow.useRangeAmountObservable().addObserver(useRangeAmount -> {
+        pins.add(createOfferAmountService.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {
                 model.getUseRangeAmount().set(useRangeAmount);
             });
         }));
-        pins.add(createOfferDraftWorkflow.userSpecificTradeAmountLimitObservable().addObserver(value -> {
+        pins.add(createOfferAmountService.userSpecificTradeAmountLimitObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
-        pins.add(createOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
+        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
     }
@@ -143,7 +146,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     }
 
     private void applyAmountLimitInfo() {
-        Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferDraftWorkflow.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
                 .map(tradeAmount -> createOfferDraftWorkflow.toInputAmount(tradeAmount, true))

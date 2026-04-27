@@ -57,7 +57,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class MuSigPriceInput {
     private final Controller controller;
 
-    public MuSigPriceInput(MarketPriceService marketPriceService, OfferDraftWorkflow<?> offerDraftWorkflow) {
+    public MuSigPriceInput(MarketPriceService marketPriceService, OfferDraftWorkflow offerDraftWorkflow) {
         controller = new Controller(marketPriceService, offerDraftWorkflow);
     }
 
@@ -128,7 +128,8 @@ public class MuSigPriceInput {
         private final Model model;
         @Getter
         private final View view;
-        private final OfferDraftWorkflow<?> offerDraftWorkflow;
+        private final OfferDraftWorkflow offerDraftWorkflow;
+        private final Optional<CreateOfferDraftWorkflow> createOfferDraftWorkflow;
         private final Optional<CreateOfferPriceService> createOfferPriceService;
         private final MarketPriceService marketPriceService;
         private final NumberValidator validator = new NumberValidator(Res.get("muSig.offer.create.price.warn.invalidPrice.numberFormatException"));
@@ -136,12 +137,14 @@ public class MuSigPriceInput {
         private final Set<Subscription> subscriptions = new HashSet<>();
         private final Set<Pin> pins = new HashSet<>();
 
-        private Controller(MarketPriceService marketPriceService, OfferDraftWorkflow<?> offerDraftWorkflow) {
+        private Controller(MarketPriceService marketPriceService, OfferDraftWorkflow offerDraftWorkflow) {
             this.marketPriceService = marketPriceService;
             this.offerDraftWorkflow = offerDraftWorkflow;
             if (offerDraftWorkflow instanceof CreateOfferDraftWorkflow workflow) {
+                createOfferDraftWorkflow = Optional.of(workflow);
                 createOfferPriceService = Optional.of(workflow.getPriceService());
             } else {
+                createOfferDraftWorkflow = Optional.empty();
                 createOfferPriceService = Optional.empty();
             }
             model = new Model();
@@ -151,7 +154,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
+            createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -217,7 +220,7 @@ public class MuSigPriceInput {
                 PriceQuote priceQuote = PriceParser.parse(price, offerDraftWorkflow.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
+                createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
             } catch (Throwable ignore) {
                 createOfferPriceService.map(CreateOfferPriceService::getPriceQuote)
                         .ifPresent(this::onQuoteChanged);
@@ -244,7 +247,7 @@ public class MuSigPriceInput {
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        createOfferPriceService.ifPresent(service -> service.setPriceQuote(priceQuote));
+                        createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
                     });
         }
     }

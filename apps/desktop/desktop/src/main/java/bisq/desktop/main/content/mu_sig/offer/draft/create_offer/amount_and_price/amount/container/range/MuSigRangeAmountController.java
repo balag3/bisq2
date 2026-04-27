@@ -26,6 +26,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.Mu
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.slider.MuSigRangeAmountSliderController;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -45,11 +46,13 @@ public class MuSigRangeAmountController implements Controller {
     private final MuSigAmountTextInputController maxAmountInputController;
     private final MuSigPassiveAmountController maxPassiveAmountController;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
         model = new MuSigRangeAmountModel();
 
         minAmountInputController = new MuSigAmountTextInputController(false, true);
@@ -75,14 +78,14 @@ public class MuSigRangeAmountController implements Controller {
     @Override
     public void onActivate() {
         // Domain specific
-        pins.add(createOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
-        pins.add(createOfferDraftWorkflow.minTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(createOfferAmountService.minTradeAmountObservable().addObserver(tradeAmount -> {
             UIThread.run(this::applyAllAmounts);
         }));
-        pins.add(createOfferDraftWorkflow.maxTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(createOfferAmountService.maxTradeAmountObservable().addObserver(tradeAmount -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
@@ -163,7 +166,7 @@ public class MuSigRangeAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onToggleInputMode() {
-        boolean value = !createOfferDraftWorkflow.getUseBaseCurrencyForAmountInput();
+        boolean value = !createOfferAmountService.getUseBaseCurrencyForAmountInput();
         createOfferDraftWorkflow.setUseBaseCurrencyForAmountInput(value);
     }
 
@@ -180,25 +183,25 @@ public class MuSigRangeAmountController implements Controller {
     }
 
     private void applyMinInputAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getMinTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getMinTradeAmount();
         Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
         minAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMaxInputAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getMaxTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getMaxTradeAmount();
         Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
         maxAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMinPassiveAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getMinTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getMinTradeAmount();
         Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
         minPassiveAmountController.setAmount(passiveAmount);
     }
 
     private void applyMaxPassiveAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getMaxTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getMaxTradeAmount();
         Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
         maxPassiveAmountController.setAmount(passiveAmount);
     }

@@ -16,11 +16,9 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.AmountMappingService;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
-import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,13 +38,10 @@ public class CreateOfferDraftStateEngineTest {
     private Market usdBtcMarket;
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
-    private CreateOfferDraft offerDraft;
-    private CreateOfferMarketModel marketModel;
     private CreateOfferMarketService createOfferMarketService;
-    private CreateOfferDirectionModel directionModel;
     private CreateOfferDirectionService createOfferDirectionService;
-    private CreateOfferPriceModel priceModel;
     private CreateOfferPriceService createOfferPriceService;
+    private CreateOfferAmountService createOfferAmountService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
@@ -60,23 +55,20 @@ public class CreateOfferDraftStateEngineTest {
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(500, "USD"));
 
-        offerDraft = new CreateOfferDraft();
-        marketModel = offerDraft.getMarketModel();
-        createOfferMarketService = new CreateOfferMarketService(marketModel);
-        directionModel = offerDraft.getDirectionModel();
-        createOfferDirectionService = new CreateOfferDirectionService(directionModel);
-        priceModel = offerDraft.getPriceModel();
-        createOfferPriceService = new CreateOfferPriceService(priceModel);
+        createOfferMarketService = new CreateOfferMarketService();
+        createOfferDirectionService = new CreateOfferDirectionService();
+        createOfferPriceService = new CreateOfferPriceService();
+        createOfferAmountService = new CreateOfferAmountService();
         marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
         paymentMethodUpdateCalls = new AtomicInteger();
         selectedPaymentRail = new AtomicReference<>();
 
-        stateEngine = new CreateOfferDraftStateEngine(offerDraft,
-                createOfferMarketService,
+        stateEngine = new CreateOfferDraftStateEngine(createOfferMarketService,
                 createOfferDirectionService,
                 createOfferPriceService,
+                createOfferAmountService,
                 marketPriceService,
                 new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),
@@ -89,14 +81,14 @@ public class CreateOfferDraftStateEngineTest {
     public void initializeSetsDerivedStateAndCallsPaymentMethodUpdater() {
         stateEngine.initialize(usdBtcMarket, Direction.SELL, false, true, false, 0, Optional.empty());
 
-        assertEquals(usdBtcMarket, marketModel.getMarket());
-        assertEquals(Direction.SELL, directionModel.getDirection());
-        assertEquals(usdBtcPriceQuote, priceModel.getPriceQuote());
-        assertEquals(usdBtcDefaultTradeAmount, offerDraft.getFixTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMinTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, offerDraft.getMaxTradeAmount());
-        assertNotNull(offerDraft.getTradeAmountLimits());
-        assertNotNull(offerDraft.getInputAmountLimits());
+        assertEquals(usdBtcMarket, createOfferMarketService.getMarket());
+        assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
+        assertEquals(usdBtcPriceQuote, createOfferPriceService.getPriceQuote());
+        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getMinTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, createOfferAmountService.getMaxTradeAmount());
+        assertNotNull(createOfferAmountService.getTradeAmountLimits());
+        assertNotNull(createOfferAmountService.getInputAmountLimits());
         assertEquals(1, paymentMethodUpdateCalls.get());
     }
 
@@ -105,7 +97,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertFalse(recalculated);
-        assertEquals(Direction.BUY, directionModel.getDirection());
+        assertEquals(Direction.BUY, createOfferDirectionService.getDirection());
     }
 
     @Test
@@ -115,7 +107,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.applyDirectionChanged(Direction.BUY);
 
         assertTrue(recalculated);
-        Optional<TradeAmount> userSpecificTradeAmountLimit = offerDraft.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
         assertTrue(userSpecificTradeAmountLimit.isPresent());
     }
 
@@ -126,7 +118,7 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine.initialize(usdBtcMarket, Direction.SELL, false, false, false, 0, Optional.empty());
 
         assertTrue(stateEngine.applyUseBaseCurrencyForAmountInputChanged(true));
-        assertTrue(offerDraft.getUseBaseCurrencyForAmountInput());
+        assertTrue(createOfferAmountService.getUseBaseCurrencyForAmountInput());
     }
 
     @Test
@@ -137,12 +129,12 @@ public class CreateOfferDraftStateEngineTest {
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(9000, "USD"));
         stateEngine.setFixTradeAmount(nineThousandUsd);
-        assertEquals(Fiat.fromFaceValue(9000, "USD"), offerDraft.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(9000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
 
         selectedPaymentRail.set(FiatPaymentRail.ACH_TRANSFER);
         stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
 
-        assertEquals(Fiat.fromFaceValue(5000, "USD"), offerDraft.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
     }
 
     private static class MockMarketPriceService implements MarketPriceService {

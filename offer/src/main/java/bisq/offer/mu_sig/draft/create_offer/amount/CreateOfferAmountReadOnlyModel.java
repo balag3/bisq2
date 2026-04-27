@@ -15,21 +15,24 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft.create_offer;
+package bisq.offer.mu_sig.draft.create_offer.amount;
 
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.draft.ReadOnlyOfferDraft;
 
 import java.util.Optional;
 
-public interface ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
-
+public interface CreateOfferAmountReadOnlyModel {
     ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable();
 
     boolean getUseBaseCurrencyForAmountInput();
+
+
+    ReadOnlyObservable<Boolean> useRangeAmountObservable();
+
+    boolean getUseRangeAmount();
 
 
     ReadOnlyObservable<TradeAmount> fixTradeAmountObservable();
@@ -49,34 +52,35 @@ public interface ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
 
     TradeAmountRange getTradeAmountLimits();
 
+    ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
+
+
     ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable();
 
     Optional<TradeAmount> getUserSpecificTradeAmountLimit();
+
 
     ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable();
 
     Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue();
 
-    ReadOnlyObservable<Boolean> useRangeAmountObservable();
-
-    boolean getUseRangeAmount();
-
-    ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
 
     ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable();
 
     MonetaryRange getInputAmountLimits();
 
+
     ReadOnlyObservable<Double> fixAmountSliderValueObservable();
 
     Double getFixAmountSliderValue();
+
 
     ReadOnlyObservable<Double> minAmountSliderValueObservable();
 
     Double getMinAmountSliderValue();
 
+
     ReadOnlyObservable<Double> maxAmountSliderValueObservable();
 
     Double getMaxAmountSliderValue();
-
 }

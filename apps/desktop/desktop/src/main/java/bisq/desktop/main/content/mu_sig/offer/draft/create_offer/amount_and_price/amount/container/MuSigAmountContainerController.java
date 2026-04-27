@@ -26,6 +26,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -46,10 +47,12 @@ public class MuSigAmountContainerController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
     private final CreateOfferMarketService createOfferMarketService;
+    private final CreateOfferAmountService createOfferAmountService;
 
     public MuSigAmountContainerController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         createOfferMarketService = createOfferDraftWorkflow.getMarketService();
+        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
         model = new MuSigAmountContainerModel();
 
         muSigFixAmountController = new MuSigFixAmountController(createOfferDraftWorkflow);
@@ -74,7 +77,7 @@ public class MuSigAmountContainerController implements Controller {
             UIThread.run(this::applyDescription);
         }));
 
-        pins.add(createOfferDraftWorkflow.useRangeAmountObservable().addObserver(useRangeAmount -> {
+        pins.add(createOfferAmountService.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {
                 model.getUseRangeAmount().set(useRangeAmount);
                 applyDescription();
@@ -82,19 +85,19 @@ public class MuSigAmountContainerController implements Controller {
         }));
 
 
-        pins.add(createOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyDescription);
         }));
 
         subscriptions.add(EasyBind.subscribe(muSigFixAmountController.getIsTextInputFocused(),
                 isTextInputFocused -> {
-                    if (!createOfferDraftWorkflow.getUseRangeAmount()) {
+                    if (!createOfferAmountService.getUseRangeAmount()) {
                         model.getIsTextInputFocused().set(isTextInputFocused);
                     }
                 }));
         subscriptions.add(EasyBind.subscribe(muSigRangeAmountController.getIsTextInputFocused(),
                 isTextInputFocused -> {
-                    if (createOfferDraftWorkflow.getUseRangeAmount()) {
+                    if (createOfferAmountService.getUseRangeAmount()) {
                         model.getIsTextInputFocused().set(isTextInputFocused);
                     }
                 }));
@@ -117,7 +120,7 @@ public class MuSigAmountContainerController implements Controller {
 
     private void applyDescription() {
         Market market = createOfferDraftWorkflow.getMarket();
-        boolean useRangeAmount = createOfferDraftWorkflow.getUseRangeAmount();
+        boolean useRangeAmount = createOfferAmountService.getUseRangeAmount();
         String code = getCode(market);
         model.getDescription().set(useRangeAmount
                 ? Res.get("muSig.offer.create.amount.description.range", code)
@@ -125,7 +128,7 @@ public class MuSigAmountContainerController implements Controller {
     }
 
     private String getCode(Market market) {
-        boolean useBaseCurrencyForAmountInput = createOfferDraftWorkflow.getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = createOfferAmountService.getUseBaseCurrencyForAmountInput();
         return useBaseCurrencyForAmountInput ? market.getBaseCurrencyCode() : market.getQuoteCurrencyCode();
     }
 }

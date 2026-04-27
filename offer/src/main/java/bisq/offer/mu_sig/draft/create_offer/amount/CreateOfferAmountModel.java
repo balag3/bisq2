@@ -15,60 +15,38 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft.create_offer;
+package bisq.offer.mu_sig.draft.create_offer.amount;
 
-import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
-import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
-import lombok.AccessLevel;
-import lombok.Getter;
 
 import java.util.Optional;
 
-public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
-    @Getter(AccessLevel.PACKAGE)
-    private final CreateOfferMarketModel marketModel;
-    @Getter(AccessLevel.PACKAGE)
-    private final CreateOfferDirectionModel directionModel;
-    @Getter(AccessLevel.PACKAGE)
-    private final CreateOfferPaymentMethodModel paymentMethodModel;
-    @Getter(AccessLevel.PACKAGE)
-    private final CreateOfferPriceModel priceModel;
+public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
+    protected final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
+    protected final Observable<Boolean> useRangeAmount = new Observable<>(false);
+    protected final Observable<TradeAmount> fixTradeAmount = new Observable<>();
+    protected final Observable<TradeAmount> minTradeAmount = new Observable<>();
+    protected final Observable<TradeAmount> maxTradeAmount = new Observable<>();
+    protected final Observable<Optional<TradeAmount>> userSpecificTradeAmountLimit = new Observable<>(Optional.empty());
+    protected final Observable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValue = new Observable<>(Optional.empty());
+    protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
+    protected final Observable<MonetaryRange> inputAmountLimits = new Observable<>();
+    protected final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
+    protected final Observable<Double> minAmountSliderValue = new Observable<>(0d);
+    protected final Observable<Double> maxAmountSliderValue = new Observable<>(0d);
 
-    private final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
-    private final Observable<Boolean> useRangeAmount = new Observable<>(false);
-    private final Observable<TradeAmount> fixTradeAmount = new Observable<>();
-    private final Observable<TradeAmount> minTradeAmount = new Observable<>();
-    private final Observable<TradeAmount> maxTradeAmount = new Observable<>();
-    private final Observable<Optional<TradeAmount>> userSpecificTradeAmountLimit = new Observable<>(Optional.empty());
-    private final Observable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValue = new Observable<>(Optional.empty());
-    private final Observable<Optional<Monetary>> userSpecificInputAmountLimit = new Observable<>(Optional.empty());
-    private final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
-    private final Observable<MonetaryRange> inputAmountLimits = new Observable<>();
-    private final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
-    private final Observable<Double> minAmountSliderValue = new Observable<>(0d);
-    private final Observable<Double> maxAmountSliderValue = new Observable<>(0d);
-
-    public CreateOfferDraft() {
-        marketModel = new CreateOfferMarketModel();
-        directionModel = new CreateOfferDirectionModel();
-        paymentMethodModel = new CreateOfferPaymentMethodModel();
-        priceModel = new CreateOfferPriceModel();
+    public CreateOfferAmountModel() {
     }
-
 
     /* --------------------------------------------------------------------- */
     // useBaseCurrencyForAmountInput
     /* --------------------------------------------------------------------- */
 
-    public void setUseBaseCurrencyForAmountInput(boolean value) {
+    void setUseBaseCurrencyForAmountInput(boolean value) {
         useBaseCurrencyForAmountInput.set(value);
     }
 
@@ -87,7 +65,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     // useRangeAmount
     /* --------------------------------------------------------------------- */
 
-    public void setUseRangeAmount(boolean useRangeAmount) {
+    void setUseRangeAmount(boolean useRangeAmount) {
         this.useRangeAmount.set(useRangeAmount);
     }
 
@@ -168,13 +146,13 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     }
 
     @Override
-    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
-        return tradeAmountLimits;
+    public TradeAmountRange getTradeAmountLimits() {
+        return tradeAmountLimits.get();
     }
 
     @Override
-    public TradeAmountRange getTradeAmountLimits() {
-        return tradeAmountLimits.get();
+    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
+        return tradeAmountLimits;
     }
 
 
@@ -202,7 +180,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     /* --------------------------------------------------------------------- */
 
     void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> sliderValue) {
-        this.userSpecificTradeAmountLimitAsSliderValue.set(sliderValue);
+        userSpecificTradeAmountLimitAsSliderValue.set(sliderValue);
     }
 
     @Override
@@ -234,12 +212,13 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
         return inputAmountLimits.get();
     }
 
+
     /* --------------------------------------------------------------------- */
     // fixAmountSliderValue
     /* --------------------------------------------------------------------- */
 
     void setFixAmountSliderValue(double sliderValue) {
-        this.fixAmountSliderValue.set(sliderValue);
+        fixAmountSliderValue.set(sliderValue);
     }
 
     @Override
@@ -252,12 +231,13 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
         return fixAmountSliderValue.get();
     }
 
+
     /* --------------------------------------------------------------------- */
     // minAmountSliderValue
     /* --------------------------------------------------------------------- */
 
     void setMinAmountSliderValue(double sliderValue) {
-        this.minAmountSliderValue.set(sliderValue);
+        minAmountSliderValue.set(sliderValue);
     }
 
     @Override
@@ -276,7 +256,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     /* --------------------------------------------------------------------- */
 
     void setMaxAmountSliderValue(double sliderValue) {
-        this.maxAmountSliderValue.set(sliderValue);
+        maxAmountSliderValue.set(sliderValue);
     }
 
     @Override
@@ -288,5 +268,4 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     public Double getMaxAmountSliderValue() {
         return maxAmountSliderValue.get();
     }
-
 }

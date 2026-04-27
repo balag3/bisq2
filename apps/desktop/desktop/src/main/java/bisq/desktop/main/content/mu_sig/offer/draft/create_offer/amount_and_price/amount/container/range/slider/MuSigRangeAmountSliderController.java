@@ -22,6 +22,7 @@ import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,11 +37,13 @@ public class MuSigRangeAmountSliderController implements Controller {
     @Getter
     private final MuSigRangeAmountSliderView view;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
         model = new MuSigRangeAmountSliderModel();
         view = new MuSigRangeAmountSliderView(model, this);
     }
@@ -60,16 +63,16 @@ public class MuSigRangeAmountSliderController implements Controller {
                     }
                 }));
 
-        pins.add(createOfferDraftWorkflow.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(createOfferAmountService.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getLowValue())
-                .to(createOfferDraftWorkflow.minAmountSliderValueObservable()));
+                .to(createOfferAmountService.minAmountSliderValueObservable()));
         pins.add(FxBindings.bind(model.getHighValue())
-                .to(createOfferDraftWorkflow.maxAmountSliderValueObservable()));
+                .to(createOfferAmountService.maxAmountSliderValueObservable()));
     }
 
     @Override

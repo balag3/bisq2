@@ -18,13 +18,11 @@
 package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.AccountService;
-import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
-import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
@@ -34,13 +32,10 @@ import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionModel;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodModel;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
-import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceModel;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -52,10 +47,8 @@ import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.settings.SettingsService;
 import lombok.Getter;
-import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -68,16 +61,16 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * and isolated domain services.
  */
 @Slf4j
-public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft> {
+public class CreateOfferDraftWorkflow extends OfferDraftWorkflow {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
-    @Delegate
-    protected CreateOfferDraft createOfferDraft;
     @Getter
     private final CreateOfferMarketService marketService;
     @Getter
     private final CreateOfferDirectionService directionService;
     @Getter
     private final CreateOfferPriceService priceService;
+    @Getter
+    private final CreateOfferAmountService amountService;
 
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
@@ -85,39 +78,6 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     private final CreateOfferPaymentMethodService paymentMethodService;
     private final CreateOfferDraftStateEngine stateEngine;
 
-
-    @Override
-    public Market getMarket() {
-        return marketService.getMarket();
-    }
-
-    public enum PaymentMethodSelectionStatus {
-        NO_ACCOUNT_AVAILABLE,
-        SINGLE_ACCOUNT_SELECTED,
-        ACCOUNT_SELECTION_REQUIRED
-    }
-
-    public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
-                                               List<Account<?, ?>> accountsRequiringSelection) {
-        public PaymentMethodSelectionResult {
-            checkNotNull(status, "status must not be null");
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
-        }
-
-        public static PaymentMethodSelectionResult noAccountAvailable() {
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, List.of());
-        }
-
-        public static PaymentMethodSelectionResult singleAccountSelected() {
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of());
-        }
-
-        public static PaymentMethodSelectionResult accountSelectionRequired(List<Account<?, ?>> accountsRequiringSelection) {
-            checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
-            return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, accountsRequiringSelection);
-        }
-    }
 
     /* --------------------------------------------------------------------- */
     // Construction
@@ -134,16 +94,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     CreateOfferDraftWorkflow(MarketPriceService marketPriceService,
                              CreateOfferDraftCookieStore cookieStore,
                              AccountsProvider accountsProvider) {
-        super(new CreateOfferDraft());
-
-        createOfferDraft = offerDraft;
-        CreateOfferMarketModel marketModel = createOfferDraft.getMarketModel();
-        CreateOfferDirectionModel directionModel = createOfferDraft.getDirectionModel();
-        CreateOfferPaymentMethodModel paymentMethodModel = createOfferDraft.getPaymentMethodModel();
-        CreateOfferPriceModel priceModel = createOfferDraft.getPriceModel();
-        marketService = new CreateOfferMarketService(marketModel);
-        directionService = new CreateOfferDirectionService(directionModel);
-        priceService = new CreateOfferPriceService(priceModel);
+        marketService = new CreateOfferMarketService();
+        directionService = new CreateOfferDirectionService();
+        priceService = new CreateOfferPriceService();
+        amountService = new CreateOfferAmountService();
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
@@ -154,10 +108,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         PaymentMethodSelectionService paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
 
-        stateEngine = new CreateOfferDraftStateEngine(createOfferDraft,
-                marketService,
+        stateEngine = new CreateOfferDraftStateEngine(marketService,
                 directionService,
                 priceService,
+                amountService,
                 marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
@@ -165,9 +119,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                 this::updatePaymentMethods,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
 
-        paymentMethodService = new CreateOfferPaymentMethodService(paymentMethodModel,
-                paymentMethodSelectionService,
-                stateEngine);
+        paymentMethodService = new CreateOfferPaymentMethodService(paymentMethodSelectionService, stateEngine);
     }
 
     //todo  method hides circular reference of stateEngine and paymentMethodDraftFacade
@@ -227,19 +179,19 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     }
 
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount fixTradeAmount = checkNotNull(getFixTradeAmount(), "fixTradeAmount must not be null");
+        TradeAmount fixTradeAmount = checkNotNull(amountService.getFixTradeAmount(), "fixTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
         setFixTradeAmount(tradeAmount);
     }
 
     public void setMinTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount minTradeAmount = checkNotNull(getMinTradeAmount(), "minTradeAmount must not be null");
+        TradeAmount minTradeAmount = checkNotNull(amountService.getMinTradeAmount(), "minTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(minTradeAmount, sliderValue);
         setMinTradeAmount(tradeAmount);
     }
 
     public void setMaxTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount maxTradeAmount = checkNotNull(getMaxTradeAmount(), "maxTradeAmount must not be null");
+        TradeAmount maxTradeAmount = checkNotNull(amountService.getMaxTradeAmount(), "maxTradeAmount must not be null");
         TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(maxTradeAmount, sliderValue);
         setMaxTradeAmount(tradeAmount);
     }
@@ -250,13 +202,13 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     /* --------------------------------------------------------------------- */
 
     public Monetary toInputAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
         return amountMappingService.toInputAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
 
     public Monetary toPassiveAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
         TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
         return amountMappingService.toPassiveAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
@@ -309,7 +261,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         if (Double.compare(pricePercentage, getPricePercentage()) == 0) {
             return;
         }
-        offerDraft.setPricePercentage(pricePercentage);
+        createOfferDraft.setPricePercentage(pricePercentage);
         cookieStore.persistPricePercentage(pricePercentage);
     }
 
@@ -318,18 +270,18 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         if (getPriceQuote().equals(fixPriceQuote)) {
             return;
         }
-        offerDraft.setUseFixPrice(fixPriceQuote);
+        createOfferDraft.setUseFixPrice(fixPriceQuote);
         cookieStore.persistPricePercentage(fixPriceQuote);
     }*/
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {
-        if (value == getUseBaseCurrencyForAmountInput()) {
+        if (value == amountService.getUseBaseCurrencyForAmountInput()) {
             return;
         }
 
         Market market = getMarket();
         if (market == null) {
-            offerDraft.setUseBaseCurrencyForAmountInput(value);
+            amountService.setUseBaseCurrencyForAmountInput(value);
             return;
         }
 
@@ -339,7 +291,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     }
 
     public void setUseRangeAmount(boolean useRangeAmount) {
-        if (useRangeAmount == getUseRangeAmount()) {
+        if (useRangeAmount == amountService.getUseRangeAmount()) {
             return;
         }
 
@@ -361,21 +313,6 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         stateEngine.setMaxTradeAmount(tradeAmount);
     }
 
-    public void setTradeAmountLimits(TradeAmountRange tradeAmountRange) {
-        checkNotNull(tradeAmountRange, "TradeAmountRange must not be null");
-        offerDraft.setTradeAmountLimits(tradeAmountRange);
-    }
-
-    public void setUserSpecificTradeAmountLimit(Optional<TradeAmount> tradeAmount) {
-        tradeAmount.ifPresent(amount -> checkNotNull(amount, "tradeAmount must not be null"));
-        offerDraft.setUserSpecificTradeAmountLimit(tradeAmount);
-    }
-
-    public void setInputAmountLimits(MonetaryRange inputAmountLimits) {
-        checkNotNull(inputAmountLimits, "inputAmountLimits must not be null");
-        offerDraft.setInputAmountLimits(inputAmountLimits);
-    }
-
 
     /* --------------------------------------------------------------------- */
     // Derived read model
@@ -384,12 +321,12 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
     public AmountSpec getAmountSpec() {
         Market market = checkNotNull(getMarket(), "market must not be null");
         boolean isBtcFiatMarket = market.isBtcFiatMarket();
-        boolean useRangeAmount = getUseRangeAmount();
+        boolean useRangeAmount = amountService.getUseRangeAmount();
         return AmountSpecFactory.createAmountSpec(isBtcFiatMarket,
                 useRangeAmount,
-                getMinTradeAmount(),
-                getMaxTradeAmount(),
-                getFixTradeAmount());
+                amountService.getMinTradeAmount(),
+                amountService.getMaxTradeAmount(),
+                amountService.getFixTradeAmount());
     }
 
     public PriceSpec getPriceSpec() {
@@ -403,6 +340,12 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         return new FloatPriceSpec(pricePercentage);
     }
 
+
+    //todo
+    @Override
+    public Market getMarket() {
+        return marketService.getMarket();
+    }
 
     /* --------------------------------------------------------------------- */
     // Internal helpers

@@ -18,25 +18,28 @@
 package bisq.offer.mu_sig.draft.create_offer.price;
 
 import bisq.common.monetary.PriceQuote;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.experimental.Delegate;
 
 public class CreateOfferPriceService {
+    @Getter(AccessLevel.PACKAGE)
     @Delegate
-    private final CreateOfferPriceModel createOfferPriceModel;
+    private final CreateOfferPriceModel model;
 
-    public CreateOfferPriceService(CreateOfferPriceModel createOfferPriceModel) {
-        this.createOfferPriceModel = createOfferPriceModel;
+    public CreateOfferPriceService() {
+        this.model = new CreateOfferPriceModel();
     }
 
     public void setPriceQuote(PriceQuote priceQuote) {
-        createOfferPriceModel.setPriceQuote(priceQuote);
+        model.setPriceQuote(priceQuote);
     }
 
     public void setUseFixPrice(boolean useFixPrice) {
-        createOfferPriceModel.setUseFixPrice(useFixPrice);
+        model.setUseFixPrice(useFixPrice);
     }
 
     public void setPricePercentage(double pricePercentage) {
-        createOfferPriceModel.setPricePercentage(pricePercentage);
+        model.setPricePercentage(pricePercentage);
     }
 }

@@ -15,11 +15,10 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer;
 
-import bisq.common.application.Workflow;
-import bisq.common.market.Market;
-
-public abstract class OfferDraftWorkflow extends Workflow {
-    public abstract Market getMarket();
+public enum PaymentMethodSelectionStatus {
+    NO_ACCOUNT_AVAILABLE,
+    SINGLE_ACCOUNT_SELECTED,
+    ACCOUNT_SELECTION_REQUIRED
 }

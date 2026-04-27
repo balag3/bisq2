@@ -18,17 +18,20 @@
 package bisq.offer.mu_sig.draft.create_offer.market;
 
 import bisq.common.market.Market;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.experimental.Delegate;
 
 public class CreateOfferMarketService {
+    @Getter(AccessLevel.PACKAGE)
     @Delegate
-    private final CreateOfferMarketModel createOfferMarketModel;
+    private final CreateOfferMarketModel model;
 
-    public CreateOfferMarketService(CreateOfferMarketModel createOfferMarketModel) {
-        this.createOfferMarketModel = createOfferMarketModel;
+    public CreateOfferMarketService() {
+        this.model = new CreateOfferMarketModel();
     }
 
     public void setMarket(Market market) {
-        createOfferMarketModel.setMarket(market);
+        model.setMarket(market);
     }
 }

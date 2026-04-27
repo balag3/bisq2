@@ -18,17 +18,20 @@
 package bisq.offer.mu_sig.draft.create_offer.direction;
 
 import bisq.offer.Direction;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.experimental.Delegate;
 
 public class CreateOfferDirectionService {
+    @Getter(AccessLevel.PACKAGE)
     @Delegate
-    private final CreateOfferDirectionModel createOfferDirectionModel;
+    private final CreateOfferDirectionModel model;
 
-    public CreateOfferDirectionService(CreateOfferDirectionModel createOfferDirectionModel) {
-        this.createOfferDirectionModel = createOfferDirectionModel;
+    public CreateOfferDirectionService() {
+        this.model = new CreateOfferDirectionModel();
     }
 
     public void setDirection(Direction direction) {
-        createOfferDirectionModel.setDirection(direction);
+        model.setDirection(direction);
     }
 }

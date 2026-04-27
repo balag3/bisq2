@@ -97,6 +97,10 @@ public class MuSigCreateOfferReviewController implements Controller {
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
         createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
+        createOfferDraftWorkflow.getDirectionService();
+        createOfferDraftWorkflow.getPriceService();
+        createOfferDraftWorkflow.getAmountService();
+        
         this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;

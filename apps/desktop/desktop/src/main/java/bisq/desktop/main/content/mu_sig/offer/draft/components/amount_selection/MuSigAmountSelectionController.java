@@ -72,7 +72,7 @@ public class MuSigAmountSelectionController implements Controller {
     private final Set<UIScheduler> schedulers = new HashSet<>();
     private final SettingsService settingsService;
 
-    public MuSigAmountSelectionController(ServiceProvider serviceProvider, OfferDraftWorkflow<?> offerDraftWorkflow) {
+    public MuSigAmountSelectionController(ServiceProvider serviceProvider, OfferDraftWorkflow offerDraftWorkflow) {
         settingsService = serviceProvider.getSettingsService();
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
 

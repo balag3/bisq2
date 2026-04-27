@@ -20,6 +20,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
@@ -57,6 +58,7 @@ public class CreateOfferDraftWorkflowTest {
     private CreateOfferPaymentMethodService paymentMethodDraftFacade;
     private CreateOfferDirectionService createOfferDirectionService;
     private CreateOfferPriceService createOfferPriceService;
+    private CreateOfferAmountService createOfferAmountService;
 
     @BeforeEach
     public void setUp() {
@@ -89,6 +91,7 @@ public class CreateOfferDraftWorkflowTest {
         paymentMethodDraftFacade = workflow.getPaymentMethodService();
         createOfferDirectionService = workflow.getDirectionService();
         createOfferPriceService = workflow.getPriceService();
+        createOfferAmountService = workflow.getAmountService();
     }
 
     @Test
@@ -98,11 +101,11 @@ public class CreateOfferDraftWorkflowTest {
         assertEquals(defaultMarket, workflow.getMarket());
         assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
         assertEquals(defaultMarketPriceQuote, createOfferPriceService.getPriceQuote());
-        assertEquals(defaultMarketDefaultTradeAmount, workflow.getFixTradeAmount());
-        assertEquals(defaultMarketDefaultTradeAmount, workflow.getMinTradeAmount());
-        assertEquals(defaultMarketDefaultTradeAmount, workflow.getMaxTradeAmount());
-        assertNotNull(workflow.getTradeAmountLimits());
-        assertNotNull(workflow.getInputAmountLimits());
+        assertEquals(defaultMarketDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
+        assertEquals(defaultMarketDefaultTradeAmount, createOfferAmountService.getMinTradeAmount());
+        assertEquals(defaultMarketDefaultTradeAmount, createOfferAmountService.getMaxTradeAmount());
+        assertNotNull(createOfferAmountService.getTradeAmountLimits());
+        assertNotNull(createOfferAmountService.getInputAmountLimits());
         assertEquals(List.of(defaultMarket), accountsProvider.requestedMarkets);
     }
 
@@ -113,11 +116,11 @@ public class CreateOfferDraftWorkflowTest {
 
         assertEquals(xmrBtcMarket, workflow.getMarket());
         assertEquals(xmrBtcPriceQuote, createOfferPriceService.getPriceQuote());
-        assertEquals(xmrBtcDefaultTradeAmount, workflow.getFixTradeAmount());
-        assertEquals(xmrBtcDefaultTradeAmount, workflow.getMinTradeAmount());
-        assertEquals(xmrBtcDefaultTradeAmount, workflow.getMaxTradeAmount());
-        assertNotNull(workflow.getTradeAmountLimits());
-        assertNotNull(workflow.getInputAmountLimits());
+        assertEquals(xmrBtcDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
+        assertEquals(xmrBtcDefaultTradeAmount, createOfferAmountService.getMinTradeAmount());
+        assertEquals(xmrBtcDefaultTradeAmount, createOfferAmountService.getMaxTradeAmount());
+        assertNotNull(createOfferAmountService.getTradeAmountLimits());
+        assertNotNull(createOfferAmountService.getInputAmountLimits());
         assertEquals(List.of(defaultMarket, xmrBtcMarket), accountsProvider.requestedMarkets);
     }
 
@@ -127,9 +130,9 @@ public class CreateOfferDraftWorkflowTest {
         workflow.setUseBaseCurrencyForAmountInput(false);
         workflow.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
 
-        TradeAmount fixTradeAmountBefore = workflow.getFixTradeAmount();
+        TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
         workflow.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
-        TradeAmount fixTradeAmountAfter = workflow.getFixTradeAmount();
+        TradeAmount fixTradeAmountAfter = createOfferAmountService.getFixTradeAmount();
 
         assertEquals(fixTradeAmountBefore.getQuoteSideAmount(), fixTradeAmountAfter.getQuoteSideAmount());
         assertEquals(Coin.asBtcFromFaceValue(0.0125), fixTradeAmountAfter.getBaseSideAmount());
@@ -138,16 +141,16 @@ public class CreateOfferDraftWorkflowTest {
     @Test
     public void setDirectionRecomputesUserSpecificLimitAndKeepsAmountsStable() {
         workflow.initialize(usdBtcMarket);
-        TradeAmount fixTradeAmountBefore = workflow.getFixTradeAmount();
+        TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
 
         workflow.setDirection(Direction.BUY);
-        Optional<TradeAmount> buyLimit = workflow.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> buyLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
 
         workflow.setDirection(Direction.SELL);
 
         assertTrue(buyLimit.isPresent());
-        assertTrue(workflow.getUserSpecificTradeAmountLimit().isEmpty());
-        assertEquals(fixTradeAmountBefore, workflow.getFixTradeAmount());
+        assertTrue(createOfferAmountService.getUserSpecificTradeAmountLimit().isEmpty());
+        assertEquals(fixTradeAmountBefore, createOfferAmountService.getFixTradeAmount());
         assertEquals(List.of(Direction.BUY, Direction.SELL), cookieStore.persistedDirections);
     }
 
@@ -162,11 +165,11 @@ public class CreateOfferDraftWorkflowTest {
 
         paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
         assertEquals(Fiat.fromFaceValue(10000, "USD"),
-                workflow.getTradeAmountLimits().getMax().getQuoteSideAmount());
+                createOfferAmountService.getTradeAmountLimits().getMax().getQuoteSideAmount());
 
         paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         assertEquals(Fiat.fromFaceValue(5000, "USD"),
-                workflow.getTradeAmountLimits().getMax().getQuoteSideAmount());
+                createOfferAmountService.getTradeAmountLimits().getMax().getQuoteSideAmount());
     }
 
     @Test
@@ -181,20 +184,20 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
         paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
-        assertEquals(Fiat.fromFaceValue(9000, "USD"), workflow.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(9000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
 
         paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
-        assertEquals(Fiat.fromFaceValue(5000, "USD"), workflow.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5000, "USD"), createOfferAmountService.getFixTradeAmount().getQuoteSideAmount());
     }
 
     @Test
     public void setDirectionWithCurrentValueIsNoOp() {
         workflow.initialize(usdBtcMarket);
 
-        TradeAmount fixTradeAmountBefore = workflow.getFixTradeAmount();
+        TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
         workflow.setDirection(Direction.SELL);
 
-        assertEquals(fixTradeAmountBefore, workflow.getFixTradeAmount());
+        assertEquals(fixTradeAmountBefore, createOfferAmountService.getFixTradeAmount());
         assertTrue(cookieStore.persistedDirections.isEmpty());
     }
 
@@ -283,7 +286,7 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(usdBtcMarket);
         workflow.setUseBaseCurrencyForAmountInput(false);
 
-        TradeAmount tradeAmount = workflow.getFixTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
         var inputAmount = workflow.toInputAmount(tradeAmount, true);
         var passiveAmount = workflow.toPassiveAmount(tradeAmount, true);
 
@@ -297,10 +300,10 @@ public class CreateOfferDraftWorkflowTest {
         workflow.setUseBaseCurrencyForAmountInput(false);
 
         workflow.setFixTradeAmountFromSliderValue(0.0);
-        Fiat minAmount = (Fiat) workflow.getFixTradeAmount().getQuoteSideAmount();
+        Fiat minAmount = (Fiat) createOfferAmountService.getFixTradeAmount().getQuoteSideAmount();
 
         workflow.setFixTradeAmountFromSliderValue(1.0);
-        Fiat maxAmount = (Fiat) workflow.getFixTradeAmount().getQuoteSideAmount();
+        Fiat maxAmount = (Fiat) createOfferAmountService.getFixTradeAmount().getQuoteSideAmount();
 
         assertTrue(minAmount.getValue() < maxAmount.getValue());
     }
@@ -313,8 +316,8 @@ public class CreateOfferDraftWorkflowTest {
         workflow.setMinTradeAmountFromSliderValue(0.2);
         workflow.setMaxTradeAmountFromSliderValue(0.8);
 
-        TradeAmount minAmount = workflow.getMinTradeAmount();
-        TradeAmount maxAmount = workflow.getMaxTradeAmount();
+        TradeAmount minAmount = createOfferAmountService.getMinTradeAmount();
+        TradeAmount maxAmount = createOfferAmountService.getMaxTradeAmount();
 
         assertTrue(minAmount.getQuoteSideAmount().getValue() < maxAmount.getQuoteSideAmount().getValue());
     }
@@ -391,7 +394,7 @@ public class CreateOfferDraftWorkflowTest {
     @Test
     public void setTradeAmountLimitsUpdatesLimits() {
         workflow.initialize(usdBtcMarket);
-        TradeAmountRange currentLimits = workflow.getTradeAmountLimits();
+        TradeAmountRange currentLimits = createOfferAmountService.getTradeAmountLimits();
 
         TradeAmount doubledMax = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
@@ -400,9 +403,9 @@ public class CreateOfferDraftWorkflowTest {
                 currentLimits.getMin(),
                 doubledMax
         );
-        workflow.setTradeAmountLimits(newLimits);
+        createOfferAmountService.setTradeAmountLimits(newLimits);
 
-        assertEquals(newLimits, workflow.getTradeAmountLimits());
+        assertEquals(newLimits, createOfferAmountService.getTradeAmountLimits());
     }
 
     @Test
@@ -412,23 +415,23 @@ public class CreateOfferDraftWorkflowTest {
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(3000, "USD"));
 
-        workflow.setUserSpecificTradeAmountLimit(Optional.of(customLimit));
+        createOfferAmountService.setUserSpecificTradeAmountLimit(Optional.of(customLimit));
 
-        assertEquals(Optional.of(customLimit), workflow.getUserSpecificTradeAmountLimit());
+        assertEquals(Optional.of(customLimit), createOfferAmountService.getUserSpecificTradeAmountLimit());
     }
 
     @Test
     public void setInputAmountLimitsUpdatesLimits() {
         workflow.initialize(usdBtcMarket);
-        var currentLimits = workflow.getInputAmountLimits();
+        var currentLimits = createOfferAmountService.getInputAmountLimits();
 
         var newLimits = new MonetaryRange(
                 currentLimits.getMin(),
                 currentLimits.getMin().multiply(1.5)
         );
-        workflow.setInputAmountLimits(newLimits);
+        createOfferAmountService.setInputAmountLimits(newLimits);
 
-        assertEquals(newLimits, workflow.getInputAmountLimits());
+        assertEquals(newLimits, createOfferAmountService.getInputAmountLimits());
     }
 
     @Test
@@ -436,9 +439,9 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(defaultMarket);
         workflow.setUseRangeAmount(true);
 
-        assertTrue(workflow.getUseRangeAmount());
-        assertNotNull(workflow.getMinAmountSliderValue());
-        assertNotNull(workflow.getMaxAmountSliderValue());
+        assertTrue(createOfferAmountService.getUseRangeAmount());
+        assertNotNull(createOfferAmountService.getMinAmountSliderValue());
+        assertNotNull(createOfferAmountService.getMaxAmountSliderValue());
         assertEquals(List.of(true), cookieStore.persistedUseRangeAmountValues);
     }
 

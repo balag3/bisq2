@@ -26,6 +26,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.Mu
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.fix.slider.MuSigFixAmountSliderController;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,11 +44,13 @@ public class MuSigFixAmountController implements Controller {
     private final MuSigAmountTextInputController amountTextInputController;
     private final MuSigPassiveAmountController passiveAmountController;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigFixAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
         model = new MuSigFixAmountModel();
 
         amountTextInputController = new MuSigAmountTextInputController(true, false);
@@ -69,11 +72,11 @@ public class MuSigFixAmountController implements Controller {
     @Override
     public void onActivate() {
         // Domain specific
-        pins.add(createOfferDraftWorkflow.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
-        pins.add(createOfferDraftWorkflow.fixTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(createOfferAmountService.fixTradeAmountObservable().addObserver(tradeAmount -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
@@ -123,7 +126,7 @@ public class MuSigFixAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onToggleInputMode() {
-        boolean useBaseCurrencyForAmountInput = createOfferDraftWorkflow.getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = createOfferAmountService.getUseBaseCurrencyForAmountInput();
         boolean value = !useBaseCurrencyForAmountInput;
         createOfferDraftWorkflow.setUseBaseCurrencyForAmountInput(value);
     }
@@ -139,13 +142,13 @@ public class MuSigFixAmountController implements Controller {
     }
 
     private void applyInputAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getFixTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
         Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
         amountTextInputController.setAmount(inputAmount);
     }
 
     private void applyPassiveAmount() {
-        TradeAmount tradeAmount = createOfferDraftWorkflow.getFixTradeAmount();
+        TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
         Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
         passiveAmountController.setAmount(passiveAmount);
     }
