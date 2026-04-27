@@ -30,14 +30,17 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
 import com.google.common.collect.ImmutableMap;
+import lombok.Getter;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
-    protected final Observable<Market> market = new Observable<>();
+    @Getter
+    private final CreateOfferMarketModel marketModel;
 
     protected final Observable<Direction> direction = new Observable<>();
 
@@ -64,6 +67,7 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     private final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = new ObservableHashMap<>();
 
     public CreateOfferDraft() {
+        marketModel = new CreateOfferMarketModel();
     }
 
 
@@ -71,18 +75,9 @@ public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     // Market
     /* --------------------------------------------------------------------- */
 
-    void setMarket(Market market) {
-        this.market.set(market);
-    }
-
-    @Override
-    public ReadOnlyObservable<Market> marketObservable() {
-        return market;
-    }
-
     @Override
     public Market getMarket() {
-        return market.get();
+        return marketModel.getMarket();
     }
 
 

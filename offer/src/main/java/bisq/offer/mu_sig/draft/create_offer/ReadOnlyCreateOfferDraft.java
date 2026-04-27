@@ -19,7 +19,6 @@ package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.common.market.Market;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
@@ -35,7 +34,6 @@ import java.util.Optional;
 
 public interface ReadOnlyCreateOfferDraft extends ReadOnlyOfferDraft {
 
-    ReadOnlyObservable<Market> marketObservable();
 
     ReadOnlyObservable<Direction> directionObservable();
 

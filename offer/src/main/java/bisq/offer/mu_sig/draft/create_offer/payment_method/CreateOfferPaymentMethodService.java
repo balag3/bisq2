@@ -25,6 +25,7 @@ import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraft;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftStateEngine;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketReadOnlyModel;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
@@ -35,6 +36,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CreateOfferPaymentMethodService {
     private final CreateOfferDraft createOfferDraft;
+    private final CreateOfferMarketReadOnlyModel marketModel;
     private final PaymentMethodSelectionService paymentMethodSelectionService;
     private final CreateOfferDraftStateEngine stateEngine;
 
@@ -67,15 +69,17 @@ public class CreateOfferPaymentMethodService {
     }
 
     public CreateOfferPaymentMethodService(CreateOfferDraft createOfferDraft,
+                                           CreateOfferMarketReadOnlyModel marketModel,
                                            PaymentMethodSelectionService paymentMethodSelectionService,
                                            CreateOfferDraftStateEngine stateEngine) {
         this.createOfferDraft = checkNotNull(createOfferDraft, "createOfferDraft must not be null");
+        this.marketModel = marketModel;
         this.paymentMethodSelectionService = checkNotNull(paymentMethodSelectionService, "paymentMethodSelectionService must not be null");
         this.stateEngine = checkNotNull(stateEngine, "stateEngine must not be null");
     }
 
     public Market getMarket() {
-        return createOfferDraft.getMarket();
+        return marketModel.getMarket();
     }
 
     public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable() {
@@ -155,7 +159,7 @@ public class CreateOfferPaymentMethodService {
     /* --------------------------------------------------------------------- */
 
     public void updatePaymentMethods() {
-        Market market = createOfferDraft.getMarket();
+        Market market = marketModel.getMarket();
         PaymentMethodSelectionService.MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
         List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
         Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();

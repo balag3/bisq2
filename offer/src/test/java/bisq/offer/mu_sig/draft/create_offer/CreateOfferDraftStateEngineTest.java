@@ -16,6 +16,8 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.draft.AmountMappingService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +37,8 @@ public class CreateOfferDraftStateEngineTest {
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
     private CreateOfferDraft offerDraft;
+    private CreateOfferMarketModel marketModel;
+    private CreateOfferMarketService createOfferMarketService;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftStateEngine stateEngine;
     private AtomicInteger paymentMethodUpdateCalls;
@@ -49,6 +53,8 @@ public class CreateOfferDraftStateEngineTest {
                 Fiat.fromFaceValue(500, "USD"));
 
         offerDraft = new CreateOfferDraft();
+        marketModel = offerDraft.getMarketModel();
+        createOfferMarketService = new CreateOfferMarketService(marketModel);
         marketPriceService = new MockMarketPriceService(usdBtcPriceQuote);
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
@@ -56,6 +62,8 @@ public class CreateOfferDraftStateEngineTest {
         selectedPaymentRail = new AtomicReference<>();
 
         stateEngine = new CreateOfferDraftStateEngine(offerDraft,
+                marketModel,
+                createOfferMarketService,
                 marketPriceService,
                 new CreateOfferTradeAmountConstraintsService(marketPriceService),
                 new AmountMappingService(),

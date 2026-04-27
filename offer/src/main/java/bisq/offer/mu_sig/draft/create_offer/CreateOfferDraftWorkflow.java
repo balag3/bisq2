@@ -34,6 +34,8 @@ import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketModel;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
@@ -64,11 +66,15 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraft> {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
 
+    @Delegate
+    private final CreateOfferMarketModel marketModel;
+
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountMappingService amountMappingService;
     @Getter
     private final CreateOfferPaymentMethodService paymentMethodDraftFacade;
     private final CreateOfferDraftStateEngine stateEngine;
+    private final CreateOfferMarketService createOfferMarketService;
     @Delegate
     protected CreateOfferDraft createOfferDraft;
 
@@ -117,6 +123,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                              AccountsProvider accountsProvider) {
         super(new CreateOfferDraft());
 
+        createOfferDraft = offerDraft;
+        marketModel = createOfferDraft.getMarketModel();
+        createOfferMarketService = new CreateOfferMarketService(marketModel);
+
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
         checkNotNull(marketPriceService, "marketPriceProvider must not be null");
@@ -125,8 +135,10 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
         CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
         PaymentMethodSelectionService paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
-        createOfferDraft = offerDraft;
+
         stateEngine = new CreateOfferDraftStateEngine(createOfferDraft,
+                marketModel,
+                createOfferMarketService,
                 marketPriceService,
                 tradeAmountConstraintsService,
                 amountMappingService,
@@ -135,6 +147,7 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow<CreateOfferDraf
                 DEFAULT_TRADE_AMOUNT_IN_USD);
 
         paymentMethodDraftFacade = new CreateOfferPaymentMethodService(createOfferDraft,
+                marketModel,
                 paymentMethodSelectionService,
                 stateEngine);
     }

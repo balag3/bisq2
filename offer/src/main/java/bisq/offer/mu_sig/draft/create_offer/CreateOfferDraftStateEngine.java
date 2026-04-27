@@ -31,6 +31,8 @@ import bisq.offer.mu_sig.draft.AmountMappingService;
 import bisq.offer.mu_sig.draft.AmountUtils;
 import bisq.offer.mu_sig.draft.TradeAmountConstraints;
 import bisq.offer.mu_sig.draft.TradeAmountLimits;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketReadOnlyModel;
+import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -47,6 +49,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public class CreateOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
+    private final CreateOfferMarketReadOnlyModel marketModel;
+    private final CreateOfferMarketService createOfferMarketService;
     private final MarketPriceService marketPriceService;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final AmountMappingService amountMappingService;
@@ -59,6 +63,8 @@ public class CreateOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     CreateOfferDraftStateEngine(CreateOfferDraft offerDraft,
+                                CreateOfferMarketReadOnlyModel marketModel,
+                                CreateOfferMarketService createOfferMarketService,
                                 MarketPriceService marketPriceService,
                                 CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                                 AmountMappingService amountMappingService,
@@ -66,6 +72,8 @@ public class CreateOfferDraftStateEngine {
                                 Runnable updatePaymentMethodsHandler,
                                 Fiat defaultTradeAmountInUsd) {
         this.offerDraft = checkNotNull(offerDraft, "offerDraft must not be null");
+        this.marketModel = marketModel;
+        this.createOfferMarketService = createOfferMarketService;
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.tradeAmountConstraintsService = checkNotNull(tradeAmountConstraintsService, "tradeAmountConstraintsService must not be null");
         this.amountMappingService = checkNotNull(amountMappingService, "amountMappingService must not be null");
@@ -88,7 +96,7 @@ public class CreateOfferDraftStateEngine {
         checkNotNull(market, "market must not be null");
         checkNotNull(direction, "direction must not be null");
 
-        offerDraft.setMarket(market);
+        createOfferMarketService.setMarket(market);
         offerDraft.setDirection(direction);
 
         // Price
@@ -125,7 +133,7 @@ public class CreateOfferDraftStateEngine {
 
     void applyMarketChanged(Market market) {
         checkNotNull(market, "market must not be null");
-        offerDraft.setMarket(market);
+        createOfferMarketService.setMarket(market);
         if (!isDerivedStateInitialized() || offerDraft.getTakersDirection() == null) {
             return;
         }
@@ -158,7 +166,7 @@ public class CreateOfferDraftStateEngine {
             return false;
         }
 
-        Market market = offerDraft.getMarket();
+        Market market = marketModel.getMarket();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
@@ -196,7 +204,7 @@ public class CreateOfferDraftStateEngine {
 
         applyUseFixPriceChanged(offerDraft.getUseFixPrice());
 
-        Market market = offerDraft.getMarket();
+        Market market = marketModel.getMarket();
         Direction direction = offerDraft.getTakersDirection();
         TradeAmount fixTradeAmount = offerDraft.getFixTradeAmount();
         TradeAmount minTradeAmount = offerDraft.getMinTradeAmount();
@@ -285,7 +293,7 @@ public class CreateOfferDraftStateEngine {
             return;
         }
 
-        Market market = offerDraft.getMarket();
+        Market market = marketModel.getMarket();
         Direction direction = offerDraft.getTakersDirection();
         PriceQuote offerPriceQuote = offerDraft.getPriceQuote();
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
@@ -317,7 +325,7 @@ public class CreateOfferDraftStateEngine {
 
     TradeAmount toClampedTradeAmount(Monetary amount) {
         checkNotNull(amount, "amount must not be null");
-        Market market = checkNotNull(offerDraft.getMarket(), "market must not be null");
+        Market market = checkNotNull(marketModel.getMarket(), "market must not be null");
         PriceQuote priceQuote = checkNotNull(offerDraft.getPriceQuote(), "priceQuote must not be null");
         TradeAmountRange limits = getClampLimits(true);
         return amountMappingService.toTradeAmountFromInputAmount(market, priceQuote, amount, limits);
@@ -325,7 +333,7 @@ public class CreateOfferDraftStateEngine {
 
     TradeAmount toTradeAmountFromSliderValue(TradeAmount tradeAmount, double sliderValue) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
-        Market market = checkNotNull(offerDraft.getMarket(), "market must not be null");
+        Market market = checkNotNull(marketModel.getMarket(), "market must not be null");
         PriceQuote priceQuote = checkNotNull(offerDraft.getPriceQuote(), "priceQuote must not be null");
         TradeAmountRange limits = getClampLimits(true);
         MonetaryRange inputAmountLimits = checkNotNull(offerDraft.getInputAmountLimits(), "inputAmountLimits must not be null");
@@ -355,7 +363,7 @@ public class CreateOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     private boolean hasPricingContext() {
-        return offerDraft.getMarket() != null
+        return marketModel.getMarket() != null
                 && offerDraft.getTakersDirection() != null
                 && offerDraft.getPriceQuote() != null
                 && isDerivedStateInitialized();
