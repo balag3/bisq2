@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
 import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,14 +36,14 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferService takeOfferService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
-        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
-        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
+    public MuSigFixAmountSliderController(TakeOfferService takeOfferService) {
+        this.takeOfferService = takeOfferService;
+        takeOfferAmountService = takeOfferService.getAmountService();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -53,7 +53,7 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        takeOfferDraftWorkflow.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        takeOfferService.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
         pins.add(takeOfferAmountService.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {

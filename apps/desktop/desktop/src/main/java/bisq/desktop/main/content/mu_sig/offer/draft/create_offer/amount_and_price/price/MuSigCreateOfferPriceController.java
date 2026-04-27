@@ -29,7 +29,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.components.overlay.Popup;
 import bisq.desktop.main.content.mu_sig.offer.draft.components.MuSigPriceInput;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
 import bisq.offer.price.PriceUtil;
@@ -64,7 +64,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     @Getter
     private final MuSigCreateOfferPriceView view;
     private final MuSigPriceInput priceInput;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final MarketPriceService marketPriceService;
@@ -75,16 +75,16 @@ public class MuSigCreateOfferPriceController implements Controller {
     private final CreateOfferPriceService createOfferPriceService;
 
     public MuSigCreateOfferPriceController(ServiceProvider serviceProvider,
-                                           CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                           CreateOfferService createOfferService,
                                            Region owner,
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         settingsService = serviceProvider.getSettingsService();
-        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
-        createOfferPriceService = createOfferDraftWorkflow.getPriceService();
+        createOfferDirectionService = createOfferService.getDirectionService();
+        createOfferPriceService = createOfferService.getPriceService();
 
-        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferDraftWorkflow);
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferService);
+        this.createOfferService = createOfferService;
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         model = new MuSigCreateOfferPriceModel();
@@ -117,7 +117,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     @Override
     public void onActivate() {
-        Market market = createOfferDraftWorkflow.getMarket();
+        Market market = createOfferService.getMarket();
         String marketCodes = market.getMarketCodes();
         model.getMarketCodes().set(marketCodes);
 
@@ -371,11 +371,11 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private Optional<PriceQuote> findMarketPriceQuote() {
-        return marketPriceService.findMarketPriceQuote(createOfferDraftWorkflow.getMarket());
+        return marketPriceService.findMarketPriceQuote(createOfferService.getMarket());
     }
 
     private String getCookieSubKey() {
-        return createOfferDraftWorkflow.getMarket().getMarketCodes();
+        return createOfferService.getMarket().getMarketCodes();
     }
 
     private void updateFeedback(PriceSpec priceSpec) {
@@ -383,7 +383,7 @@ public class MuSigCreateOfferPriceController implements Controller {
         // amount range                     recommended price
         // 0.0001 BTC - 0.001 BTC           10-15%
         // 0.001 BTC - 0.01 BTC             2-10%
-        Optional<Double> percentage = PriceUtil.findPercentFromMarketPrice(marketPriceService, priceSpec, createOfferDraftWorkflow.getMarket());
+        Optional<Double> percentage = PriceUtil.findPercentFromMarketPrice(marketPriceService, priceSpec, createOfferService.getMarket());
         if (percentage.isPresent()) {
             double percentageValue = percentage.get();
             String feedbackSentence;

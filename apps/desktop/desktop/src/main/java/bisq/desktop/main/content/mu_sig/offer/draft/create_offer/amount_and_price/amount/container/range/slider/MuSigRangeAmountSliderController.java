@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,14 +36,14 @@ public class MuSigRangeAmountSliderController implements Controller {
     private final MuSigRangeAmountSliderModel model;
     @Getter
     private final MuSigRangeAmountSliderView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigRangeAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigRangeAmountSliderController(CreateOfferService createOfferService) {
+        this.createOfferService = createOfferService;
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigRangeAmountSliderModel();
         view = new MuSigRangeAmountSliderView(model, this);
     }
@@ -53,13 +53,13 @@ public class MuSigRangeAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getLowValue(),
                 value -> {
                     if (value != null) {
-                        createOfferDraftWorkflow.setMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        createOfferService.setMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
         subscriptions.add(EasyBind.subscribe(model.getHighValue(),
                 value -> {
                     if (value != null) {
-                        createOfferDraftWorkflow.setMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        createOfferService.setMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 

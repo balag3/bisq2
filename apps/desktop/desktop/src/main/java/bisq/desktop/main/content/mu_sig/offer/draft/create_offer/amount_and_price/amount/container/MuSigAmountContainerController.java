@@ -25,7 +25,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.limits.MuSigAmountLimitsController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import lombok.Getter;
@@ -43,21 +43,21 @@ public class MuSigAmountContainerController implements Controller {
     private final MuSigAmountContainerView view;
     private final MuSigRangeAmountController muSigRangeAmountController;
     private final MuSigFixAmountController muSigFixAmountController;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
     private final CreateOfferMarketService createOfferMarketService;
     private final CreateOfferAmountService createOfferAmountService;
 
-    public MuSigAmountContainerController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigAmountContainerController(CreateOfferService createOfferService) {
+        this.createOfferService = createOfferService;
+        createOfferMarketService = createOfferService.getMarketService();
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigAmountContainerModel();
 
-        muSigFixAmountController = new MuSigFixAmountController(createOfferDraftWorkflow);
-        muSigRangeAmountController = new MuSigRangeAmountController(createOfferDraftWorkflow);
-        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferDraftWorkflow);
+        muSigFixAmountController = new MuSigFixAmountController(createOfferService);
+        muSigRangeAmountController = new MuSigRangeAmountController(createOfferService);
+        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferService);
 
         view = new MuSigAmountContainerView(model, this,
                 muSigFixAmountController.getView().getRoot(),
@@ -119,7 +119,7 @@ public class MuSigAmountContainerController implements Controller {
     /* --------------------------------------------------------------------- */
 
     private void applyDescription() {
-        Market market = createOfferDraftWorkflow.getMarket();
+        Market market = createOfferService.getMarket();
         boolean useRangeAmount = createOfferAmountService.getUseRangeAmount();
         String code = getCode(market);
         model.getDescription().set(useRangeAmount

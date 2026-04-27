@@ -28,7 +28,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.AmountMappingService;
-import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.DraftOfferService;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;
@@ -53,7 +53,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * and isolated domain services.
  */
 @Slf4j
-public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
+public class TakeOfferService extends DraftOfferService {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
     @Getter
     private final TakeOfferMarketService marketService;
@@ -75,17 +75,17 @@ public class TakeOfferDraftWorkflow extends OfferDraftWorkflow {
     // Construction
     /* --------------------------------------------------------------------- */
 
-    public TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
-                                  SettingsService settingsService,
-                                  AccountService accountService) {
+    public TakeOfferService(MarketPriceService marketPriceService,
+                            SettingsService settingsService,
+                            AccountService accountService) {
         this(marketPriceService,
                 new DefaultTakeOfferDraftCookieStore(settingsService),
                 new DefaultAccountsProvider(accountService));
     }
 
-    TakeOfferDraftWorkflow(MarketPriceService marketPriceService,
-                           TakeOfferDraftCookieStore cookieStore,
-                           AccountsProvider accountsProvider) {
+    TakeOfferService(MarketPriceService marketPriceService,
+                     TakeOfferDraftCookieStore cookieStore,
+                     AccountsProvider accountsProvider) {
         marketService = new TakeOfferMarketService();
         directionService = new TakeOfferDirectionService();
         priceService = new TakeOfferPriceService();

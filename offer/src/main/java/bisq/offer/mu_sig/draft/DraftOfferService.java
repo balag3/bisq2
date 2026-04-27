@@ -20,6 +20,6 @@ package bisq.offer.mu_sig.draft;
 import bisq.common.application.Workflow;
 import bisq.common.market.Market;
 
-public abstract class OfferDraftWorkflow extends Workflow {
+public abstract class DraftOfferService extends Workflow {
     public abstract Market getMarket();
 }

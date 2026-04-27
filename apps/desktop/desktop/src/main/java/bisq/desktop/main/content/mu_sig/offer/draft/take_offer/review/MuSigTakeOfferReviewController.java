@@ -42,7 +42,7 @@ import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
 import bisq.offer.options.OfferOptionUtil;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -89,7 +89,7 @@ public class MuSigTakeOfferReviewController implements Controller {
     private UIScheduler delayedSuccessScheduler;
 
     public MuSigTakeOfferReviewController(ServiceProvider serviceProvider,
-                                          TakeOfferDraftWorkflow takeOfferDraftWorkflow,
+                                          TakeOfferService takeOfferService,
                                           Consumer<Boolean> mainButtonsVisibleHandler,
                                           Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
@@ -99,7 +99,7 @@ public class MuSigTakeOfferReviewController implements Controller {
         muSigService = serviceProvider.getMuSigService();
         bannedUserService = serviceProvider.getUserService().getBannedUserService();
 
-        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), takeOfferDraftWorkflow);
+        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), takeOfferService);
         muSigReviewDataDisplay = new MuSigReviewDataDisplay();
 
         model = new MuSigTakeOfferReviewModel();

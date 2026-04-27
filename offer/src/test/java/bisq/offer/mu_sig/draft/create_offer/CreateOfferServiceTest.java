@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CreateOfferDraftWorkflowTest {
+public class CreateOfferServiceTest {
     private Market defaultMarket;
     private Market usdBtcMarket;
     private Market xmrBtcMarket;
@@ -54,7 +54,7 @@ public class CreateOfferDraftWorkflowTest {
     private MockMarketPriceService marketPriceService;
     private FakeCookieStore cookieStore;
     private FakeAccountsProvider accountsProvider;
-    private CreateOfferDraftWorkflow workflow;
+    private CreateOfferService createOfferService;
     private CreateOfferPaymentMethodService paymentMethodDraftFacade;
     private CreateOfferDirectionService createOfferDirectionService;
     private CreateOfferPriceService createOfferPriceService;
@@ -87,18 +87,18 @@ public class CreateOfferDraftWorkflowTest {
 
         cookieStore = new FakeCookieStore(Direction.SELL, false, true, false);
         accountsProvider = new FakeAccountsProvider();
-        workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
-        paymentMethodDraftFacade = workflow.getPaymentMethodService();
-        createOfferDirectionService = workflow.getDirectionService();
-        createOfferPriceService = workflow.getPriceService();
-        createOfferAmountService = workflow.getAmountService();
+        createOfferService = new CreateOfferService(marketPriceService, cookieStore, accountsProvider);
+        paymentMethodDraftFacade = createOfferService.getPaymentMethodService();
+        createOfferDirectionService = createOfferService.getDirectionService();
+        createOfferPriceService = createOfferService.getPriceService();
+        createOfferAmountService = createOfferService.getAmountService();
     }
 
     @Test
     public void initializePopulatesDraftAndUpdatesPaymentMethods() {
-        workflow.initialize(defaultMarket);
+        createOfferService.initialize(defaultMarket);
 
-        assertEquals(defaultMarket, workflow.getMarket());
+        assertEquals(defaultMarket, createOfferService.getMarket());
         assertEquals(Direction.SELL, createOfferDirectionService.getDirection());
         assertEquals(defaultMarketPriceQuote, createOfferPriceService.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
@@ -111,10 +111,10 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setMarketResetsPriceAndAmountsDeterministically() {
-        workflow.initialize(defaultMarket);
-        workflow.setMarket(xmrBtcMarket);
+        createOfferService.initialize(defaultMarket);
+        createOfferService.setMarket(xmrBtcMarket);
 
-        assertEquals(xmrBtcMarket, workflow.getMarket());
+        assertEquals(xmrBtcMarket, createOfferService.getMarket());
         assertEquals(xmrBtcPriceQuote, createOfferPriceService.getPriceQuote());
         assertEquals(xmrBtcDefaultTradeAmount, createOfferAmountService.getFixTradeAmount());
         assertEquals(xmrBtcDefaultTradeAmount, createOfferAmountService.getMinTradeAmount());
@@ -126,12 +126,12 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setPriceQuoteKeepsQuoteInputAmountConstant() {
-        workflow.initialize(usdBtcMarket);
-        workflow.setUseBaseCurrencyForAmountInput(false);
-        workflow.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
+        createOfferService.initialize(usdBtcMarket);
+        createOfferService.setUseBaseCurrencyForAmountInput(false);
+        createOfferService.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
 
         TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
-        workflow.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
+        createOfferService.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
         TradeAmount fixTradeAmountAfter = createOfferAmountService.getFixTradeAmount();
 
         assertEquals(fixTradeAmountBefore.getQuoteSideAmount(), fixTradeAmountAfter.getQuoteSideAmount());
@@ -140,13 +140,13 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setDirectionRecomputesUserSpecificLimitAndKeepsAmountsStable() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
 
-        workflow.setDirection(Direction.BUY);
+        createOfferService.setDirection(Direction.BUY);
         Optional<TradeAmount> buyLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
 
-        workflow.setDirection(Direction.SELL);
+        createOfferService.setDirection(Direction.SELL);
 
         assertTrue(buyLimit.isPresent());
         assertTrue(createOfferAmountService.getUserSpecificTradeAmountLimit().isEmpty());
@@ -156,7 +156,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void selectedAccountsUseMostRestrictivePaymentRailLimit() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
         PaymentMethod<?> veryLowRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
@@ -174,9 +174,9 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void selectedAccountLimitChangeClampsExistingAmounts() {
-        workflow.initialize(usdBtcMarket);
-        workflow.setUseBaseCurrencyForAmountInput(false);
-        workflow.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(9000, "USD"));
+        createOfferService.initialize(usdBtcMarket);
+        createOfferService.setUseBaseCurrencyForAmountInput(false);
+        createOfferService.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(9000, "USD"));
 
         PaymentMethod<?> veryLowRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
@@ -192,10 +192,10 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setDirectionWithCurrentValueIsNoOp() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
         TradeAmount fixTradeAmountBefore = createOfferAmountService.getFixTradeAmount();
-        workflow.setDirection(Direction.SELL);
+        createOfferService.setDirection(Direction.SELL);
 
         assertEquals(fixTradeAmountBefore, createOfferAmountService.getFixTradeAmount());
         assertTrue(cookieStore.persistedDirections.isEmpty());
@@ -203,26 +203,26 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setPriceQuoteWithCurrentValueIsNoOp() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
-        workflow.setPriceQuote(createOfferPriceService.getPriceQuote());
+        createOfferService.setPriceQuote(createOfferPriceService.getPriceQuote());
 
         assertEquals(recalculationCountBefore, marketPriceService.btcUsdPriceQuoteRequests);
     }
 
     @Test
     public void setMarketWithCurrentValueIsNoOp() {
-        workflow.initialize(defaultMarket);
+        createOfferService.initialize(defaultMarket);
 
-        workflow.setMarket(defaultMarket);
+        createOfferService.setMarket(defaultMarket);
 
         assertEquals(List.of(defaultMarket), accountsProvider.requestedMarkets);
     }
 
     @Test
     public void selectingSameAccountTwiceDoesNotRecalculateConstraints() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
@@ -237,36 +237,36 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setUseBaseCurrencyForAmountInputWithCurrentValueIsNoOp() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
-        workflow.setUseBaseCurrencyForAmountInput(false);
+        createOfferService.setUseBaseCurrencyForAmountInput(false);
 
         assertTrue(cookieStore.persistedInputModes.isEmpty());
     }
 
     @Test
     public void setUseBaseCurrencyForAmountInputWithDifferentValuePersistsPreference() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
-        workflow.setUseBaseCurrencyForAmountInput(true);
+        createOfferService.setUseBaseCurrencyForAmountInput(true);
 
         assertEquals(List.of(new InputModePreference(usdBtcMarket, true)), cookieStore.persistedInputModes);
     }
 
     @Test
     public void setUseRangeAmountWithCurrentValueIsNoOp() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
-        workflow.setUseRangeAmount(false);
+        createOfferService.setUseRangeAmount(false);
 
         assertTrue(cookieStore.persistedUseRangeAmountValues.isEmpty());
     }
 
     @Test
     public void setUseRangeAmountWithDifferentValuePersistsPreference() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
 
-        workflow.setUseRangeAmount(true);
+        createOfferService.setUseRangeAmount(true);
 
         assertEquals(List.of(true), cookieStore.persistedUseRangeAmountValues);
     }
@@ -274,7 +274,7 @@ public class CreateOfferDraftWorkflowTest {
     @Test
     public void getAmountSpecThrowsWhenMarketIsNull() {
         try {
-            workflow.getAmountSpec();
+            createOfferService.getAmountSpec();
             throw new AssertionError("Expected NullPointerException");
         } catch (NullPointerException e) {
             assertEquals("market must not be null", e.getMessage());
@@ -283,12 +283,12 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void toInputAmountAndToPassiveAmountAreConsistent() {
-        workflow.initialize(usdBtcMarket);
-        workflow.setUseBaseCurrencyForAmountInput(false);
+        createOfferService.initialize(usdBtcMarket);
+        createOfferService.setUseBaseCurrencyForAmountInput(false);
 
         TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
-        var inputAmount = workflow.toInputAmount(tradeAmount, true);
-        var passiveAmount = workflow.toPassiveAmount(tradeAmount, true);
+        var inputAmount = createOfferService.toInputAmount(tradeAmount, true);
+        var passiveAmount = createOfferService.toPassiveAmount(tradeAmount, true);
 
         assertEquals(tradeAmount.getQuoteSideAmount(), inputAmount);
         assertEquals(tradeAmount.getBaseSideAmount(), passiveAmount);
@@ -296,13 +296,13 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setFixTradeAmountFromSliderValueUpdatesAmount() {
-        workflow.initialize(usdBtcMarket);
-        workflow.setUseBaseCurrencyForAmountInput(false);
+        createOfferService.initialize(usdBtcMarket);
+        createOfferService.setUseBaseCurrencyForAmountInput(false);
 
-        workflow.setFixTradeAmountFromSliderValue(0.0);
+        createOfferService.setFixTradeAmountFromSliderValue(0.0);
         Fiat minAmount = (Fiat) createOfferAmountService.getFixTradeAmount().getQuoteSideAmount();
 
-        workflow.setFixTradeAmountFromSliderValue(1.0);
+        createOfferService.setFixTradeAmountFromSliderValue(1.0);
         Fiat maxAmount = (Fiat) createOfferAmountService.getFixTradeAmount().getQuoteSideAmount();
 
         assertTrue(minAmount.getValue() < maxAmount.getValue());
@@ -310,11 +310,11 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setMinAndMaxTradeAmountFromSliderValueWorksCorrectly() {
-        workflow.initialize(usdBtcMarket);
-        workflow.setUseRangeAmount(true);
+        createOfferService.initialize(usdBtcMarket);
+        createOfferService.setUseRangeAmount(true);
 
-        workflow.setMinTradeAmountFromSliderValue(0.2);
-        workflow.setMaxTradeAmountFromSliderValue(0.8);
+        createOfferService.setMinTradeAmountFromSliderValue(0.2);
+        createOfferService.setMaxTradeAmountFromSliderValue(0.8);
 
         TradeAmount minAmount = createOfferAmountService.getMinTradeAmount();
         TradeAmount maxAmount = createOfferAmountService.getMaxTradeAmount();
@@ -324,7 +324,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void clearAccountsByPaymentMethodRemovesAllAccounts() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
@@ -337,7 +337,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void removeAccountsByPaymentMethodRemovesSpecificMethod() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         PaymentMethod<?> advancedCashMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
         Account<?, ?> achAccount = createAccount(achMethod);
@@ -354,7 +354,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void putAllAccountsByPaymentMethodReplacesAllAccounts() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
@@ -367,7 +367,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void clearSelectedAccountByPaymentMethodRemovesAllSelectedAccounts() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
@@ -380,7 +380,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void putAllSelectedAccountByPaymentMethodReplacesAllSelectedAccounts() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
@@ -393,7 +393,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setTradeAmountLimitsUpdatesLimits() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         TradeAmountRange currentLimits = createOfferAmountService.getTradeAmountLimits();
 
         TradeAmount doubledMax = TradeAmountConversion.toTradeAmount(usdBtcMarket,
@@ -410,7 +410,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setUserSpecificTradeAmountLimitUpdatesLimit() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         TradeAmount customLimit = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(3000, "USD"));
@@ -422,7 +422,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setInputAmountLimitsUpdatesLimits() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         var currentLimits = createOfferAmountService.getInputAmountLimits();
 
         var newLimits = new MonetaryRange(
@@ -436,8 +436,8 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void setUseRangeAmountUpdatesSliderValues() {
-        workflow.initialize(defaultMarket);
-        workflow.setUseRangeAmount(true);
+        createOfferService.initialize(defaultMarket);
+        createOfferService.setUseRangeAmount(true);
 
         assertTrue(createOfferAmountService.getUseRangeAmount());
         assertNotNull(createOfferAmountService.getMinAmountSliderValue());
@@ -447,7 +447,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void onPaymentMethodSelectedReturnsNoAccountIfNoneExists() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
 
         CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
@@ -459,7 +459,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void onPaymentMethodSelectedAutoSelectsIfSingleAccountExists() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account = createAccount(method);
         paymentMethodDraftFacade.putAccountsByPaymentMethod(method, List.of(account));
@@ -473,7 +473,7 @@ public class CreateOfferDraftWorkflowTest {
 
     @Test
     public void onPaymentMethodSelectedRequiresSelectionIfMultipleAccountsExist() {
-        workflow.initialize(usdBtcMarket);
+        createOfferService.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account1 = createAccount(method);
         Account<?, ?> account2 = createAccount(method);

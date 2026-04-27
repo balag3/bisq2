@@ -74,7 +74,7 @@ public class CreateOfferDraftStateEngineTest {
                 new AmountMappingService(),
                 selectedPaymentRail::get,
                 paymentMethodUpdateCalls::incrementAndGet,
-                CreateOfferDraftWorkflow.DEFAULT_TRADE_AMOUNT_IN_USD);
+                CreateOfferService.DEFAULT_TRADE_AMOUNT_IN_USD);
     }
 
     @Test

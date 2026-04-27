@@ -46,7 +46,7 @@ import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.options.AccountOption;
@@ -80,7 +80,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MuSigCreateOfferReviewModel model;
     @Getter
     private final MuSigCreateOfferReviewView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final Consumer<Boolean> mainButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
@@ -91,15 +91,15 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final CreateOfferDirectionService createOfferDirectionService;
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
-                                            CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                            CreateOfferService createOfferService,
                                             CreateOfferPaymentMethodService createOfferPaymentMethodService,
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
-        createOfferDraftWorkflow.getDirectionService();
-        createOfferDraftWorkflow.getPriceService();
-        createOfferDraftWorkflow.getAmountService();
+        this.createOfferService = createOfferService;
+        createOfferDirectionService = createOfferService.getDirectionService();
+        createOfferService.getDirectionService();
+        createOfferService.getPriceService();
+        createOfferService.getAmountService();
         
         this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
@@ -108,7 +108,7 @@ public class MuSigCreateOfferReviewController implements Controller {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigService = serviceProvider.getMuSigService();
 
-        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferDraftWorkflow);
+        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferService);
         muSigReviewDataDisplay = new MuSigReviewDataDisplay();
 
         model = new MuSigCreateOfferReviewModel();
@@ -116,9 +116,9 @@ public class MuSigCreateOfferReviewController implements Controller {
     }
 
     public void prepareForCreateOffer(PriceSpec priceSpec) {
-        AmountSpec amountSpec = createOfferDraftWorkflow.getAmountSpec();
+        AmountSpec amountSpec = createOfferService.getAmountSpec();
         Direction direction = createOfferDirectionService.getDirection();
-        Market market = createOfferDraftWorkflow.getMarket();
+        Market market = createOfferService.getMarket();
         List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
         List<Account<?, ?>> accounts = new ArrayList<>();
         Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = createOfferPaymentMethodService.getSelectedAccountByPaymentMethod();
@@ -225,7 +225,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     private void applyData(Direction displayDirection,
                            AmountSpec amountSpec,
                            PriceSpec priceSpec) {
-        Market market = createOfferDraftWorkflow.getMarket();
+        Market market = createOfferService.getMarket();
         String marketCodes = market.getMarketCodes();
 
         model.setCrypto(market.isCrypto());

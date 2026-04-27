@@ -23,7 +23,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.price.MuSigCreateOfferPriceController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -40,22 +40,22 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountAndPriceView view;
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferDirectionService createOfferDirectionService;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
-                                                    CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                                    CreateOfferService createOfferService,
                                                     Region owner,
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
-        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferDraftWorkflow,
+        this.createOfferService = createOfferService;
+        createOfferDirectionService = createOfferService.getDirectionService();
+        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferService,
                 owner,
                 navigationButtonsVisibleHandler,
                 closeAndNavigateToHandler);
         muSigCreateOfferPriceController = new MuSigCreateOfferPriceController(serviceProvider,
-                createOfferDraftWorkflow,
+                createOfferService,
                 owner,
                 navigationButtonsVisibleHandler);
 
@@ -103,7 +103,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     }
 
     private String getHeadline() {
-        String baseCurrencyCode = createOfferDraftWorkflow.getMarket().getBaseCurrencyCode();
+        String baseCurrencyCode = createOfferService.getMarket().getBaseCurrencyCode();
         return createOfferDirectionService.getDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);

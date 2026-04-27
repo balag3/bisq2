@@ -26,7 +26,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.MuSigAmountContainerController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
@@ -49,25 +49,25 @@ public class MuSigCreateOfferAmountController implements Controller {
     private final MuSigCreateOfferAmountModel model;
     @Getter
     private final MuSigCreateOfferAmountView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigCreateOfferAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow,
+    public MuSigCreateOfferAmountController(CreateOfferService createOfferService,
                                             Region owner,
                                             Consumer<Boolean> navigationButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        this.createOfferService = createOfferService;
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigCreateOfferAmountModel();
 
-        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferDraftWorkflow);
+        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferService);
         view = new MuSigCreateOfferAmountView(model, this, muSigAmountComponentsController.getView().getRoot());
     }
 
@@ -114,7 +114,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onSetUseRangeAmount(boolean value) {
-        createOfferDraftWorkflow.setUseRangeAmount(value);
+        createOfferService.setUseRangeAmount(value);
     }
 
     void onKeyPressedWhileShowingOverlay(KeyEvent keyEvent) {
@@ -149,7 +149,7 @@ public class MuSigCreateOfferAmountController implements Controller {
         Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
-                .map(tradeAmount -> createOfferDraftWorkflow.toInputAmount(tradeAmount, true))
+                .map(tradeAmount -> createOfferService.toInputAmount(tradeAmount, true))
                 .map(monetary -> AmountFormatter.formatAmountWithCode(monetary, true))
                 .map(formatted -> Res.get("muSig.offer.create.amount.limitInfo.buyer", formatted))
                 .orElse(""));

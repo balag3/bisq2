@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -36,14 +36,14 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigFixAmountSliderController(CreateOfferService createOfferService) {
+        this.createOfferService = createOfferService;
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -53,7 +53,7 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        createOfferDraftWorkflow.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        createOfferService.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 

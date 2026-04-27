@@ -27,7 +27,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
 import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
@@ -49,19 +49,19 @@ public class MuSigTakeOfferAmountController implements Controller {
     private final MuSigTakeOfferAmountModel model;
     @Getter
     private final MuSigTakeOfferAmountView view;
-    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferService takeOfferService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigTakeOfferAmountController(TakeOfferDraftWorkflow takeOfferDraftWorkflow,
+    public MuSigTakeOfferAmountController(TakeOfferService takeOfferService,
                                           Consumer<Boolean> navigationButtonsVisibleHandler) {
-        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
-        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
+        this.takeOfferService = takeOfferService;
+        takeOfferAmountService = takeOfferService.getAmountService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         model = new MuSigTakeOfferAmountModel();
 
-        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(takeOfferDraftWorkflow);
+        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(takeOfferService);
         view = new MuSigTakeOfferAmountView(model, this, muSigAmountComponentsController.getView().getRoot());
     }
 
@@ -136,7 +136,7 @@ public class MuSigTakeOfferAmountController implements Controller {
         Optional<TradeAmount> userSpecificTradeAmountLimit = takeOfferAmountService.getUserSpecificTradeAmountLimit();
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
-                .map(tradeAmount -> takeOfferDraftWorkflow.toInputAmount(tradeAmount, true))
+                .map(tradeAmount -> takeOfferService.toInputAmount(tradeAmount, true))
                 .map(monetary -> AmountFormatter.formatAmountWithCode(monetary, true))
                 .map(formatted -> Res.get("muSig.offer.create.amount.limitInfo.buyer", formatted))
                 .orElse(""));

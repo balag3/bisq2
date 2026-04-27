@@ -34,7 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.presentation.formatters.AmountFormatter;
@@ -69,11 +69,11 @@ public class MuSigCreateOfferPaymentController implements Controller {
     private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigCreateOfferPaymentController(ServiceProvider serviceProvider,
-                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                             CreateOfferService createOfferService,
                                              Region owner,
                                              Consumer<Boolean> navigationButtonsVisibleHandler) {
-        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodService();
-        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
+        createOfferPaymentMethodService = createOfferService.getPaymentMethodService();
+        createOfferMarketService = createOfferService.getMarketService();
 
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;

@@ -33,7 +33,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.review.MuSigCre
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import javafx.event.EventHandler;
@@ -65,7 +65,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
     }
 
     private final ServiceProvider serviceProvider;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferMarketService createOfferMarketService;
     private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final OverlayController overlayController;
@@ -84,12 +84,12 @@ public class MuSigCreateOfferController extends NavigationController implements 
         super(NavigationTarget.MU_SIG_CREATE_OFFER);
 
         this.serviceProvider = serviceProvider;
-        createOfferDraftWorkflow = new CreateOfferDraftWorkflow(
+        createOfferService = new CreateOfferService(
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
-        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodService();
+        createOfferMarketService = createOfferService.getMarketService();
+        createOfferPaymentMethodService = createOfferService.getPaymentMethodService();
 
         overlayController = OverlayController.getInstance();
 
@@ -101,18 +101,18 @@ public class MuSigCreateOfferController extends NavigationController implements 
         model = new MuSigCreateOfferModel(targets);
         view = new MuSigCreateOfferView(model, this);
 
-        muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferDraftWorkflow, this::onNext);
+        muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferService, this::onNext);
         muSigCreateOfferPaymentController = new MuSigCreateOfferPaymentController(serviceProvider,
-                createOfferDraftWorkflow,
+                createOfferService,
                 view.getRoot(),
                 this::setMainButtonsVisibleState);
         muSigCreateOfferAmountAndPriceController = new MuSigCreateOfferAmountAndPriceController(serviceProvider,
-                createOfferDraftWorkflow,
+                createOfferService,
                 view.getRoot(),
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
-                createOfferDraftWorkflow,
+                createOfferService,
                 createOfferPaymentMethodService,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
@@ -122,7 +122,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
     public void initWithData(InitData data) {
         Market market = data.getMarket();
 
-        createOfferDraftWorkflow.initialize(market);
+        createOfferService.initialize(market);
     }
 
     @Override
@@ -145,7 +145,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     @Override
     public void onDeactivate() {
-        createOfferDraftWorkflow.dispose();
+        createOfferService.dispose();
         pins.forEach(Pin::unbind);
         pins.clear();
         overlayController.setUseEscapeKeyHandler(true);

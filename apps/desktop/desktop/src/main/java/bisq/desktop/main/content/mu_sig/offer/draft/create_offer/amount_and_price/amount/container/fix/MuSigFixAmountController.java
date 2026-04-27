@@ -25,7 +25,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.MuSigPassiveAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.fix.slider.MuSigFixAmountSliderController;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
@@ -43,19 +43,19 @@ public class MuSigFixAmountController implements Controller {
     private final MuSigFixAmountView view;
     private final MuSigAmountTextInputController amountTextInputController;
     private final MuSigPassiveAmountController passiveAmountController;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigFixAmountController(CreateOfferService createOfferService) {
+        this.createOfferService = createOfferService;
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigFixAmountModel();
 
         amountTextInputController = new MuSigAmountTextInputController(true, false);
         passiveAmountController = new MuSigPassiveAmountController(false);
-        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(createOfferDraftWorkflow);
+        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(createOfferService);
 
         view = new MuSigFixAmountView(model, this,
                 amountTextInputController.getView().getRoot(),
@@ -82,7 +82,7 @@ public class MuSigFixAmountController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(amountTextInputController.amountProperty(),
                 amount -> {
-                    createOfferDraftWorkflow.setFixTradeAmountFromInputAmount(amount);
+                    createOfferService.setFixTradeAmountFromInputAmount(amount);
                     applyInputAmount();
                 }));
 
@@ -128,7 +128,7 @@ public class MuSigFixAmountController implements Controller {
     void onToggleInputMode() {
         boolean useBaseCurrencyForAmountInput = createOfferAmountService.getUseBaseCurrencyForAmountInput();
         boolean value = !useBaseCurrencyForAmountInput;
-        createOfferDraftWorkflow.setUseBaseCurrencyForAmountInput(value);
+        createOfferService.setUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -143,13 +143,13 @@ public class MuSigFixAmountController implements Controller {
 
     private void applyInputAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
-        Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
+        Monetary inputAmount = createOfferService.toInputAmount(tradeAmount, true);
         amountTextInputController.setAmount(inputAmount);
     }
 
     private void applyPassiveAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
-        Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
+        Monetary passiveAmount = createOfferService.toPassiveAmount(tradeAmount, true);
         passiveAmountController.setAmount(passiveAmount);
     }
 

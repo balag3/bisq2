@@ -25,7 +25,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.MuSigPassiveAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.slider.MuSigRangeAmountSliderController;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
@@ -45,21 +45,21 @@ public class MuSigRangeAmountController implements Controller {
     private final MuSigPassiveAmountController minPassiveAmountController;
     private final MuSigAmountTextInputController maxAmountInputController;
     private final MuSigPassiveAmountController maxPassiveAmountController;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigRangeAmountController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigRangeAmountController(CreateOfferService createOfferService) {
+        this.createOfferService = createOfferService;
+        createOfferAmountService = createOfferService.getAmountService();
         model = new MuSigRangeAmountModel();
 
         minAmountInputController = new MuSigAmountTextInputController(false, true);
         maxAmountInputController = new MuSigAmountTextInputController(false, false);
         minPassiveAmountController = new MuSigPassiveAmountController(true);
         maxPassiveAmountController = new MuSigPassiveAmountController(false);
-        MuSigRangeAmountSliderController amountSliderController = new MuSigRangeAmountSliderController(createOfferDraftWorkflow);
+        MuSigRangeAmountSliderController amountSliderController = new MuSigRangeAmountSliderController(createOfferService);
 
         view = new MuSigRangeAmountView(model, this,
                 minAmountInputController.getView().getRoot(),
@@ -91,7 +91,7 @@ public class MuSigRangeAmountController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(minAmountInputController.amountProperty(),
                 amount -> {
-                    createOfferDraftWorkflow.setMinTradeAmountFromInputAmount(amount);
+                    createOfferService.setMinTradeAmountFromInputAmount(amount);
                     applyMinInputAmount();
 
                 }));
@@ -99,7 +99,7 @@ public class MuSigRangeAmountController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(maxAmountInputController.amountProperty(),
                 amount -> {
-                    createOfferDraftWorkflow.setMaxTradeAmountFromInputAmount(amount);
+                    createOfferService.setMaxTradeAmountFromInputAmount(amount);
                     applyMaxInputAmount();
                 }));
 
@@ -167,7 +167,7 @@ public class MuSigRangeAmountController implements Controller {
 
     void onToggleInputMode() {
         boolean value = !createOfferAmountService.getUseBaseCurrencyForAmountInput();
-        createOfferDraftWorkflow.setUseBaseCurrencyForAmountInput(value);
+        createOfferService.setUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -184,25 +184,25 @@ public class MuSigRangeAmountController implements Controller {
 
     private void applyMinInputAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getMinTradeAmount();
-        Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
+        Monetary inputAmount = createOfferService.toInputAmount(tradeAmount, true);
         minAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMaxInputAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getMaxTradeAmount();
-        Monetary inputAmount = createOfferDraftWorkflow.toInputAmount(tradeAmount, true);
+        Monetary inputAmount = createOfferService.toInputAmount(tradeAmount, true);
         maxAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMinPassiveAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getMinTradeAmount();
-        Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
+        Monetary passiveAmount = createOfferService.toPassiveAmount(tradeAmount, true);
         minPassiveAmountController.setAmount(passiveAmount);
     }
 
     private void applyMaxPassiveAmount() {
         TradeAmount tradeAmount = createOfferAmountService.getMaxTradeAmount();
-        Monetary passiveAmount = createOfferDraftWorkflow.toPassiveAmount(tradeAmount, true);
+        Monetary passiveAmount = createOfferService.toPassiveAmount(tradeAmount, true);
         maxPassiveAmountController.setAmount(passiveAmount);
     }
 

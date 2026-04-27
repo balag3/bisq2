@@ -21,7 +21,7 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,8 +41,8 @@ public class MuSigAmountLimitsController implements Controller {
     private final CreateOfferAmountService createOfferAmountService;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountLimitsController(CreateOfferDraftWorkflow createOfferDraftWorkflow) {
-        createOfferAmountService = createOfferDraftWorkflow.getAmountService();
+    public MuSigAmountLimitsController(CreateOfferService createOfferService) {
+        createOfferAmountService = createOfferService.getAmountService();
 
         String minInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MIN_TRADE_AMOUNT_IN_USD));
         String maxInInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MAX_TRADE_AMOUNT_IN_USD));

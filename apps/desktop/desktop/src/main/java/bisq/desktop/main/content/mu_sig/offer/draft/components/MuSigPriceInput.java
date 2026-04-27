@@ -26,9 +26,9 @@ import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.components.controls.validator.NumberValidator;
 import bisq.desktop.main.content.bisq_easy.BisqEasyViewUtils;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
-import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.DraftOfferService;
 import bisq.presentation.formatters.PriceFormatter;
 import bisq.presentation.parser.PriceParser;
 import javafx.beans.property.BooleanProperty;
@@ -57,8 +57,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class MuSigPriceInput {
     private final Controller controller;
 
-    public MuSigPriceInput(MarketPriceService marketPriceService, OfferDraftWorkflow offerDraftWorkflow) {
-        controller = new Controller(marketPriceService, offerDraftWorkflow);
+    public MuSigPriceInput(MarketPriceService marketPriceService, DraftOfferService draftOfferService) {
+        controller = new Controller(marketPriceService, draftOfferService);
     }
 
     public ReadOnlyObjectProperty<PriceQuote> priceQuoteProperty() {
@@ -128,8 +128,8 @@ public class MuSigPriceInput {
         private final Model model;
         @Getter
         private final View view;
-        private final OfferDraftWorkflow offerDraftWorkflow;
-        private final Optional<CreateOfferDraftWorkflow> createOfferDraftWorkflow;
+        private final DraftOfferService draftOfferService;
+        private final Optional<CreateOfferService> createOfferService;
         private final Optional<CreateOfferPriceService> createOfferPriceService;
         private final MarketPriceService marketPriceService;
         private final NumberValidator validator = new NumberValidator(Res.get("muSig.offer.create.price.warn.invalidPrice.numberFormatException"));
@@ -137,14 +137,14 @@ public class MuSigPriceInput {
         private final Set<Subscription> subscriptions = new HashSet<>();
         private final Set<Pin> pins = new HashSet<>();
 
-        private Controller(MarketPriceService marketPriceService, OfferDraftWorkflow offerDraftWorkflow) {
+        private Controller(MarketPriceService marketPriceService, DraftOfferService draftOfferService) {
             this.marketPriceService = marketPriceService;
-            this.offerDraftWorkflow = offerDraftWorkflow;
-            if (offerDraftWorkflow instanceof CreateOfferDraftWorkflow workflow) {
-                createOfferDraftWorkflow = Optional.of(workflow);
-                createOfferPriceService = Optional.of(workflow.getPriceService());
+            this.draftOfferService = draftOfferService;
+            if (draftOfferService instanceof CreateOfferService createOfferService) {
+                this.createOfferService = Optional.of(createOfferService);
+                createOfferPriceService = Optional.of(createOfferService.getPriceService());
             } else {
-                createOfferDraftWorkflow = Optional.empty();
+                createOfferService = Optional.empty();
                 createOfferPriceService = Optional.empty();
             }
             model = new Model();
@@ -154,7 +154,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+            createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -162,7 +162,7 @@ public class MuSigPriceInput {
         }
 
         private void updateFromMarketPrice() {
-            Market market = offerDraftWorkflow.getMarket();
+            Market market = draftOfferService.getMarket();
             if (market != null && model.description.get() == null) {
                 model.description.set(Res.get("component.priceInput.description", market.getMarketCodes()));
                 model.textInputCurrencyCodes.set(market.getMarketCodes());
@@ -217,10 +217,10 @@ public class MuSigPriceInput {
             }
 
             try {
-                PriceQuote priceQuote = PriceParser.parse(price, offerDraftWorkflow.getMarket());
+                PriceQuote priceQuote = PriceParser.parse(price, draftOfferService.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+                createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
             } catch (Throwable ignore) {
                 createOfferPriceService.map(CreateOfferPriceService::getPriceQuote)
                         .ifPresent(this::onQuoteChanged);
@@ -243,11 +243,11 @@ public class MuSigPriceInput {
         }
 
         private void setQuoteFromMarketPrice() {
-            marketPriceService.findMarketPrice(offerDraftWorkflow.getMarket())
+            marketPriceService.findMarketPrice(draftOfferService.getMarket())
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        createOfferDraftWorkflow.ifPresent(workflow -> workflow.setPriceQuote(priceQuote));
+                        createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
                     });
         }
     }

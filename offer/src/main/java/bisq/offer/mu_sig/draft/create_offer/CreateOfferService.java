@@ -30,7 +30,7 @@ import bisq.offer.Direction;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.draft.AmountMappingService;
-import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.DraftOfferService;
 import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
@@ -61,7 +61,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * and isolated domain services.
  */
 @Slf4j
-public class CreateOfferDraftWorkflow extends OfferDraftWorkflow {
+public class CreateOfferService extends DraftOfferService {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
     @Getter
     private final CreateOfferMarketService marketService;
@@ -83,17 +83,17 @@ public class CreateOfferDraftWorkflow extends OfferDraftWorkflow {
     // Construction
     /* --------------------------------------------------------------------- */
 
-    public CreateOfferDraftWorkflow(MarketPriceService marketPriceService,
-                                    SettingsService settingsService,
-                                    AccountService accountService) {
+    public CreateOfferService(MarketPriceService marketPriceService,
+                              SettingsService settingsService,
+                              AccountService accountService) {
         this(marketPriceService,
                 new DefaultCreateOfferDraftCookieStore(settingsService),
                 new DefaultAccountsProvider(accountService));
     }
 
-    CreateOfferDraftWorkflow(MarketPriceService marketPriceService,
-                             CreateOfferDraftCookieStore cookieStore,
-                             AccountsProvider accountsProvider) {
+    CreateOfferService(MarketPriceService marketPriceService,
+                       CreateOfferDraftCookieStore cookieStore,
+                       AccountsProvider accountsProvider) {
         marketService = new CreateOfferMarketService();
         directionService = new CreateOfferDirectionService();
         priceService = new CreateOfferPriceService();

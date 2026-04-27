@@ -24,7 +24,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.fix.MuSigFixAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.limits.MuSigAmountLimitsController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
 import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
 import bisq.offer.mu_sig.draft.take_offer.market.TakeOfferMarketService;
 import lombok.Getter;
@@ -41,20 +41,20 @@ public class MuSigAmountContainerController implements Controller {
     @Getter
     private final MuSigAmountContainerView view;
     private final MuSigFixAmountController muSigFixAmountController;
-    private final TakeOfferDraftWorkflow takeOfferDraftWorkflow;
+    private final TakeOfferService takeOfferService;
     private final TakeOfferMarketService takeOfferMarketService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountContainerController(TakeOfferDraftWorkflow takeOfferDraftWorkflow) {
-        this.takeOfferDraftWorkflow = takeOfferDraftWorkflow;
-        takeOfferMarketService = takeOfferDraftWorkflow.getMarketService();
-        takeOfferAmountService = takeOfferDraftWorkflow.getAmountService();
+    public MuSigAmountContainerController(TakeOfferService takeOfferService) {
+        this.takeOfferService = takeOfferService;
+        takeOfferMarketService = takeOfferService.getMarketService();
+        takeOfferAmountService = takeOfferService.getAmountService();
         model = new MuSigAmountContainerModel();
 
-        muSigFixAmountController = new MuSigFixAmountController(takeOfferDraftWorkflow);
-        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(takeOfferDraftWorkflow);
+        muSigFixAmountController = new MuSigFixAmountController(takeOfferService);
+        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(takeOfferService);
 
         view = new MuSigAmountContainerView(model, this,
                 muSigFixAmountController.getView().getRoot(),

@@ -31,7 +31,7 @@ import bisq.desktop.main.content.mu_sig.offer.listing.MarketType;
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
 import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
 import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
 import javafx.scene.layout.StackPane;
@@ -53,7 +53,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigCreateOfferDirectionAndMarketModel model;
     @Getter
     private final MuSigCreateOfferDirectionAndMarketView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferService createOfferService;
     private final Runnable onNextHandler;
     private final MarketPriceService marketPriceService;
     private final MuSigOfferbookService muSigOfferbookService;
@@ -63,11 +63,11 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final CreateOfferMarketService createOfferMarketService;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
-                                                        CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                                        CreateOfferService createOfferService,
                                                         Runnable onNextHandler) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
-        createOfferMarketService = createOfferDraftWorkflow.getMarketService();
-        createOfferDirectionService = createOfferDraftWorkflow.getDirectionService();
+        this.createOfferService = createOfferService;
+        createOfferMarketService = createOfferService.getMarketService();
+        createOfferDirectionService = createOfferService.getDirectionService();
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigOfferbookService = serviceProvider.getOfferService().getMuSigOfferService().getMuSigOfferbookService();
@@ -105,7 +105,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                 return;
             }
 
-            Market selectedMarket = createOfferDraftWorkflow.getMarket();
+            Market selectedMarket = createOfferService.getMarket();
             List<Market> markets;
             if (selectedMarketTypeListItem.getMarketType() == MarketType.FIAT) {
                 markets = MarketRepository.getAllFiatMarkets();
@@ -149,13 +149,13 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     }
 
     void onSelectDirection(Direction direction) {
-        createOfferDraftWorkflow.setDirection(direction);
+        createOfferService.setDirection(direction);
         onNextHandler.run();
     }
 
     void onSelectMarketListItem(MarketListItem item) {
         if (item != null) {
-            createOfferDraftWorkflow.setMarket(item.getMarket());
+            createOfferService.setMarket(item.getMarket());
         }
     }
 

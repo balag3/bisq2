@@ -47,7 +47,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Internal state-transition engine for {@link TakeOfferDraftWorkflow}.
+ * Internal state-transition engine for {@link TakeOfferService}.
  * <p>
  * Design: this package-local component applies market/direction/input-mode transitions in a
  * deterministic order, recomputes derived constraints, and keeps amount fields/clamp state
