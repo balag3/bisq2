@@ -47,6 +47,7 @@ import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
@@ -79,6 +80,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     @Getter
     private final MuSigCreateOfferReviewView view;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final Consumer<Boolean> mainButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
     private final MuSigPriceInput priceInput;
@@ -88,9 +90,11 @@ public class MuSigCreateOfferReviewController implements Controller {
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                            CreateOfferPaymentMethodService createOfferPaymentMethodService,
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
 
@@ -110,7 +114,7 @@ public class MuSigCreateOfferReviewController implements Controller {
         Market market = createOfferDraftWorkflow.getMarket();
         List<PaymentMethod<?>> paymentMethods = new ArrayList<>();
         List<Account<?, ?>> accounts = new ArrayList<>();
-        Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = createOfferDraftWorkflow.getSelectedAccountByPaymentMethod();
+        Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = createOfferPaymentMethodService.getSelectedAccountByPaymentMethod();
         selectedAccountByPaymentMethod.entrySet().stream()
                 .sorted(Comparator.comparing(o -> o.getKey().getPaymentRailName()))
                 .forEach(e -> {

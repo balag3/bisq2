@@ -20,6 +20,7 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +52,7 @@ public class CreateOfferDraftWorkflowTest {
     private FakeCookieStore cookieStore;
     private FakeAccountsProvider accountsProvider;
     private CreateOfferDraftWorkflow workflow;
+    private CreateOfferPaymentMethodService paymentMethodDraftFacade;
 
     @BeforeEach
     public void setUp() {
@@ -80,6 +82,7 @@ public class CreateOfferDraftWorkflowTest {
         cookieStore = new FakeCookieStore(Direction.SELL, false, true, false);
         accountsProvider = new FakeAccountsProvider();
         workflow = new CreateOfferDraftWorkflow(marketPriceService, cookieStore, accountsProvider);
+        paymentMethodDraftFacade = workflow.getPaymentMethodDraftFacade();
     }
 
     @Test
@@ -151,11 +154,11 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        workflow.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
         assertEquals(Fiat.fromFaceValue(10000, "USD"),
                 workflow.getTradeAmountLimits().getMax().getQuoteSideAmount());
 
-        workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         assertEquals(Fiat.fromFaceValue(5000, "USD"),
                 workflow.getTradeAmountLimits().getMax().getQuoteSideAmount());
     }
@@ -171,10 +174,10 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        workflow.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(veryLowRiskMethod, veryLowRiskAccount);
         assertEquals(Fiat.fromFaceValue(9000, "USD"), workflow.getFixTradeAmount().getQuoteSideAmount());
 
-        workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         assertEquals(Fiat.fromFaceValue(5000, "USD"), workflow.getFixTradeAmount().getQuoteSideAmount());
     }
 
@@ -215,10 +218,10 @@ public class CreateOfferDraftWorkflowTest {
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
 
-        workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
         int recalculationCountAfterFirstSelection = marketPriceService.btcUsdPriceQuoteRequests;
 
-        workflow.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(moderateRiskMethod, moderateRiskAccount);
 
         assertEquals(recalculationCountAfterFirstSelection, marketPriceService.btcUsdPriceQuoteRequests);
     }
@@ -316,11 +319,11 @@ public class CreateOfferDraftWorkflowTest {
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
-        workflow.putAccountsByPaymentMethod(achMethod, List.of(achAccount));
-        assertEquals(1, workflow.getAccountsByPaymentMethod().size());
+        paymentMethodDraftFacade.putAccountsByPaymentMethod(achMethod, List.of(achAccount));
+        assertEquals(1, paymentMethodDraftFacade.getAccountsByPaymentMethod().size());
 
-        workflow.clearAccountsByPaymentMethod();
-        assertEquals(0, workflow.getAccountsByPaymentMethod().size());
+        paymentMethodDraftFacade.clearAccountsByPaymentMethod();
+        assertEquals(0, paymentMethodDraftFacade.getAccountsByPaymentMethod().size());
     }
 
     @Test
@@ -331,13 +334,13 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> achAccount = createAccount(achMethod);
         Account<?, ?> advancedCashAccount = createAccount(advancedCashMethod);
 
-        workflow.putAccountsByPaymentMethod(achMethod, List.of(achAccount));
-        workflow.putAccountsByPaymentMethod(advancedCashMethod, List.of(advancedCashAccount));
-        assertEquals(2, workflow.getAccountsByPaymentMethod().size());
+        paymentMethodDraftFacade.putAccountsByPaymentMethod(achMethod, List.of(achAccount));
+        paymentMethodDraftFacade.putAccountsByPaymentMethod(advancedCashMethod, List.of(advancedCashAccount));
+        assertEquals(2, paymentMethodDraftFacade.getAccountsByPaymentMethod().size());
 
-        workflow.removeAccountsByPaymentMethod(achMethod);
-        assertEquals(1, workflow.getAccountsByPaymentMethod().size());
-        assertTrue(workflow.getAccountsByPaymentMethod().containsKey(advancedCashMethod));
+        paymentMethodDraftFacade.removeAccountsByPaymentMethod(achMethod);
+        assertEquals(1, paymentMethodDraftFacade.getAccountsByPaymentMethod().size());
+        assertTrue(paymentMethodDraftFacade.getAccountsByPaymentMethod().containsKey(advancedCashMethod));
     }
 
     @Test
@@ -347,10 +350,10 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> achAccount = createAccount(achMethod);
 
         Map<PaymentMethod<?>, List<Account<?, ?>>> accountsMap = Map.of(achMethod, List.of(achAccount));
-        workflow.putAllAccountsByPaymentMethod(accountsMap);
+        paymentMethodDraftFacade.putAllAccountsByPaymentMethod(accountsMap);
 
-        assertEquals(1, workflow.getAccountsByPaymentMethod().size());
-        assertEquals(List.of(achAccount), workflow.getAccountsByPaymentMethod().get(achMethod));
+        assertEquals(1, paymentMethodDraftFacade.getAccountsByPaymentMethod().size());
+        assertEquals(List.of(achAccount), paymentMethodDraftFacade.getAccountsByPaymentMethod().get(achMethod));
     }
 
     @Test
@@ -359,11 +362,11 @@ public class CreateOfferDraftWorkflowTest {
         PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> achAccount = createAccount(achMethod);
 
-        workflow.putSelectedAccountByPaymentMethod(achMethod, achAccount);
-        assertEquals(1, workflow.getSelectedAccountByPaymentMethod().size());
+        paymentMethodDraftFacade.putSelectedAccountByPaymentMethod(achMethod, achAccount);
+        assertEquals(1, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().size());
 
-        workflow.clearSelectedAccountByPaymentMethod();
-        assertEquals(0, workflow.getSelectedAccountByPaymentMethod().size());
+        paymentMethodDraftFacade.clearSelectedAccountByPaymentMethod();
+        assertEquals(0, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().size());
     }
 
     @Test
@@ -373,10 +376,10 @@ public class CreateOfferDraftWorkflowTest {
         Account<?, ?> achAccount = createAccount(achMethod);
 
         Map<PaymentMethod<?>, Account<?, ?>> selectedAccountsMap = Map.of(achMethod, achAccount);
-        workflow.putAllSelectedAccountByPaymentMethod(selectedAccountsMap);
+        paymentMethodDraftFacade.putAllSelectedAccountByPaymentMethod(selectedAccountsMap);
 
-        assertEquals(1, workflow.getSelectedAccountByPaymentMethod().size());
-        assertEquals(achAccount, workflow.getSelectedAccountByPaymentMethod().get(achMethod));
+        assertEquals(1, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().size());
+        assertEquals(achAccount, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().get(achMethod));
     }
 
     @Test
@@ -438,11 +441,11 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
 
-        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, result.status());
+        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.NO_ACCOUNT_AVAILABLE, result.status());
         assertTrue(result.accountsRequiringSelection().isEmpty());
-        assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
+        assertTrue(paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().isEmpty());
     }
 
     @Test
@@ -450,13 +453,13 @@ public class CreateOfferDraftWorkflowTest {
         workflow.initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account = createAccount(method);
-        workflow.putAccountsByPaymentMethod(method, List.of(account));
+        paymentMethodDraftFacade.putAccountsByPaymentMethod(method, List.of(account));
 
-        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, result.status());
+        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, result.status());
         assertTrue(result.accountsRequiringSelection().isEmpty());
-        assertEquals(account, workflow.getSelectedAccountByPaymentMethod().get(method));
+        assertEquals(account, paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().get(method));
     }
 
     @Test
@@ -465,13 +468,13 @@ public class CreateOfferDraftWorkflowTest {
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account1 = createAccount(method);
         Account<?, ?> account2 = createAccount(method);
-        workflow.putAccountsByPaymentMethod(method, List.of(account1, account2));
+        paymentMethodDraftFacade.putAccountsByPaymentMethod(method, List.of(account1, account2));
 
-        CreateOfferDraftWorkflow.PaymentMethodSelectionResult result = workflow.onPaymentMethodSelected(method);
+        CreateOfferPaymentMethodService.PaymentMethodSelectionResult result = paymentMethodDraftFacade.onPaymentMethodSelected(method);
 
-        assertEquals(CreateOfferDraftWorkflow.PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
+        assertEquals(CreateOfferPaymentMethodService.PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
         assertEquals(List.of(account1, account2), result.accountsRequiringSelection());
-        assertTrue(workflow.getSelectedAccountByPaymentMethod().isEmpty());
+        assertTrue(paymentMethodDraftFacade.getSelectedAccountByPaymentMethod().isEmpty());
     }
 
     private static class MockMarketPriceService implements MarketPriceService {

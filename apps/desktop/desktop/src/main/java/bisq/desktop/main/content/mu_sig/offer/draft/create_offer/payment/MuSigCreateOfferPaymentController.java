@@ -34,7 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigTradeAmountLimits;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import bisq.presentation.formatters.AmountFormatter;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -58,7 +58,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
     private final MuSigCreateOfferPaymentModel model;
     @Getter
     private final MuSigCreateOfferPaymentView view;
-    private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final ListChangeListener<PaymentMethod<?>> selectedPaymentMethodsListener;
@@ -66,10 +66,10 @@ public class MuSigCreateOfferPaymentController implements Controller {
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferPaymentController(ServiceProvider serviceProvider,
-                                             CreateOfferDraftWorkflow createOfferDraftWorkflow,
+                                             CreateOfferPaymentMethodService createOfferPaymentMethodService,
                                              Region owner,
                                              Consumer<Boolean> navigationButtonsVisibleHandler) {
-        this.createOfferDraftWorkflow = createOfferDraftWorkflow;
+        this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
 
@@ -80,11 +80,11 @@ public class MuSigCreateOfferPaymentController implements Controller {
     }
 
     public boolean validate() {
-        if (createOfferDraftWorkflow.getSelectedAccountByPaymentMethod().isEmpty()) {
+        if (createOfferPaymentMethodService.getSelectedAccountByPaymentMethod().isEmpty()) {
             navigationButtonsVisibleHandler.accept(false);
             model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
             model.getNoPaymentMethodSelectedOverlayText().set(
-                    createOfferDraftWorkflow.getMarket().isCrypto()
+                    createOfferPaymentMethodService.getMarket().isCrypto()
                             ? Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.crypto")
                             : Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.fiat"));
             return false;
@@ -103,8 +103,8 @@ public class MuSigCreateOfferPaymentController implements Controller {
         updateShouldShowMultipleAccountsOverlay(false);
         model.getPaymentMethodWithoutAccount().set(null);
 
-        Market market = createOfferDraftWorkflow.getMarket();
-        pins.add(createOfferDraftWorkflow.selectedAccountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
+        Market market = createOfferPaymentMethodService.getMarket();
+        pins.add(createOfferPaymentMethodService.selectedAccountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
                 UIThread.run(() -> {
@@ -122,7 +122,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
             }
         }));
 
-        pins.add(createOfferDraftWorkflow.accountsByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
+        pins.add(createOfferPaymentMethodService.accountsByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, List<Account<?, ?>> accounts) {
                 UIThread.run(() -> {
@@ -187,7 +187,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
                 return;
             }
 
-            CreateOfferDraftWorkflow.PaymentMethodSelectionResult selectionResult = createOfferDraftWorkflow.onPaymentMethodSelected(paymentMethod);
+            CreateOfferPaymentMethodService.PaymentMethodSelectionResult selectionResult = createOfferPaymentMethodService.onPaymentMethodSelected(paymentMethod);
             switch (selectionResult.status()) {
                 case ACCOUNT_SELECTION_REQUIRED -> {
                     model.getAccountsForSelectedPaymentMethod().clear();
@@ -205,7 +205,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
                 }
             }
         } else {
-            createOfferDraftWorkflow.removeSelectedAccountByPaymentMethod(paymentMethod);
+            createOfferPaymentMethodService.removeSelectedAccountByPaymentMethod(paymentMethod);
             selectedPaymentMethods.remove(paymentMethod);
             model.getPaymentMethodRequiringAccountSelection().set(null);
         }
@@ -213,7 +213,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
 
     void onSelectAccount(Account<? extends PaymentMethod<?>, ?> account, PaymentMethod<?> paymentMethod) {
         if (account != null && paymentMethod != null) {
-            createOfferDraftWorkflow.putSelectedAccountByPaymentMethod(paymentMethod, account);
+            createOfferPaymentMethodService.putSelectedAccountByPaymentMethod(paymentMethod, account);
             model.getPaymentMethodRequiringAccountSelection().set(null);
             updateShouldShowMultipleAccountsOverlay(false);
         }

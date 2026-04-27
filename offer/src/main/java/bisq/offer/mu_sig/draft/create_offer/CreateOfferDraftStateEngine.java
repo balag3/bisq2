@@ -45,7 +45,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * deterministic order, recomputes derived constraints, and keeps draft amount fields/clamp state
  * consistent. The workflow remains a user-facing facade and persistence coordinator.
  */
-class CreateOfferDraftStateEngine {
+public class CreateOfferDraftStateEngine {
     private final CreateOfferDraft offerDraft;
     private final MarketPriceService marketPriceService;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
@@ -280,7 +280,7 @@ class CreateOfferDraftStateEngine {
         }
     }
 
-    void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
+    public void recalculateTradeAmountConstraintsForSelectedPaymentRail() {
         if (!hasPricingContext()) {
             return;
         }

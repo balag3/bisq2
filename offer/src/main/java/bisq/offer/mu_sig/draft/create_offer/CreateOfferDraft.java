@@ -392,19 +392,19 @@ public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
     // accountsByPaymentMethod
     /* --------------------------------------------------------------------- */
 
-    void clearAccountsByPaymentMethod() {
+    public void clearAccountsByPaymentMethod() {
         accountsByPaymentMethod.clear();
     }
 
-    void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
+    public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
         accountsByPaymentMethod.put(paymentMethod, account);
     }
 
-    void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
+    public void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
         accountsByPaymentMethod.remove(paymentMethod);
     }
 
-    void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
+    public void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
         this.accountsByPaymentMethod.putAll(accountsByPaymentMethod);
     }
 
@@ -423,19 +423,19 @@ public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
     // selectedAccountByPaymentMethod
     /* --------------------------------------------------------------------- */
 
-    void clearSelectedAccountByPaymentMethod() {
+    public void clearSelectedAccountByPaymentMethod() {
         selectedAccountByPaymentMethod.clear();
     }
 
-    void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
+    public void putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
         selectedAccountByPaymentMethod.put(paymentMethod, account);
     }
 
-    void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
+    public void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
         selectedAccountByPaymentMethod.remove(paymentMethod);
     }
 
-    void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
+    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
         this.selectedAccountByPaymentMethod.putAll(selectedAccountByPaymentMethod);
     }
 

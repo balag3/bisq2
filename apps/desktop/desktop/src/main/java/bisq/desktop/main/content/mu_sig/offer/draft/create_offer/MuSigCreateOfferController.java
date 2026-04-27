@@ -34,6 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.draft.create_offer.CreateOfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
 import lombok.EqualsAndHashCode;
@@ -63,6 +64,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferDraftWorkflow createOfferDraftWorkflow;
+    private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -83,6 +85,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
+        createOfferPaymentMethodService = createOfferDraftWorkflow.getPaymentMethodDraftFacade();
 
         overlayController = OverlayController.getInstance();
 
@@ -96,7 +99,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferDraftWorkflow, this::onNext);
         muSigCreateOfferPaymentController = new MuSigCreateOfferPaymentController(serviceProvider,
-                createOfferDraftWorkflow,
+                createOfferPaymentMethodService,
                 view.getRoot(),
                 this::setMainButtonsVisibleState);
         muSigCreateOfferAmountAndPriceController = new MuSigCreateOfferAmountAndPriceController(serviceProvider,
@@ -106,6 +109,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
                 createOfferDraftWorkflow,
+                createOfferPaymentMethodService,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
     }
