@@ -52,7 +52,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
-import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -102,10 +101,10 @@ public class CreateOfferService extends DraftOfferService {
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         marketService = new CreateOfferMarketService();
-        directionService = new CreateOfferDirectionService();
+        directionService = new CreateOfferDirectionService(cookieStore);
         paymentMethodService = new CreateOfferPaymentMethodService(accountsProvider);
-        priceService = new CreateOfferPriceService();
-        amountService = new CreateOfferAmountService();
+        priceService = new CreateOfferPriceService(marketPriceService, cookieStore);
+        amountService = new CreateOfferAmountService(marketPriceService, cookieStore);
 
         amountMappingService = new AmountMappingService();
 
@@ -127,28 +126,19 @@ public class CreateOfferService extends DraftOfferService {
     public void initialize(Market market) {
         checkNotNull(market, "Market must not be null");
 
-        Direction direction = cookieStore.getDirection();
-        boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
-        boolean useRangeAmount = cookieStore.getUseRangeAmount();
-        boolean useFixPrice = cookieStore.getUseFixPrice(market);
-        double pricePercentage = cookieStore.getPricePercentage(market);
-        Optional<PriceQuote> fixPrice = cookieStore.getFixPrice(market);
+        marketService.initialize(market);
+        directionService.initialize();
+        paymentMethodService.initialize(market);
+        priceService.initialize(market);
+        amountService.initialize(market);
+        Direction direction = directionService.getDirection();
 
-        stateEngine.initialize(market,
-                direction,
-                useBaseCurrencyForAmountInput,
-                useRangeAmount,
-                useFixPrice,
-                pricePercentage,
-                fixPrice);
+        stateEngine.initialize();
 
         boolean selectedAccountsChanged = paymentMethodService.updatePaymentMethods(market);
         if (selectedAccountsChanged) {
             stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
-
-        priceService.setUseFixPrice(useFixPrice);
-        priceService.setPricePercentage(pricePercentage);
     }
 
 

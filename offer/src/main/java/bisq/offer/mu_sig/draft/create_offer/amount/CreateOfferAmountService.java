@@ -17,12 +17,17 @@
 
 package bisq.offer.mu_sig.draft.create_offer.amount;
 
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
+import bisq.common.monetary.Fiat;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
+import bisq.offer.mu_sig.draft.AmountUtils;
+import bisq.offer.mu_sig.draft.TradeAmountLimits;
+import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -32,12 +37,44 @@ import java.util.Optional;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CreateOfferAmountService {
+    public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferAmountModel model;
+    private final MarketPriceService marketPriceService;
+    private final CreateOfferDraftCookieStore cookieStore;
 
-    public CreateOfferAmountService() {
+    public CreateOfferAmountService(MarketPriceService marketPriceService, CreateOfferDraftCookieStore cookieStore) {
+        this.marketPriceService = marketPriceService;
+        this.cookieStore = cookieStore;
         this.model = new CreateOfferAmountModel();
+    }
+
+    public void initialize(Market market) {
+        boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
+        setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+
+        boolean useRangeAmount = cookieStore.getUseRangeAmount();
+        setUseRangeAmount(useRangeAmount);
+
+        // Not clamped yet as we do not have established the trade amount limits
+        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
+        setFixTradeAmount(defaultTradeAmount);
+        setMinTradeAmount(defaultTradeAmount);
+        setMaxTradeAmount(defaultTradeAmount);
+    }
+
+    private TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
+        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
+        return TradeAmountLimits.clampTradeAmount(limits, tradeAmount);
+    }
+
+    private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
+        TradeAmountRange tradeAmountLimits = getTradeAmountLimits();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = getUserSpecificTradeAmountLimit();
+        return TradeAmountLimits.getClampLimits(tradeAmountLimits,
+                userSpecificTradeAmountLimit,
+                includeUserSpecificTradeAmountLimit);
     }
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {

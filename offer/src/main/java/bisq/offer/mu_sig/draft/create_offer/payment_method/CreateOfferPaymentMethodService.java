@@ -46,6 +46,9 @@ public class CreateOfferPaymentMethodService {
         this.paymentMethodSelectionService = new PaymentMethodSelectionService(nonNullAccountsProvider);
     }
 
+    public void initialize(Market market) {
+
+    }
 
     /* --------------------------------------------------------------------- */
     // Write operations

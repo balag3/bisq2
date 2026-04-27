@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.draft.create_offer.direction;
 
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -26,12 +27,21 @@ public class CreateOfferDirectionService {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferDirectionModel model;
+    private final CreateOfferDraftCookieStore cookieStore;
 
-    public CreateOfferDirectionService() {
+    public CreateOfferDirectionService(CreateOfferDraftCookieStore cookieStore) {
+        this.cookieStore = cookieStore;
         this.model = new CreateOfferDirectionModel();
+    }
+
+    public void initialize() {
+        Direction direction = cookieStore.getDirection();
+        model.setDirection(direction);
     }
 
     public void setDirection(Direction direction) {
         model.setDirection(direction);
     }
+
+
 }

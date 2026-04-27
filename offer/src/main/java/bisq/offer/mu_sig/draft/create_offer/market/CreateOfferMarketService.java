@@ -31,7 +31,12 @@ public class CreateOfferMarketService {
         this.model = new CreateOfferMarketModel();
     }
 
+    public void initialize(Market market) {
+        model.setMarket(market);
+    }
+
     public void setMarket(Market market) {
         model.setMarket(market);
     }
+
 }
