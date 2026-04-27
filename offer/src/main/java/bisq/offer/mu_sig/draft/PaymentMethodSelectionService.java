@@ -39,10 +39,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Design: keeps all account eligibility, grouping, stale-selection cleanup, and rail-restriction
  * lookups in one pure service so workflow orchestration stays deterministic and readable.
  */
-class PaymentMethodSelectionService {
+public class PaymentMethodSelectionService {
     private final AccountsProvider accountsProvider;
 
-    PaymentMethodSelectionService(AccountsProvider accountsProvider) {
+    public PaymentMethodSelectionService(AccountsProvider accountsProvider) {
         this.accountsProvider = checkNotNull(accountsProvider, "accountsProvider must not be null");
     }
 
@@ -50,7 +50,7 @@ class PaymentMethodSelectionService {
     // Account loading and grouping
     /* --------------------------------------------------------------------- */
 
-    MarketAccounts loadAccountsForMarket(Market market) {
+    public MarketAccounts loadAccountsForMarket(Market market) {
         checkNotNull(market, "market must not be null");
         List<Account<?, ?>> accountsForMarket = checkNotNull(accountsProvider.findAccountsForMarket(market),
                 "accountsForMarket must not be null");
@@ -63,8 +63,8 @@ class PaymentMethodSelectionService {
     // Selection
     /* --------------------------------------------------------------------- */
 
-    List<? extends PaymentMethod<?>> findSelectedPaymentMethodsToRemove(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
-                                                                        List<Account<?, ?>> accountsForMarket) {
+    public List<? extends PaymentMethod<?>> findSelectedPaymentMethodsToRemove(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
+                                                                               List<Account<?, ?>> accountsForMarket) {
         checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
         checkNotNull(accountsForMarket, "accountsForMarket must not be null");
         return selectedAccountByPaymentMethod.entrySet().stream()
@@ -73,8 +73,8 @@ class PaymentMethodSelectionService {
                 .toList();
     }
 
-    Optional<Account<?, ?>> findAccountToAutoSelect(List<Account<?, ?>> accountsForMarket,
-                                                    ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
+    public Optional<Account<?, ?>> findAccountToAutoSelect(List<Account<?, ?>> accountsForMarket,
+                                                           ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
         checkNotNull(accountsForMarket, "accountsForMarket must not be null");
         checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
 
@@ -87,8 +87,8 @@ class PaymentMethodSelectionService {
         return account.equals(existing) ? Optional.empty() : Optional.of(account);
     }
 
-    PaymentMethodAccountsSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
-                                                         PaymentMethod<?> paymentMethod) {
+    public PaymentMethodAccountsSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
+                                                                PaymentMethod<?> paymentMethod) {
         checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
         checkNotNull(paymentMethod, "paymentMethod must not be null");
 
@@ -108,7 +108,7 @@ class PaymentMethodSelectionService {
     // Restriction lookup
     /* --------------------------------------------------------------------- */
 
-    PaymentRail findMostRestrictiveSelectedPaymentRail(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
+    public PaymentRail findMostRestrictiveSelectedPaymentRail(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
         checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
         return selectedAccountByPaymentMethod.values().stream()
                 .map(Account::getPaymentMethod)
@@ -120,17 +120,17 @@ class PaymentMethodSelectionService {
     /**
      * Snapshot of all market-eligible accounts plus a list of accounts keyed by payment method.
      */
-    record MarketAccounts(List<Account<?, ?>> accountsForMarket,
+    public record MarketAccounts(List<Account<?, ?>> accountsForMarket,
                           Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
-        MarketAccounts {
+        public MarketAccounts {
             checkNotNull(accountsForMarket, "accountsForMarket must not be null");
             checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
         }
     }
 
-    record PaymentMethodAccountsSelection(Optional<Account<?, ?>> accountToAutoSelect,
-                                          List<Account<?, ?>> accountsRequiringSelection) {
-        PaymentMethodAccountsSelection {
+    public record PaymentMethodAccountsSelection(Optional<Account<?, ?>> accountToAutoSelect,
+                                                 List<Account<?, ?>> accountsRequiringSelection) {
+        public PaymentMethodAccountsSelection {
             checkNotNull(accountToAutoSelect, "accountToAutoSelect must not be null");
             checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
             accountsRequiringSelection = List.copyOf(accountsRequiringSelection);

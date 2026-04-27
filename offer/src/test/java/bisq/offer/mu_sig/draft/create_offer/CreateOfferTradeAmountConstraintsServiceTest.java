@@ -1,7 +1,9 @@
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.payment_method.fiat.FiatPaymentRail;
+import bisq.bonded_roles.bonded_role.AuthorizedBondedRole;
 import bisq.bonded_roles.market_price.MarketPrice;
+import bisq.bonded_roles.market_price.MarketPriceRequestService;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
@@ -11,6 +13,8 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.TradeAmountConstraints;
+import bisq.offer.mu_sig.draft.TradeAmountLimits;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -104,6 +108,16 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         @Override
         public boolean hasMarketPrice(Market market) {
             return false;
+        }
+
+        @Override
+        public Optional<MarketPriceRequestService> getMarketPriceRequestService() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<AuthorizedBondedRole> getMarketPriceProvidingOracle() {
+            return Optional.empty();
         }
     }
 }

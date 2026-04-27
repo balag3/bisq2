@@ -33,30 +33,30 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Design: this service keeps conversion and clamping logic in one place so workflow/state
  * orchestration can stay focused on transition ordering.
  */
-class AmountMappingService {
+public class AmountMappingService {
 
     /* --------------------------------------------------------------------- */
     // UI mapping (trade amount -> input/passive/slider representations)
     /* --------------------------------------------------------------------- */
 
-    Monetary toInputAmount(TradeAmount tradeAmount,
-                           TradeAmountRange limits,
-                           boolean useBaseCurrencyForAmountInput) {
+    public Monetary toInputAmount(TradeAmount tradeAmount,
+                                  TradeAmountRange limits,
+                                  boolean useBaseCurrencyForAmountInput) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         checkNotNull(limits, "limits must not be null");
         return AmountUtils.toInputAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
 
-    Monetary toPassiveAmount(TradeAmount tradeAmount,
-                             TradeAmountRange limits,
-                             boolean useBaseCurrencyForAmountInput) {
+    public Monetary toPassiveAmount(TradeAmount tradeAmount,
+                                    TradeAmountRange limits,
+                                    boolean useBaseCurrencyForAmountInput) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         checkNotNull(limits, "limits must not be null");
         return AmountUtils.toPassiveAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
     }
 
-    MonetaryRange toInputAmountLimits(TradeAmountRange tradeAmountLimits,
-                                      boolean useBaseCurrencyForAmountInput) {
+    public MonetaryRange toInputAmountLimits(TradeAmountRange tradeAmountLimits,
+                                             boolean useBaseCurrencyForAmountInput) {
         checkNotNull(tradeAmountLimits, "tradeAmountLimits must not be null");
         TradeAmount min = tradeAmountLimits.getMin();
         TradeAmount max = tradeAmountLimits.getMax();
@@ -65,10 +65,10 @@ class AmountMappingService {
         return new MonetaryRange(minInputAmount, maxInputAmount);
     }
 
-    double toSliderValue(TradeAmount tradeAmount,
-                         TradeAmountRange limits,
-                         MonetaryRange inputAmountLimits,
-                         boolean useBaseCurrencyForAmountInput) {
+    public double toSliderValue(TradeAmount tradeAmount,
+                                TradeAmountRange limits,
+                                MonetaryRange inputAmountLimits,
+                                boolean useBaseCurrencyForAmountInput) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         checkNotNull(limits, "limits must not be null");
         checkNotNull(inputAmountLimits, "inputAmountLimits must not be null");
@@ -81,10 +81,10 @@ class AmountMappingService {
     // Domain conversion (input/slider/passive representations -> trade amount)
     /* --------------------------------------------------------------------- */
 
-    TradeAmount toTradeAmountFromInputAmount(Market market,
-                                             PriceQuote priceQuote,
-                                             Monetary inputAmount,
-                                             TradeAmountRange clampLimits) {
+    public TradeAmount toTradeAmountFromInputAmount(Market market,
+                                                    PriceQuote priceQuote,
+                                                    Monetary inputAmount,
+                                                    TradeAmountRange clampLimits) {
         checkNotNull(market, "market must not be null");
         checkNotNull(priceQuote, "priceQuote must not be null");
         checkNotNull(inputAmount, "inputAmount must not be null");
@@ -94,13 +94,13 @@ class AmountMappingService {
         return TradeAmountLimits.clampTradeAmount(clampLimits, tradeAmount);
     }
 
-    TradeAmount toTradeAmountFromSliderValue(Market market,
-                                             PriceQuote priceQuote,
-                                             TradeAmount tradeAmount,
-                                             TradeAmountRange limits,
-                                             MonetaryRange inputAmountLimits,
-                                             boolean useBaseCurrencyForAmountInput,
-                                             double sliderValue) {
+    public TradeAmount toTradeAmountFromSliderValue(Market market,
+                                                    PriceQuote priceQuote,
+                                                    TradeAmount tradeAmount,
+                                                    TradeAmountRange limits,
+                                                    MonetaryRange inputAmountLimits,
+                                                    boolean useBaseCurrencyForAmountInput,
+                                                    double sliderValue) {
         checkNotNull(market, "market must not be null");
         checkNotNull(priceQuote, "priceQuote must not be null");
         checkNotNull(tradeAmount, "tradeAmount must not be null");
@@ -116,12 +116,12 @@ class AmountMappingService {
         return TradeAmountLimits.clampTradeAmount(limits, fromSliderValue);
     }
 
-    TradeAmount toUpdatedPassiveAmount(Market market,
-                                       PriceQuote priceQuote,
-                                       TradeAmount tradeAmount,
-                                       TradeAmountRange oldLimits,
-                                       TradeAmountRange newLimits,
-                                       boolean useBaseCurrencyForAmountInput) {
+    public TradeAmount toUpdatedPassiveAmount(Market market,
+                                              PriceQuote priceQuote,
+                                              TradeAmount tradeAmount,
+                                              TradeAmountRange oldLimits,
+                                              TradeAmountRange newLimits,
+                                              boolean useBaseCurrencyForAmountInput) {
         checkNotNull(market, "market must not be null");
         checkNotNull(priceQuote, "priceQuote must not be null");
         checkNotNull(tradeAmount, "tradeAmount must not be null");

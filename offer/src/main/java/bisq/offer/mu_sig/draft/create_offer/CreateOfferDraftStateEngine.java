@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.payment_method.PaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
@@ -27,6 +27,10 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.draft.AmountMappingService;
+import bisq.offer.mu_sig.draft.AmountUtils;
+import bisq.offer.mu_sig.draft.TradeAmountConstraints;
+import bisq.offer.mu_sig.draft.TradeAmountLimits;
 
 import java.util.Optional;
 import java.util.function.Supplier;

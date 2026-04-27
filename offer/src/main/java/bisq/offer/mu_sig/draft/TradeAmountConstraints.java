@@ -22,6 +22,6 @@ import bisq.common.monetary.TradeAmountRange;
 
 import java.util.Optional;
 
-record TradeAmountConstraints(TradeAmountRange tradeAmountLimits,
-                              Optional<TradeAmount> userSpecificTradeAmountLimit) {
+public record TradeAmountConstraints(TradeAmountRange tradeAmountLimits,
+                                     Optional<TradeAmount> userSpecificTradeAmountLimit) {
 }

@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.draft;
+package bisq.offer.mu_sig.draft.create_offer;
 
 import bisq.account.AccountService;
 import bisq.account.accounts.Account;
@@ -32,6 +32,9 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
+import bisq.offer.mu_sig.draft.AmountMappingService;
+import bisq.offer.mu_sig.draft.OfferDraftWorkflow;
+import bisq.offer.mu_sig.draft.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.draft.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.draft.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.draft.dependencies.DefaultAccountsProvider;

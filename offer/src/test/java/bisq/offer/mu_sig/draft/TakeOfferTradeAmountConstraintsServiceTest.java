@@ -1,6 +1,8 @@
 package bisq.offer.mu_sig.draft;
 
+import bisq.bonded_roles.bonded_role.AuthorizedBondedRole;
 import bisq.bonded_roles.market_price.MarketPrice;
+import bisq.bonded_roles.market_price.MarketPriceRequestService;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
@@ -134,6 +136,16 @@ public class TakeOfferTradeAmountConstraintsServiceTest {
         @Override
         public boolean hasMarketPrice(Market market) {
             return false;
+        }
+
+        @Override
+        public Optional<MarketPriceRequestService> getMarketPriceRequestService() {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<AuthorizedBondedRole> getMarketPriceProvidingOracle() {
+            return Optional.empty();
         }
     }
 }

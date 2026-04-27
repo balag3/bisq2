@@ -36,7 +36,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Utility class for amount conversions and calculations in the offer creation workflow.
  * Provides methods for converting between input/passive amounts and slider values.
  */
-class AmountUtils {
+public class AmountUtils {
     /**
      * Extracts the input amount from a TradeAmount based on user preference.
      * The input amount is the currency that the user directly controls (e.g., enters in a text field or slider).
@@ -121,7 +121,9 @@ class AmountUtils {
         return TradeAmountConversion.toTradeAmount(market, priceQuote, sliderAmount);
     }
 
-    static TradeAmount getTradeAmountFromUsd(MarketPriceService marketPriceService, Market market, Fiat usdAmount) {
+    public static TradeAmount getTradeAmountFromUsd(MarketPriceService marketPriceService,
+                                                    Market market,
+                                                    Fiat usdAmount) {
         checkNotNull(market, "market must not be null");
         checkNotNull(usdAmount, "usdAmount must not be null");
         return MarketBasedAmountConversion.tradeAmountFromUsdAmount(marketPriceService, market, usdAmount);
