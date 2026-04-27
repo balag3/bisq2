@@ -30,14 +30,13 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.ReadOnlyCreateOfferDraft;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public class CreateOfferDraft extends ReadOnlyCreateOfferDraft {
+public class CreateOfferDraft implements ReadOnlyCreateOfferDraft {
     protected final Observable<Market> market = new Observable<>();
 
     protected final Observable<Direction> direction = new Observable<>();

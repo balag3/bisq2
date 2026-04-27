@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 @Slf4j
-public class TakeOfferDraft extends ReadOnlyTakeOfferDraft {
+public class TakeOfferDraft implements ReadOnlyTakeOfferDraft {
     private MuSigOffer offer;
 
     protected final Observable<Market> market = new Observable<>();

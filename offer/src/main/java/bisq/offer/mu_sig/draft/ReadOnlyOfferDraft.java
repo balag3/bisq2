@@ -20,11 +20,8 @@ package bisq.offer.mu_sig.draft;
 import bisq.common.market.Market;
 import bisq.offer.Direction;
 
-public abstract class ReadOnlyOfferDraft {
-    public ReadOnlyOfferDraft() {
-    }
+public interface ReadOnlyOfferDraft {
+    Market getMarket();
 
-    public abstract Market getMarket();
-
-    public abstract Direction getTakersDirection();
+    Direction getTakersDirection();
 }
