@@ -1,4 +1,4 @@
-## Handles the interaction between multiple aspects of the offer creation process
+## Specification for the create offer process 
 
 ### Direction
 
