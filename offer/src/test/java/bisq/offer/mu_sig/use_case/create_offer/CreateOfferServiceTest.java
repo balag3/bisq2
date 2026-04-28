@@ -21,6 +21,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -29,6 +30,7 @@ import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelec
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
+import bisq.offer.price.PriceUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -117,7 +119,7 @@ public class CreateOfferServiceTest {
     @Test
     public void setMarketResetsPriceAndAmountsDeterministically() {
         createOfferUseCase.initialize(defaultMarket);
-        marketUseCase.onSelectMarket(xmrBtcMarket);
+        marketUseCase.onSetMarket(xmrBtcMarket);
 
         assertEquals(xmrBtcMarket, createOfferUseCase.getMarket());
         assertEquals(xmrBtcPriceQuote, priceUseCase.getPriceQuote());
@@ -130,13 +132,33 @@ public class CreateOfferServiceTest {
     }
 
     @Test
+    public void setMarketUsesPersistedPercentageForTargetMarketTradeAmountConstraints() {
+        double persistedPercentage = -0.1;
+        cookieStore.setPricePercentage(xmrBtcMarket, persistedPercentage);
+
+        createOfferUseCase.initialize(defaultMarket);
+        marketUseCase.onSetMarket(xmrBtcMarket);
+
+        PriceQuote expectedPriceQuote = PriceUtil.fromMarketPriceMarkup(xmrBtcPriceQuote, persistedPercentage);
+        var expectedTradeAmountConstraints = new CreateOfferTradeAmountConstraintsService(marketPriceService).compute(
+                xmrBtcMarket,
+                directionUseCase.getDisplayDirection(),
+                expectedPriceQuote,
+                AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD);
+
+        assertEquals(persistedPercentage, priceUseCase.getPricePercentage());
+        assertEquals(expectedPriceQuote, priceUseCase.getPriceQuote());
+        assertEquals(expectedTradeAmountConstraints.tradeAmountLimits(), amountUseCase.getTradeAmountLimits());
+    }
+
+    @Test
     public void setPriceQuoteKeepsQuoteInputAmountConstant() {
         createOfferUseCase.initialize(usdBtcMarket);
         createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
         createOfferUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
 
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
-        priceUseCase.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
+        priceUseCase.onSetPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
         TradeAmount fixTradeAmountAfter = amountUseCase.getFixTradeAmount();
 
         assertEquals(fixTradeAmountBefore.getQuoteSideAmount(), fixTradeAmountAfter.getQuoteSideAmount());
@@ -148,10 +170,10 @@ public class CreateOfferServiceTest {
         createOfferUseCase.initialize(usdBtcMarket);
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
         Direction persistedDirection = directionUseCase.getDisplayDirection();
-        directionUseCase.onSelectDisplayDirection(Direction.BUY);
+        directionUseCase.onSetDisplayDirection(Direction.BUY);
         Optional<TradeAmount> buyLimit = amountUseCase.getUserSpecificTradeAmountLimit();
 
-        directionUseCase.onSelectDisplayDirection(Direction.SELL);
+        directionUseCase.onSetDisplayDirection(Direction.SELL);
 
         assertTrue(buyLimit.isPresent());
         assertTrue(amountUseCase.getUserSpecificTradeAmountLimit().isEmpty());
@@ -200,7 +222,7 @@ public class CreateOfferServiceTest {
         createOfferUseCase.initialize(usdBtcMarket);
         Direction persistedDirection = directionUseCase.getDisplayDirection();
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
-        directionUseCase.onSelectDisplayDirection(persistedDirection.mirror());
+        directionUseCase.onSetDisplayDirection(persistedDirection.mirror());
 
         assertEquals(fixTradeAmountBefore, amountUseCase.getFixTradeAmount());
         assertEquals(List.of(persistedDirection, persistedDirection.mirror()), cookieStore.persistedDirections);
@@ -211,7 +233,7 @@ public class CreateOfferServiceTest {
         createOfferUseCase.initialize(usdBtcMarket);
         int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
-        priceUseCase.setPriceQuote(priceUseCase.getPriceQuote());
+        priceUseCase.onSetPriceQuote(priceUseCase.getPriceQuote());
 
         assertEquals(recalculationCountBefore, marketPriceService.btcUsdPriceQuoteRequests);
     }
@@ -220,7 +242,7 @@ public class CreateOfferServiceTest {
     public void setMarketWithCurrentValueIsNoOp() {
         createOfferUseCase.initialize(defaultMarket);
 
-        marketUseCase.onSelectMarket(defaultMarket);
+        marketUseCase.onSetMarket(defaultMarket);
 
         assertEquals(List.of(defaultMarket), accountsProvider.requestedMarkets);
     }
@@ -498,6 +520,8 @@ public class CreateOfferServiceTest {
         private final boolean defaultUseBaseForFiatMarkets;
         private final boolean defaultUseBaseForOtherMarkets;
         private final boolean defaultUseRangeAmount;
+        private final Map<Market, Boolean> useFixPriceByMarket = new HashMap<>();
+        private final Map<Market, Double> pricePercentageByMarket = new HashMap<>();
         private final List<Direction> persistedDirections = new ArrayList<>();
         private final List<InputModePreference> persistedInputModes = new ArrayList<>();
         private final List<Boolean> persistedUseRangeAmountValues = new ArrayList<>();
@@ -544,32 +568,26 @@ public class CreateOfferServiceTest {
 
         @Override
         public boolean getUseFixPrice(Market market) {
-            return false;
+            return useFixPriceByMarket.getOrDefault(market, false);
         }
 
         @Override
         public void persistUseFixPrice(Market market, boolean useFixPrice) {
-
+            useFixPriceByMarket.put(market, useFixPrice);
         }
 
         @Override
         public double getPricePercentage(Market market) {
-            return 0;
+            return pricePercentageByMarket.getOrDefault(market, 0d);
         }
 
         @Override
         public void persistPricePercentage(Market market, double pricePercentage) {
-
+            pricePercentageByMarket.put(market, pricePercentage);
         }
 
-        @Override
-        public Optional<PriceQuote> getFixPrice(Market market) {
-            return Optional.empty();
-        }
-
-        @Override
-        public void persistFixPrice(Market market, PriceQuote fixPrice) {
-
+        private void setPricePercentage(Market market, double pricePercentage) {
+            pricePercentageByMarket.put(market, pricePercentage);
         }
     }
 

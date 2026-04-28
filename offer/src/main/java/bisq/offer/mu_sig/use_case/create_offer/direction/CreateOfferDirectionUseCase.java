@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public class CreateOfferDirectionUseCase extends UseCase {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
@@ -51,9 +53,11 @@ public class CreateOfferDirectionUseCase extends UseCase {
     // User input
     /* --------------------------------------------------------------------- */
 
-    public void onSelectDisplayDirection(Direction displayDirection) {
+    public void onSetDisplayDirection(Direction displayDirection) {
+        checkNotNull(displayDirection, "displayDirection must not be null");
         applyDisplayDirection(displayDirection, true);
     }
+
 
     private void applyDisplayDirection(Direction displayDirection, boolean notifyListeners) {
         if (displayDirection != model.getDisplayDirection()) {

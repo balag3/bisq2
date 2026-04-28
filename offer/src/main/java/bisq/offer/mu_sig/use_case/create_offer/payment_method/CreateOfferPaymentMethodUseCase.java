@@ -52,8 +52,7 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
         this.model = new CreateOfferPaymentMethodModel();
     }
 
-    public void initialize(Market market) {
-        checkNotNull(market, "market must not be null");
+    public void initialize() {
     }
 
 

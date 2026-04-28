@@ -70,7 +70,6 @@ public class MuSigCreateOfferModel extends NavigationModel {
         nextButtonVisible.set(true);
         nextButtonDisabled.set(true);
         backButtonVisible.set(true);
-        childTargets.clear();
         selectedChildTarget.set(null);
         animateRightOut = true;
         isBackButtonHighlighted.set(false);

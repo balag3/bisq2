@@ -150,13 +150,13 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     }
 
     void onSelectDisplayDirection(Direction displayDirection) {
-        directionUseCase.onSelectDisplayDirection(displayDirection);
+        directionUseCase.onSetDisplayDirection(displayDirection);
         onNextHandler.run();
     }
 
     void onSelectMarketListItem(MarketListItem item) {
         if (item != null) {
-            marketUseCase.onSelectMarket(item.getMarket());
+            marketUseCase.onSetMarket(item.getMarket());
         }
     }
 

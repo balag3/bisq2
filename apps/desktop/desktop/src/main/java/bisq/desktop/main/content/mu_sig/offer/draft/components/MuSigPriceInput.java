@@ -128,7 +128,7 @@ public class MuSigPriceInput {
         private final Model model;
         @Getter
         private final View view;
-        private final DraftOfferUseCase draftOfferService;
+        private final DraftOfferUseCase draftOfferUseCase;
         private final Optional<CreateOfferUseCase> createOfferUseCase;
         private final Optional<CreateOfferPriceUseCase> priceUseCase;
         private final MarketPriceService marketPriceService;
@@ -139,10 +139,10 @@ public class MuSigPriceInput {
 
         private Controller(MarketPriceService marketPriceService, DraftOfferUseCase draftOfferUseCase) {
             this.marketPriceService = marketPriceService;
-            this.draftOfferService = draftOfferUseCase;
-            if (draftOfferUseCase instanceof CreateOfferUseCase createOfferUseCase) {
-                this.createOfferUseCase = Optional.of(createOfferUseCase);
-                priceUseCase = Optional.of(createOfferUseCase.getPriceService());
+            this.draftOfferUseCase = draftOfferUseCase;
+            if (draftOfferUseCase instanceof CreateOfferUseCase useCase) {
+                this.createOfferUseCase = Optional.of(useCase);
+                priceUseCase = Optional.of(useCase.getPriceService());
             } else {
                 createOfferUseCase = Optional.empty();
                 priceUseCase = Optional.empty();
@@ -154,7 +154,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
+            priceUseCase.ifPresent(priceUseCase -> priceUseCase.onSetPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -162,7 +162,7 @@ public class MuSigPriceInput {
         }
 
         private void updateFromMarketPrice() {
-            Market market = draftOfferService.getMarket();
+            Market market = draftOfferUseCase.getMarket();
             if (market != null && model.description.get() == null) {
                 model.description.set(Res.get("component.priceInput.description", market.getMarketCodes()));
                 model.textInputCurrencyCodes.set(market.getMarketCodes());
@@ -190,8 +190,8 @@ public class MuSigPriceInput {
             subscriptions.add(EasyBind.subscribe(model.priceString, this::onPriceInput));
             // quotePin = EasyBind.subscribe(model.priceQuote, this::onQuoteChanged);
 
-            priceUseCase.map(service ->
-                            service.priceQuoteObservable().addObserver(this::onQuoteChanged))
+            priceUseCase.map(useCase ->
+                            useCase.priceQuoteObservable().addObserver(this::onPriceQuoteChanged))
                     .ifPresent(pins::add);
         }
 
@@ -217,18 +217,18 @@ public class MuSigPriceInput {
             }
 
             try {
-                PriceQuote priceQuote = PriceParser.parse(price, draftOfferService.getMarket());
+                PriceQuote priceQuote = PriceParser.parse(price, draftOfferUseCase.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
+                priceUseCase.ifPresent(priceUseCase -> priceUseCase.onSetPriceQuote(priceQuote));
             } catch (Throwable ignore) {
                 priceUseCase.map(CreateOfferPriceUseCase::getPriceQuote)
-                        .ifPresent(this::onQuoteChanged);
+                        .ifPresent(this::onPriceQuoteChanged);
                 // onQuoteChanged(model.priceQuote.get());
             }
         }
 
-        private void onQuoteChanged(PriceQuote priceQuote) {
+        private void onPriceQuoteChanged(PriceQuote priceQuote) {
             if (model.isFocused) {
                 return;
             }
@@ -243,11 +243,11 @@ public class MuSigPriceInput {
         }
 
         private void setQuoteFromMarketPrice() {
-            marketPriceService.findMarketPrice(draftOfferService.getMarket())
+            marketPriceService.findMarketPrice(draftOfferUseCase.getMarket())
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
+                        priceUseCase.ifPresent(priceUseCase -> priceUseCase.onSetPriceQuote(priceQuote));
                     });
         }
     }

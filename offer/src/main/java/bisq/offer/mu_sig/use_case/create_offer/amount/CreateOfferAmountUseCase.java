@@ -30,6 +30,7 @@ import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.AmountUtils;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -46,22 +47,26 @@ public class CreateOfferAmountUseCase extends UseCase {
     @Delegate
     private final CreateOfferAmountModel model;
     private final MarketPriceService marketPriceService;
+    private final CreateOfferMarketUseCase marketService;
     private final CreateOfferDraftCookieStore cookieStore;
     private final AmountLimits amountLimits;
     private final AmountMappingService amountMappingService;
 
     public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
+                                    CreateOfferMarketUseCase marketService,
                                     CreateOfferDraftCookieStore cookieStore,
                                     AmountLimits amountLimits,
                                     AmountMappingService amountMappingService) {
         this.marketPriceService = marketPriceService;
+        this.marketService = marketService;
         this.cookieStore = cookieStore;
         this.amountLimits = amountLimits;
         this.amountMappingService = amountMappingService;
         this.model = new CreateOfferAmountModel();
     }
 
-    public void initialize(Market market) {
+    public void initialize() {
+        Market market = checkNotNull(marketService.getMarket(), "market must not be null");
         boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
         setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
 

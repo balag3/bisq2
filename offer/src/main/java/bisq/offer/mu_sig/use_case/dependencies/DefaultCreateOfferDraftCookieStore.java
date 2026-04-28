@@ -18,12 +18,9 @@
 package bisq.offer.mu_sig.use_case.dependencies;
 
 import bisq.common.market.Market;
-import bisq.common.monetary.PriceQuote;
 import bisq.offer.Direction;
 import bisq.settings.CookieKey;
 import bisq.settings.SettingsService;
-
-import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -112,21 +109,6 @@ public class DefaultCreateOfferDraftCookieStore implements CreateOfferDraftCooki
     public void persistPricePercentage(Market market, double pricePercentage) {
         checkNotNull(market, "market must not be null");
         settingsService.setCookie(CookieKey.MU_SIG_CREATE_OFFER_PERCENTAGE_PRICE, geMarketSubKey(market), pricePercentage);
-    }
-
-    @Override
-    public Optional<PriceQuote> getFixPrice(Market market) {
-        checkNotNull(market, "market must not be null");
-        return settingsService.getCookie()
-                .asLong(CookieKey.CREATE_OFFER_USE_FIX_PRICE, geMarketSubKey(market))
-                .map(value -> PriceQuote.fromPrice(value, market));
-    }
-
-    @Override
-    public void persistFixPrice(Market market, PriceQuote fixPrice) {
-        checkNotNull(fixPrice, "useFixPrice must not be null");
-        checkNotNull(market, "market must not be null");
-        settingsService.setCookie(CookieKey.CREATE_OFFER_USE_FIX_PRICE, geMarketSubKey(market), fixPrice.getValue());
     }
 
     private String geMarketSubKey(Market market) {

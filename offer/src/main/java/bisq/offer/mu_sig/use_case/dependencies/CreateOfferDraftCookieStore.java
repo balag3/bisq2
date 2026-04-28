@@ -18,10 +18,7 @@
 package bisq.offer.mu_sig.use_case.dependencies;
 
 import bisq.common.market.Market;
-import bisq.common.monetary.PriceQuote;
 import bisq.offer.Direction;
-
-import java.util.Optional;
 
 public interface CreateOfferDraftCookieStore {
     void persistDisplayDirection(Direction direction);
@@ -43,8 +40,4 @@ public interface CreateOfferDraftCookieStore {
     double getPricePercentage(Market market);
 
     void persistPricePercentage(Market market,double pricePercentage);
-
-    Optional<PriceQuote> getFixPrice(Market market);
-
-    void persistFixPrice(Market market, PriceQuote fixPrice);
 }

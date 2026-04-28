@@ -25,7 +25,6 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
     protected final Observable<PriceQuote> priceQuote = new Observable<>();
     protected final Observable<Boolean> useFixPrice = new Observable<>(false);
     protected final Observable<Double> pricePercentage = new Observable<>(0d);
-    protected final Observable<PriceQuote> fixPrice = new Observable<>();
 
     public CreateOfferPriceModel() {
     }

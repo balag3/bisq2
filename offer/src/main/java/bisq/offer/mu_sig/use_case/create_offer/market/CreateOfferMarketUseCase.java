@@ -28,6 +28,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public class CreateOfferMarketUseCase extends UseCase {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
@@ -48,13 +50,14 @@ public class CreateOfferMarketUseCase extends UseCase {
     // User input
     /* --------------------------------------------------------------------- */
 
-    public void onSelectMarket(Market market) {
+    public void onSetMarket(Market market) {
+        checkNotNull(market, "market must not be null");
         applyMarket(market, true);
     }
 
 
     private void applyMarket(Market market, boolean notifyListeners) {
-        if (market != model.getMarket()) {
+        if (!market.equals(model.getMarket())) {
             model.setMarket(market);
             if (notifyListeners) {
                 listeners.forEach(listener -> listener.accept(market));

@@ -28,6 +28,7 @@ import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUse
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,20 +77,21 @@ public class CreateOfferDraftStateEngineTest {
         when(cookieStore.getUseRangeAmount()).thenReturn(false);
         when(cookieStore.getUseFixPrice(any())).thenReturn(false);
         when(cookieStore.getPricePercentage(any())).thenReturn(0d);
-        when(cookieStore.getFixPrice(any())).thenReturn(Optional.empty());
 
         AmountMappingService amountMappingService = new AmountMappingService();
 
         AbsoluteAmountLimits absoluteAmountLimits = new AbsoluteAmountLimits(marketPriceService);
         PaymentMethodBasedAmountLimits  paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits(marketPriceService);
         UserSpecificAmountLimits  userSpecificAmountLimits = new UserSpecificAmountLimits(marketPriceService);
-        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits);
+        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
 
         marketService = new CreateOfferMarketUseCase();
+        PriceLimits priceLimits = new PriceLimits(marketPriceService, marketService);
+        priceLimits.initialize();
         directionService = new CreateOfferDirectionUseCase(cookieStore);
-        priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
-        amountService = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountLimits, amountMappingService);
-        paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of(), paymentMethodSpecificAmountLimits);
+        priceService = new CreateOfferPriceUseCase(marketPriceService, priceLimits, marketService, cookieStore);
+        amountService = new CreateOfferAmountUseCase(marketPriceService, marketService, cookieStore, amountLimits, amountMappingService);
+        paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of());
         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
@@ -120,7 +122,7 @@ public class CreateOfferDraftStateEngineTest {
 
     @Test
     public void onDirectionChangedReturnsFalseWithoutPricingContext() {
-        directionService.onSelectDisplayDirection(Direction.BUY);
+        directionService.onSetDisplayDirection(Direction.BUY);
         assertEquals(Direction.BUY, directionService.getDisplayDirection());
     }
 
@@ -170,9 +172,9 @@ public class CreateOfferDraftStateEngineTest {
     private void initializeStateForMarket(Market market) {
         marketService.initialize(market);
         directionService.initialize();
-        paymentMethodService.initialize(market);
-        priceService.initialize(market);
-        amountService.initialize(market);
+        paymentMethodService.initialize();
+        priceService.initialize();
+        amountService.initialize();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

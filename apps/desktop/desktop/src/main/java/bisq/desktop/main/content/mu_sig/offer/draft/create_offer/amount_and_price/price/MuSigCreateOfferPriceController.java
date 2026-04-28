@@ -40,7 +40,6 @@ import bisq.offer.price.spec.PriceSpec;
 import bisq.offer.price.spec.PriceSpecUtil;
 import bisq.presentation.formatters.PercentageFormatter;
 import bisq.presentation.formatters.PriceFormatter;
-import bisq.settings.CookieKey;
 import bisq.settings.SettingsService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -121,16 +120,43 @@ public class MuSigCreateOfferPriceController implements Controller {
         String marketCodes = market.getMarketCodes();
         model.getMarketCodes().set(marketCodes);
 
-        settingsService.getCookie().asBoolean(CookieKey.CREATE_OFFER_USE_FIX_PRICE, getCookieSubKey())
-                .ifPresent(useFixPrice -> model.getUseFixPrice().set(useFixPrice));
+        model.getUseFixPrice().set(priceUseCase.getUseFixPrice());
+
+        //todo
+        applyPriceSliderValue(0d);
+       /*
         settingsService.getCookie().asString(CookieKey.CREATE_OFFER_PRICE)
                 .ifPresentOrElse(
                         this::applyPriceFromCookie,
                         () -> applyPriceSliderValue(0d)
-                );
+                );*/
+
         if (model.getPriceSpec().get() == null) {
             model.getPriceSpec().set(new MarketPriceSpec());
         }
+
+        pins.add(priceUseCase.useFixPriceObservable().addObserver(useFixPrice -> {
+            UIThread.run(() -> {
+                // In case of in invalid inputs we apply the value from the flip side before switching,
+                // so that the then inactive field has a valid value again.
+                if (!useFixPrice && !priceInput.isPriceValid().get()) {
+                    applyPercentageString(model.getPercentageInput().get());
+                } else if (useFixPrice && model.getErrorMessage().get() != null) {
+                    onQuoteInput(priceUseCase.getPriceQuote());
+                }
+                model.getUseFixPrice().set(useFixPrice);
+                applyPriceSpec();
+            });
+        }));
+        pins.add(priceUseCase.pricePercentageObservable().addObserver(pricePercentage -> {
+            UIThread.run(() -> {
+                if (pricePercentage != null) {
+                    model.getPercentage().set(pricePercentage);
+                    model.getPercentageInput().set(PercentageFormatter.formatToPercent(pricePercentage));
+                }
+            });
+        }));
+
 
         pins.add(priceUseCase.priceQuoteObservable().addObserver(priceQuote ->
                 UIThread.run(() -> onQuoteInput(priceQuote))));
@@ -255,17 +281,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     void onToggleUseFixPrice() {
         boolean useFixPrice = !model.getUseFixPrice().get();
-
-        // In case of in invalid inputs we apply the value from the flip side before switching,
-        // so that the then inactive field has a valid value again.
-        if (!useFixPrice && !priceInput.isPriceValid().get()) {
-            applyPercentageString(model.getPercentageInput().get());
-        } else if (useFixPrice && model.getErrorMessage().get() != null) {
-            onQuoteInput(priceUseCase.getPriceQuote());
-        }
-        model.getUseFixPrice().set(useFixPrice);
-        settingsService.setCookie(CookieKey.CREATE_OFFER_USE_FIX_PRICE, getCookieSubKey(), useFixPrice);
-        applyPriceSpec();
+        priceUseCase.onSetUseFixPrice(useFixPrice);
     }
 
     void useFixedPrice() {
@@ -303,7 +319,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private void applyPriceSpec() {
         if (model.getUseFixPrice().get()) {
             model.getPriceSpec().set(new FixPriceSpec(priceUseCase.getPriceQuote()));
-            settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, priceInput.getPriceString().get());
+            // settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, priceInput.getPriceString().get());
         } else {
             double percentage = model.getPercentage().get();
             if (percentage == 0) {
@@ -311,7 +327,7 @@ public class MuSigCreateOfferPriceController implements Controller {
             } else {
                 model.getPriceSpec().set(new FloatPriceSpec(percentage));
             }
-            settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, model.getPercentageInput().get());
+            // settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, model.getPercentageInput().get());
         }
     }
 
@@ -330,9 +346,8 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private void applyPercentageFromQuote(PriceQuote priceQuote) {
-        double percentage = getPercentageFromPriceQuote(priceQuote);
-        model.getPercentage().set(percentage);
-        model.getPercentageInput().set(PercentageFormatter.formatToPercent(percentage));
+        double pricePercentage = getPercentageFromPriceQuote(priceQuote);
+        priceUseCase.onSetPricePercentage(pricePercentage);
     }
 
     private void applyPriceSliderValue(double percentage) {
@@ -412,6 +427,7 @@ public class MuSigCreateOfferPriceController implements Controller {
                 : Res.get("muSig.offer.create.price.feedback.sellOffer.sentence", adjective);
     }
 
+    //todo
     private void applyPriceFromCookie(String price) {
         if (model.getUseFixPrice().get()) {
             priceInput.setPriceString(price);

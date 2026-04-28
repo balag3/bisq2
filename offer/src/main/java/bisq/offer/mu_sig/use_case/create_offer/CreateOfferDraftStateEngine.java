@@ -135,9 +135,8 @@ public class CreateOfferDraftStateEngine {
 
         Direction offerDirection = getOfferDirection(market);
 
-        // At new market we use market price as default offer price
-        PriceQuote offerPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        priceService.setPriceQuoteFromMarketChange(offerPriceQuote);
+        // PriceUseCase already applied the market-specific default quote before this listener runs.
+        PriceQuote offerPriceQuote = checkNotNull(priceService.getPriceQuote(), "offerPriceQuote must not be null");
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
                 offerDirection,
@@ -178,9 +177,9 @@ public class CreateOfferDraftStateEngine {
         return true;
     }
 
-    void applyUseFixPriceChanged(boolean useFixPrice) {
+ /*   void applyUseFixPriceChanged(boolean useFixPrice) {
         priceService.applyUseFixPriceChanged(useFixPrice);
-    }
+    }*/
 
     void applyPriceQuoteChanged(PriceQuote priceQuote) {
         checkNotNull(priceQuote, "priceQuote must not be null");
@@ -189,7 +188,7 @@ public class CreateOfferDraftStateEngine {
             return;
         }
 
-        applyUseFixPriceChanged(priceService.getUseFixPrice());
+        //applyUseFixPriceChanged(priceService.getUseFixPrice());
 
         Market market = marketService.getMarket();
         Direction offerDirection = getOfferDirection(market);

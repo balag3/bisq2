@@ -39,6 +39,7 @@ import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUse
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultAccountsProvider;
@@ -80,6 +81,7 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     private final AmountLimits amountLimits;
     private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
     private final AbsoluteAmountLimits absoluteAmountLimits;
+    private final PriceLimits priceLimits;
 
 
     /* --------------------------------------------------------------------- */
@@ -109,11 +111,15 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         userSpecificAmountLimits = new UserSpecificAmountLimits(marketPriceService);
         amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
 
+
+
         marketService = new CreateOfferMarketUseCase();
         directionService = new CreateOfferDirectionUseCase(cookieStore);
         paymentMethodService = new CreateOfferPaymentMethodUseCase(accountsProvider);
-        priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
-        amountUseCase = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountLimits, amountMappingService);
+
+        priceLimits = new PriceLimits(marketPriceService, marketService);
+        priceService = new CreateOfferPriceUseCase(marketPriceService, priceLimits, marketService, cookieStore);
+        amountUseCase = new CreateOfferAmountUseCase(marketPriceService, marketService, cookieStore, amountLimits, amountMappingService);
 
         marketService.marketObservable().addObserver(market -> {
             if (market != null) {
@@ -153,11 +159,13 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         checkNotNull(market, "Market must not be null");
 
         amountLimits.initialize();
+        priceLimits.initialize();
+
         marketService.initialize(market);
         directionService.initialize();
-        paymentMethodService.initialize(market);
-        priceService.initialize(market);
-        amountUseCase.initialize(market);
+        paymentMethodService.initialize();
+        priceService.initialize();
+        amountUseCase.initialize();
 
         stateUpdateHandler.initialize();
 
@@ -173,6 +181,9 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
             updateUserSpecificAmountLimits(market,
                     directionService.getDisplayDirection(),
                     priceService.getPriceQuote());
+            updatePaymentMethodSpecificAmountLimits(marketService.getMarket(),
+                    priceService.getPriceQuote(),
+                    paymentMethodService.getAccountByPaymentMethod());
         }));
         pin(directionService.addDisplayDirectionListener(displayDirection -> {
             updateUserSpecificAmountLimits(marketService.getMarket(),
@@ -184,6 +195,9 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
             updateUserSpecificAmountLimits(marketService.getMarket(),
                     directionService.getDisplayDirection(),
                     priceQuote);
+            updatePaymentMethodSpecificAmountLimits(marketService.getMarket(),
+                    priceService.getPriceQuote(),
+                    paymentMethodService.getAccountByPaymentMethod());
 
             //todo
             stateEngine.applyPriceQuoteChanged(priceQuote);
@@ -212,19 +226,28 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
                                                          PriceQuote priceQuote,
                                                          ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
         if (market != null && priceQuote != null && accountByPaymentMethod != null) {
-            paymentMethodSpecificAmountLimits.update(market, priceQuote, accountByPaymentMethod);
+            // Due to potential race conditions at updates, only update if the market matches
+            if (priceQuote.getMarket().equals(market)) {
+                paymentMethodSpecificAmountLimits.update(market, priceQuote, accountByPaymentMethod);
+            }
         }
     }
 
     private void updateUserSpecificAmountLimits(Market market, Direction displayDirection, PriceQuote priceQuote) {
         if (market != null && displayDirection != null && priceQuote != null) {
-            userSpecificAmountLimits.update(market, displayDirection, priceQuote);
+            // Due to potential race conditions at updates, only update if the market matches
+            if (priceQuote.getMarket().equals(market)) {
+                userSpecificAmountLimits.update(market, displayDirection, priceQuote);
+            }
+
         }
     }
 
     private void updateAbsoluteAmountLimits(Market market, PriceQuote priceQuote) {
-        if (market != null && priceQuote != null) {
-            absoluteAmountLimits.update(market, priceQuote);
+        if (market != null && priceQuote != null) {  // Due to potential race conditions at updates, only update if the market matches
+            if (priceQuote.getMarket().equals(market)) {
+                absoluteAmountLimits.update(market, priceQuote);
+            }
         }
     }
 
@@ -233,6 +256,8 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         super.dispose();
 
         amountLimits.dispose();
+        priceLimits.dispose();
+
         marketService.dispose();
         directionService.dispose();
         paymentMethodService.dispose();
@@ -249,23 +274,23 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
 
-    public void setUseFixPrice(boolean useFixPrice) {
+   /* public void setUseFixPrice(boolean useFixPrice) {
         if (useFixPrice == priceService.getUseFixPrice()) {
             return;
         }
         Market market = checkNotNull(getMarket(), "market must not be null");
         cookieStore.persistUseFixPrice(market, useFixPrice);
         stateEngine.applyUseFixPriceChanged(useFixPrice);
-    }
+    }*/
 
-    public void setPricePercentage(double pricePercentage) {
+  /*  public void setPricePercentage(double pricePercentage) {
         if (Double.compare(pricePercentage, priceService.getPricePercentage()) == 0) {
             return;
         }
         priceService.setPricePercentage(pricePercentage);
         Market market = checkNotNull(getMarket(), "market must not be null");
         cookieStore.persistPricePercentage(market, pricePercentage);
-    }
+    }*/
 
    /* public void setFixPrice(PriceQuote fixPriceQuote) {
         checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");

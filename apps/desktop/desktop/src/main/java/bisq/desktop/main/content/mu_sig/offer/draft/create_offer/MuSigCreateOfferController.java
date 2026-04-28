@@ -116,6 +116,11 @@ public class MuSigCreateOfferController extends NavigationController implements 
     }
 
     @Override
+    public boolean useCaching() {
+        return false;
+    }
+
+    @Override
     public void initWithData(InitData data) {
         Market market = data.getMarket();
 
