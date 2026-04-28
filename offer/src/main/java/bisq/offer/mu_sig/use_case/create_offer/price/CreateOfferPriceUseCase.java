@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.price;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
@@ -33,7 +34,7 @@ import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferPriceUseCase {
+public class CreateOfferPriceUseCase extends UseCase {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferPriceModel model;

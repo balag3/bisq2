@@ -17,6 +17,7 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.direction;
 
+import bisq.common.application.UseCase;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
@@ -28,7 +29,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
-public class CreateOfferDirectionUseCase {
+public class CreateOfferDirectionUseCase extends UseCase {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferDirectionModel model;

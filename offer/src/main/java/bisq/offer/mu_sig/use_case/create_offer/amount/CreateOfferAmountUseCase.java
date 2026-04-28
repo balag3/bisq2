@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.amount;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.MonetaryRange;
@@ -39,7 +40,7 @@ import java.util.Optional;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferAmountUseCase {
+public class CreateOfferAmountUseCase extends UseCase {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
     @Getter(AccessLevel.PACKAGE)
     @Delegate
@@ -113,7 +114,7 @@ public class CreateOfferAmountUseCase {
     }
 
 
-    public  void setFixTradeAmount(TradeAmount tradeAmount) {
+    public void setFixTradeAmount(TradeAmount tradeAmount) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
         model.setFixTradeAmount(valueToSet);
@@ -122,7 +123,7 @@ public class CreateOfferAmountUseCase {
         }
     }
 
-    public  void setMinTradeAmount(TradeAmount tradeAmount) {
+    public void setMinTradeAmount(TradeAmount tradeAmount) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
         model.setMinTradeAmount(valueToSet);
@@ -131,7 +132,7 @@ public class CreateOfferAmountUseCase {
         }
     }
 
-    public  void setMaxTradeAmount(TradeAmount tradeAmount) {
+    public void setMaxTradeAmount(TradeAmount tradeAmount) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
         TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
         model.setMaxTradeAmount(valueToSet);

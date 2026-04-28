@@ -17,6 +17,7 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.market;
 
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -26,7 +27,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
-public class CreateOfferMarketUseCase {
+public class CreateOfferMarketUseCase extends UseCase {
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferMarketModel model;

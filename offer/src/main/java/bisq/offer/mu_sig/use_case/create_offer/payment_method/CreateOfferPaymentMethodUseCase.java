@@ -19,8 +19,8 @@ package bisq.offer.mu_sig.use_case.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
-import bisq.common.observable.Pin;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
@@ -28,7 +28,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,14 +39,13 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferPaymentMethodUseCase {
+public class CreateOfferPaymentMethodUseCase extends UseCase {
     public static final int MAX_NUM_PAYMENT_METHODS = 4;
 
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferPaymentMethodModel model;
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();
-    private final Set<Pin> pins = new HashSet<>();
     private final AccountsProvider accountsProvider;
     private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
 
@@ -62,15 +60,10 @@ public class CreateOfferPaymentMethodUseCase {
         checkNotNull(market, "market must not be null");
 
         // If selectedAccountByPaymentMethod changes we update the payment rail-based trade limit in USD
-        pins.add(model.accountByPaymentMethodObservable().addObserver(() -> {
+        pin(model.accountByPaymentMethodObservable().addObserver(() -> {
             ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = model.getAccountByPaymentMethod();
             paymentMethodSpecificAmountLimits.handleAccountByPaymentMethodChange(accountByPaymentMethod);
         }));
-    }
-
-    public void dispose() {
-        pins.forEach(Pin::unbind);
-        pins.clear();
     }
 
 
