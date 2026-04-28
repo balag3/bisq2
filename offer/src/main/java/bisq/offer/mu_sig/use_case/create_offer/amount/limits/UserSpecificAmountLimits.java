@@ -17,13 +17,68 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
+import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.market.Market;
+import bisq.common.monetary.Fiat;
+import bisq.common.monetary.PriceQuote;
+import bisq.common.monetary.TradeAmount;
+import bisq.common.observable.Observable;
+import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.Direction;
 
+import java.util.Optional;
+
+import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
+import static com.google.common.base.Preconditions.checkNotNull;
+
 public class UserSpecificAmountLimits {
-    public UserSpecificAmountLimits( ) {
+    private static final long USER_SPECIFIC_LIMIT_IN_USD = 4000;
+
+    private final MarketPriceService marketPriceService;
+    protected final Observable<Optional<TradeAmount>> tradeAmountLimit = new Observable<>(Optional.empty());
+
+    public UserSpecificAmountLimits(MarketPriceService marketPriceService) {
+        this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
     }
 
-    public void handleDisplayDirectionChange(Direction displayDirection) {
+    //todo
+    public static Fiat getUserSpecificLimitInUsd() {
+        return Fiat.fromFaceValue(USER_SPECIFIC_LIMIT_IN_USD, "USD");
+    }
 
+
+    /* --------------------------------------------------------------------- */
+    // Update
+    /* --------------------------------------------------------------------- */
+
+    public void update(Market market,
+                       Direction displayDirection,
+                       PriceQuote priceQuote) {
+        checkNotNull(market, "market must not be null");
+        checkNotNull(displayDirection, "displayDirection must not be null");
+        checkNotNull(priceQuote, "priceQuote must not be null");
+
+        Direction offerDirection = Direction.displayDirectionToOfferDirection(displayDirection, market);
+        if (!market.isBtcFiatMarket() || offerDirection.isSell()) {
+            tradeAmountLimit.set(Optional.empty());
+            return;
+        }
+
+        Fiat userSpecificLimitInUsd = getUserSpecificLimitInUsd();
+        TradeAmount limit = toTradeAmountLimit(marketPriceService, market, priceQuote, userSpecificLimitInUsd);
+        tradeAmountLimit.set(Optional.of(limit));
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Getters
+    /* --------------------------------------------------------------------- */
+
+    public ReadOnlyObservable<Optional<TradeAmount>> tradeAmountLimitObservable() {
+        return tradeAmountLimit;
+    }
+
+    public Optional<TradeAmount> getTradeAmountLimit() {
+        return tradeAmountLimit.get();
     }
 }

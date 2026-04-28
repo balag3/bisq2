@@ -111,24 +111,27 @@ public class TradeAmountLimitsTest {
     }
 
     @Test
-    public void testGetClampLimits_UserLimitBelowProtocolMin_Throws() {
+    public void testGetClampLimits_UserLimitBelowProtocolMin_ClampsToMin() {
         TradeAmount min = new TradeAmount(Coin.asBtcFromFaceValue(1.0), Fiat.fromFaceValue(100.0, "USD"));
         TradeAmount max = new TradeAmount(Coin.asBtcFromFaceValue(10.0), Fiat.fromFaceValue(1000.0, "USD"));
         TradeAmountRange protocolLimits = new TradeAmountRange(min, max);
 
         TradeAmount userLimitBelowProtocol = new TradeAmount(Coin.asBtcFromFaceValue(0.5), Fiat.fromFaceValue(50.0, "USD"));
-        assertThrows(IllegalArgumentException.class,
-                () -> TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true));
+        TradeAmountRange clampedLimits = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true);
+
+        assertEquals(min, clampedLimits.getMin());
+        assertEquals(min, clampedLimits.getMax());
     }
 
     @Test
-    public void testGetClampLimits_SameMinMax_UserLimitBelowThrows_SameAndAboveUseRangeValue() {
+    public void testGetClampLimits_SameMinMax_UserLimitBelowSameAndAboveUseRangeValue() {
         TradeAmount fixedAmount = new TradeAmount(Coin.asBtcFromFaceValue(1.0), Fiat.fromFaceValue(100.0, "USD"));
         TradeAmountRange protocolLimits = new TradeAmountRange(fixedAmount, fixedAmount);
 
         TradeAmount userLimitBelowProtocol = new TradeAmount(Coin.asBtcFromFaceValue(0.5), Fiat.fromFaceValue(50.0, "USD"));
-        assertThrows(IllegalArgumentException.class,
-                () -> TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true));
+        TradeAmountRange belowLimitResult = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(userLimitBelowProtocol), true);
+        assertEquals(fixedAmount, belowLimitResult.getMin());
+        assertEquals(fixedAmount, belowLimitResult.getMax());
 
         TradeAmountRange sameLimitResult = TradeAmountLimits.getClampLimits(protocolLimits, Optional.of(fixedAmount), true);
         assertEquals(fixedAmount, sameLimitResult.getMin());

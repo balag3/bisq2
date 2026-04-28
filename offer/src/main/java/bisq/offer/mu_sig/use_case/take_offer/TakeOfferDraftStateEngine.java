@@ -189,7 +189,7 @@ public class TakeOfferDraftStateEngine {
         // Initially, the selected payment rail is null, and we use the MAX_TRADE_AMOUNT_IN_USD
         PaymentRail selectedPaymentRail = getSelectedPaymentRail();
         return selectedPaymentRail != null
-                ? PaymentMethodBasedAmountLimits.evaluateLimit(selectedPaymentRail)
+                ? PaymentMethodBasedAmountLimits.evaluateLimitInUsd(selectedPaymentRail)
                 : AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
     }
 

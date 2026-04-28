@@ -33,12 +33,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
 public class TradeAmountLimits {
-    public static long USER_SPECIFIC_LIMIT_IN_USD = 4000;
-
-    //todo
-    public static Fiat getUserSpecificLimitInUsdAmount() {
-        return Fiat.fromFaceValue(USER_SPECIFIC_LIMIT_IN_USD, "USD");
-    }
 
     public static TradeAmountRange toTradeAmountLimits(Market market,
                                                        PriceQuote priceQuote,
@@ -141,18 +135,6 @@ public class TradeAmountLimits {
         if (includeUserSpecificTradeAmountLimit) {
             if (userSpecificTradeAmountLimit.isEmpty()) {
                 return tradeAmountLimits;
-            } else {
-                TradeAmount userSpecificLimit = userSpecificTradeAmountLimit.get();
-                int comparison = userSpecificLimit.compareToRange(tradeAmountLimits);
-                if (comparison < 0) {
-                    throw new IllegalArgumentException(
-                            String.format(
-                                    "User-specific trade amount limit is below the allowed range. userSpecificLimit=%s, tradeAmountLimits=%s",
-                                    userSpecificLimit,
-                                    tradeAmountLimits
-                            )
-                    );
-                }
             }
             return userSpecificTradeAmountLimit
                     .map(tradeAmount -> clampTradeAmount(tradeAmountLimits, tradeAmount))

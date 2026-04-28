@@ -193,7 +193,7 @@ public class MuSigTakeOfferAmountController implements Controller {
     private void applyTradeAmountLimitsInUsd() {
         PaymentMethodSpec<?> takersPaymentMethodSpec = model.getTakersPaymentMethodSpec();
         if (takersPaymentMethodSpec != null) {
-            Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(takersPaymentMethodSpec.getPaymentMethod().getPaymentRail());
+            Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(takersPaymentMethodSpec.getPaymentMethod().getPaymentRail());
             MonetaryRange tradeAmountLimitsInUsd = new MonetaryRange(AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD, maxTradeLimitInUsd);
             amountSelectionController.setTradeAmountLimitsInUsd(tradeAmountLimitsInUsd);
         }

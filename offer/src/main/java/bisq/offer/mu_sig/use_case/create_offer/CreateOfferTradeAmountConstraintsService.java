@@ -28,6 +28,7 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 
 import java.util.Optional;
 
@@ -72,15 +73,19 @@ class CreateOfferTradeAmountConstraintsService {
                 minTradeAmountInUsd,
                 paymentRailBasedTradeLimitInUsd);
 
-        if (direction.isSell()) {
+        if (!isUserSpecificTradeAmountLimitApplicable(market, direction)) {
             return new TradeAmountConstraints(tradeAmountLimits, Optional.empty());
-        } else {
-            TradeAmount userSpecificTradeAmountLimit = TradeAmountLimits.toUserSpecificTradeAmountLimit(market,
-                    offerPriceQuote,
-                    btcUsdPriceQuote,
-                    marketPriceQuote,
-                    TradeAmountLimits.getUserSpecificLimitInUsdAmount());
-            return new TradeAmountConstraints(tradeAmountLimits, Optional.of(userSpecificTradeAmountLimit));
         }
+
+        TradeAmount userSpecificTradeAmountLimit = TradeAmountLimits.toUserSpecificTradeAmountLimit(market,
+                offerPriceQuote,
+                btcUsdPriceQuote,
+                marketPriceQuote,
+                UserSpecificAmountLimits.getUserSpecificLimitInUsd());
+        return new TradeAmountConstraints(tradeAmountLimits, Optional.of(userSpecificTradeAmountLimit));
+    }
+
+    private static boolean isUserSpecificTradeAmountLimitApplicable(Market market, Direction offerDirection) {
+        return market.isBtcFiatMarket() && offerDirection.isBuy();
     }
 }

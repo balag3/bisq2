@@ -163,7 +163,7 @@ public abstract class AccountDetails<A extends Account<?, ?>, R extends PaymentR
 
     protected Label addTradeLimitInfo() {
         PaymentRail paymentRail = account.getPaymentMethod().getPaymentRail();
-        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
+        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
         String maxTradeLimit = AmountFormatter.formatQuoteAmount(maxTradeLimitInUsd);
         return addDescriptionAndValue(Res.get("paymentAccounts.tradeLimit"), maxTradeLimit);
     }

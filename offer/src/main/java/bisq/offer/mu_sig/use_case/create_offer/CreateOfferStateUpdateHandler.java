@@ -72,7 +72,7 @@ public class CreateOfferStateUpdateHandler {
                 tradeAmountConstraintsService.compute(marketService.getMarket(),
                         directionService.getDisplayDirection(),
                         priceService.getPriceQuote(),
-                        paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
+                        paymentMethodSpecificAmountLimits.getAmountLimitInUsd());
             }
         });
         marketService.marketObservable().addObserver(market -> {
@@ -81,7 +81,7 @@ public class CreateOfferStateUpdateHandler {
             }
         });
 
-        pins.add(paymentMethodSpecificAmountLimits.paymentRailBasedTradeLimitInUsdObservable().addObserver(paymentRailBasedTradeLimitInUsd -> {
+        pins.add(paymentMethodSpecificAmountLimits.amountLimitInUsdObservable().addObserver(paymentRailBasedTradeLimitInUsd -> {
             if (!paymentRailObserverInitialized) {
                 paymentRailObserverInitialized = true;
                 return;

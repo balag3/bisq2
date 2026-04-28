@@ -115,7 +115,7 @@ public class PaymentMethodSelectionService {
         return selectedAccountByPaymentMethod.values().stream()
                 .map(Account::getPaymentMethod)
                 .map(PaymentMethod::getPaymentRail)
-                .min(Comparator.comparing(PaymentMethodBasedAmountLimits::evaluateLimit))
+                .min(Comparator.comparing(PaymentMethodBasedAmountLimits::evaluateLimitInUsd))
                 .orElse(null);
     }
 

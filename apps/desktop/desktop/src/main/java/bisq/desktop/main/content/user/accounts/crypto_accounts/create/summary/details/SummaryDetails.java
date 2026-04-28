@@ -80,7 +80,7 @@ public class SummaryDetails<P extends CryptoAssetAccountPayload> extends GridPan
 
     protected void addRestrictions(P accountPayload) {
         CryptoPaymentRail paymentRail = accountPayload.getPaymentMethod().getPaymentRail();
-        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
+        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
         String tradeLimit = AmountFormatter.formatQuoteAmount(maxTradeLimitInUsd);
         String restrictions = Res.get("paymentAccounts.summary.tradeLimit", tradeLimit) + " / " +
                 Res.get("paymentAccounts.summary.tradeDuration", paymentRail.getTradeDuration().getDisplayString());

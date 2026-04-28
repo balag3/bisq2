@@ -21,6 +21,7 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
+import bisq.common.observable.Pin;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -31,6 +32,9 @@ import lombok.Getter;
 import lombok.experimental.Delegate;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -40,6 +44,7 @@ public class CreateOfferPriceUseCase extends UseCase {
     private final CreateOfferPriceModel model;
     private final MarketPriceService marketPriceService;
     private final CreateOfferDraftCookieStore cookieStore;
+    private final Set<Consumer<PriceQuote>> listeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferPriceUseCase(MarketPriceService marketPriceService, CreateOfferDraftCookieStore cookieStore) {
         this.marketPriceService = marketPriceService;
@@ -55,7 +60,34 @@ public class CreateOfferPriceUseCase extends UseCase {
         setPricePercentage(pricePercentage);
 
         PriceQuote priceQuote = fromMarketChange(market);
-        setPriceQuote(priceQuote);
+        applyPriceQuote(priceQuote, false);
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // User input
+    /* --------------------------------------------------------------------- */
+
+
+    private void applyPriceQuote(PriceQuote priceQuote, boolean notifyListeners) {
+        if (priceQuote != model.getPriceQuote()) {
+            model.onSetPriceQuote(priceQuote);
+            if (notifyListeners) {
+                listeners.forEach(listener -> listener.accept(priceQuote));
+            }
+        }
+    }
+
+    public void setPriceQuote(PriceQuote priceQuote) {
+        applyPriceQuote(priceQuote, true);
+    }
+
+    public void setPriceQuoteFromMarketChange(PriceQuote priceQuote) {
+        applyPriceQuote(priceQuote, false);
+    }
+
+    public void setUseFixPrice(boolean useFixPrice) {
+        model.setUseFixPrice(useFixPrice);
     }
 
     public PriceQuote fromMarketChange(Market market) {
@@ -74,14 +106,6 @@ public class CreateOfferPriceUseCase extends UseCase {
             // cookieStore.persistPricePercentage(market, pricePercentage);
             return marketPriceQuote;
         }
-    }
-
-    public void setPriceQuote(PriceQuote priceQuote) {
-        model.setPriceQuote(priceQuote);
-    }
-
-    public void setUseFixPrice(boolean useFixPrice) {
-        model.setUseFixPrice(useFixPrice);
     }
 
     public void applyUseFixPriceChanged(boolean useFixPrice) {
@@ -105,5 +129,10 @@ public class CreateOfferPriceUseCase extends UseCase {
             return new MarketPriceSpec();
         }
         return new FloatPriceSpec(pricePercentage);
+    }
+
+    public Pin addPriceQuoteListener(Consumer<PriceQuote> listener) {
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
     }
 }

@@ -17,13 +17,60 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
+import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
+import bisq.common.monetary.PriceQuote;
+import bisq.common.monetary.TradeAmount;
+import bisq.common.monetary.TradeAmountRange;
+import bisq.common.observable.Observable;
+import bisq.common.observable.ReadOnlyObservable;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 public class AbsoluteAmountLimits {
-
     public static final Fiat MIN_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10, "USD");
     public static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
 
-    public AbsoluteAmountLimits() {
+    protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
+
+    private final MarketPriceService marketPriceService;
+
+    public AbsoluteAmountLimits(MarketPriceService marketPriceService) {
+        checkNotNull(marketPriceService, "marketPriceService must not be null");
+        this.marketPriceService = marketPriceService;
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Update
+    /* --------------------------------------------------------------------- */
+
+    public void update(Market market,
+                       PriceQuote priceQuote) {
+        checkNotNull(market, "market must not be null");
+        checkNotNull(priceQuote, "priceQuote must not be null");
+
+        TradeAmount minTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
+                market,
+                priceQuote,
+                MIN_TRADE_AMOUNT_IN_USD);
+        TradeAmount maxTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
+                market,
+                priceQuote,
+                MAX_TRADE_AMOUNT_IN_USD);
+        tradeAmountLimits.set(new TradeAmountRange(minTradeAmount, maxTradeAmount));
+    }
+
+    /* --------------------------------------------------------------------- */
+    // Getters
+    /* --------------------------------------------------------------------- */
+
+    public ReadOnlyObservable<TradeAmountRange> amountLimitsObservable() {
+        return tradeAmountLimits;
+    }
+
+    public TradeAmountRange getAmountLimits() {
+        return tradeAmountLimits.get();
     }
 }

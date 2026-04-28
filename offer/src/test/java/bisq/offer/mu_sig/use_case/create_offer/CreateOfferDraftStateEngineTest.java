@@ -80,13 +80,13 @@ public class CreateOfferDraftStateEngineTest {
 
         AmountMappingService amountMappingService = new AmountMappingService();
 
-        AbsoluteAmountLimits absoluteAmountLimits = new AbsoluteAmountLimits();
-        PaymentMethodBasedAmountLimits  paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits();
-        UserSpecificAmountLimits  userSpecificAmountLimits = new UserSpecificAmountLimits();
-        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
+        AbsoluteAmountLimits absoluteAmountLimits = new AbsoluteAmountLimits(marketPriceService);
+        PaymentMethodBasedAmountLimits  paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits(marketPriceService);
+        UserSpecificAmountLimits  userSpecificAmountLimits = new UserSpecificAmountLimits(marketPriceService);
+        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits);
 
         marketService = new CreateOfferMarketUseCase();
-        directionService = new CreateOfferDirectionUseCase(cookieStore, userSpecificAmountLimits);
+        directionService = new CreateOfferDirectionUseCase(cookieStore);
         priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
         amountService = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountLimits, amountMappingService);
         paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of(), paymentMethodSpecificAmountLimits);

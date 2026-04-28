@@ -34,7 +34,7 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
     // priceQuote
     /* --------------------------------------------------------------------- */
 
-    void setPriceQuote(PriceQuote priceQuote) {
+    void onSetPriceQuote(PriceQuote priceQuote) {
         this.priceQuote.set(priceQuote);
     }
 
@@ -47,6 +47,7 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
     public PriceQuote getPriceQuote() {
         return priceQuote.get();
     }
+    
 
     /* --------------------------------------------------------------------- */
     // useFixPrice

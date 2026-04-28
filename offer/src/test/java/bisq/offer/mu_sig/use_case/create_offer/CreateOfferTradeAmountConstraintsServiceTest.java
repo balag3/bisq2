@@ -15,8 +15,8 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
-import bisq.offer.mu_sig.use_case.TradeAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -35,14 +35,14 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         PaymentRail paymentRail = FiatPaymentRail.ACH_TRANSFER;
-        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
+        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.BUY,
                 offerPriceQuote,
                 paymentRailBasedTradeLimitInUsd);
 
         assertEquals(Fiat.fromFaceValue(5000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
-        assertEquals(Fiat.fromFaceValue(TradeAmountLimits.USER_SPECIFIC_LIMIT_IN_USD, "USD"),
+        assertEquals(Fiat.fromValue(UserSpecificAmountLimits.getUserSpecificLimitInUsd().getValue(), "USD"),
                 constraints.userSpecificTradeAmountLimit().orElseThrow().getQuoteSideAmount());
     }
 
@@ -55,7 +55,7 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         PaymentRail paymentRail = null;
-        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
+        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.SELL,
                 offerPriceQuote,
@@ -70,6 +70,21 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
                 null);*/
 
         assertEquals(Fiat.fromFaceValue(10000, "USD"), constraints.tradeAmountLimits().getMax().getQuoteSideAmount());
+        assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());
+    }
+
+    @Test
+    public void computeDoesNotApplyUserSpecificLimitForAltcoinBitcoinMarket() {
+        Market market = MarketRepository.getXmrBtcMarket();
+        PriceQuote offerPriceQuote = PriceQuote.fromPrice(0.005, "XMR", "BTC");
+        MockMarketPriceService marketPriceService = new MockMarketPriceService(PriceQuote.fromFiatPrice(50000, "USD"));
+        CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
+
+        TradeAmountConstraints constraints = service.compute(market,
+                Direction.BUY,
+                offerPriceQuote,
+                PaymentMethodBasedAmountLimits.evaluateLimitInUsd((PaymentRail) null));
+
         assertTrue(constraints.userSpecificTradeAmountLimit().isEmpty());
     }
 

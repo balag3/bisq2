@@ -154,7 +154,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
+            priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -220,7 +220,7 @@ public class MuSigPriceInput {
                 PriceQuote priceQuote = PriceParser.parse(price, draftOfferService.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
+                priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
             } catch (Throwable ignore) {
                 priceUseCase.map(CreateOfferPriceUseCase::getPriceQuote)
                         .ifPresent(this::onQuoteChanged);
@@ -247,7 +247,7 @@ public class MuSigPriceInput {
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
+                        priceUseCase.ifPresent(priceUseCase -> priceUseCase.setPriceQuote(priceQuote));
                     });
         }
     }

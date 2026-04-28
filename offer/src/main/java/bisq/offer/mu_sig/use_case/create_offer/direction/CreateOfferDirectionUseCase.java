@@ -18,8 +18,8 @@
 package bisq.offer.mu_sig.use_case.create_offer.direction;
 
 import bisq.common.application.UseCase;
+import bisq.common.observable.Pin;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -34,13 +34,10 @@ public class CreateOfferDirectionUseCase extends UseCase {
     @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
-    private final UserSpecificAmountLimits userSpecificAmountLimits;
-    private final Set<Consumer<Direction>> displayDirectionListeners = new CopyOnWriteArraySet<>();
+    private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
 
-    public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore,
-                                       UserSpecificAmountLimits userSpecificAmountLimits) {
+    public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore) {
         this.cookieStore = cookieStore;
-        this.userSpecificAmountLimits = userSpecificAmountLimits;
         this.model = new CreateOfferDirectionModel();
     }
 
@@ -62,18 +59,14 @@ public class CreateOfferDirectionUseCase extends UseCase {
         if (displayDirection != model.getDisplayDirection()) {
             model.setDisplayDirection(displayDirection);
             cookieStore.persistDisplayDirection(displayDirection);
-            userSpecificAmountLimits.handleDisplayDirectionChange(displayDirection);
             if (notifyListeners) {
-                displayDirectionListeners.forEach(listener -> listener.accept(displayDirection));
+                listeners.forEach(listener -> listener.accept(displayDirection));
             }
         }
     }
 
-    public void addDisplayDirectionListener(Consumer<Direction> listener) {
-        displayDirectionListeners.add(listener);
-    }
-
-    public void removeDisplayDirectionListener(Consumer<Direction> listener) {
-        displayDirectionListeners.remove(listener);
+    public Pin addDisplayDirectionListener(Consumer<Direction> listener) {
+        listeners.add(listener);
+        return () -> listeners.remove(listener);
     }
 }

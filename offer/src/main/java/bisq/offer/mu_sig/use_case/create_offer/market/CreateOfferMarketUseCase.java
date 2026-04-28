@@ -19,6 +19,7 @@ package bisq.offer.mu_sig.use_case.create_offer.market;
 
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
+import bisq.common.observable.Pin;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -61,11 +62,8 @@ public class CreateOfferMarketUseCase extends UseCase {
         }
     }
 
-    public void addListener(Consumer<Market> listener) {
+    public Pin addMarketListener(Consumer<Market> listener) {
         listeners.add(listener);
-    }
-
-    public void removeListener(Consumer<Market> listener) {
-        listeners.remove(listener);
+        return () -> listeners.remove(listener);
     }
 }

@@ -91,29 +91,28 @@ public class CreateOfferDraftStateEngine {
     /* --------------------------------------------------------------------- */
 
     void initialize() {
-        marketService.addListener(this::onMarketChanged);
+        marketService.addMarketListener(this::onMarketChanged);
         directionService.addDisplayDirectionListener(this::onDirectionChanged);
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDisplayDirection();
+        Direction offerDirection = getOfferDirection(market);
         PriceQuote priceQuote = priceService.getPriceQuote();
 
-        Fiat paymentRailBasedTradeLimitInUsd = paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd();
+        Fiat paymentRailBasedTradeLimitInUsd = paymentMethodSpecificAmountLimits.getAmountLimitInUsd();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(
                 market,
-                direction,
+                offerDirection,
                 priceQuote,
                 paymentRailBasedTradeLimitInUsd);
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         amountService.clampCurrentTradeAmounts(true);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(offerDirection, amountService.getUserSpecificTradeAmountLimit());
         amountService.updateAmountSliderValues();
     }
 
     void dispose() {
-        directionService.removeDisplayDirectionListener(this::onDirectionChanged);
     }
 
     // Impact on:
@@ -134,16 +133,16 @@ public class CreateOfferDraftStateEngine {
             recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }*/
 
-        Direction direction = directionService.getDisplayDirection();
+        Direction offerDirection = getOfferDirection(market);
 
         // At new market we use market price as default offer price
         PriceQuote offerPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        priceService.setPriceQuote(offerPriceQuote);
+        priceService.setPriceQuoteFromMarketChange(offerPriceQuote);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
+                offerDirection,
                 offerPriceQuote,
-                paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
+                paymentMethodSpecificAmountLimits.getAmountLimitInUsd());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, defaultTradeAmountInUsd);
@@ -152,7 +151,7 @@ public class CreateOfferDraftStateEngine {
         amountService.setMinTradeAmount(clampedDefaultTradeAmount);
         amountService.setMaxTradeAmount(clampedDefaultTradeAmount);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(offerDirection, amountService.getUserSpecificTradeAmountLimit());
         amountService.updateAmountSliderValues();
     }
 
@@ -166,14 +165,15 @@ public class CreateOfferDraftStateEngine {
         }
 
         Market market = marketService.getMarket();
+        Direction offerDirection = Direction.displayDirectionToOfferDirection(direction, market);
         PriceQuote offerPriceQuote = priceService.getPriceQuote();
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
+                offerDirection,
                 offerPriceQuote,
-                paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
+                paymentMethodSpecificAmountLimits.getAmountLimitInUsd());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(offerDirection, amountService.getUserSpecificTradeAmountLimit());
         amountService.updateAmountSliderValues();
         return true;
     }
@@ -184,7 +184,7 @@ public class CreateOfferDraftStateEngine {
 
     void applyPriceQuoteChanged(PriceQuote priceQuote) {
         checkNotNull(priceQuote, "priceQuote must not be null");
-        priceService.setPriceQuote(priceQuote);
+
         if (!hasPricingContext()) {
             return;
         }
@@ -192,16 +192,16 @@ public class CreateOfferDraftStateEngine {
         applyUseFixPriceChanged(priceService.getUseFixPrice());
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDisplayDirection();
+        Direction offerDirection = getOfferDirection(market);
         TradeAmount fixTradeAmount = amountService.getFixTradeAmount();
         TradeAmount minTradeAmount = amountService.getMinTradeAmount();
         TradeAmount maxTradeAmount = amountService.getMaxTradeAmount();
         TradeAmountRange oldClampLimits = amountService.getClampLimits(true);
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
+                offerDirection,
                 priceQuote,
-                paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
+                paymentMethodSpecificAmountLimits.getAmountLimitInUsd());
         applyTradeAmountConstraints(tradeAmountConstraints);
 
         TradeAmountRange newClampLimits = amountService.getClampLimits(true);
@@ -215,7 +215,7 @@ public class CreateOfferDraftStateEngine {
             amountService.setMaxTradeAmount(toUpdatedPassiveAmount(market, priceQuote, maxTradeAmount, oldClampLimits, newClampLimits));
         }
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(offerDirection, amountService.getUserSpecificTradeAmountLimit());
         amountService.updateAmountSliderValues();
     }
 
@@ -252,17 +252,17 @@ public class CreateOfferDraftStateEngine {
         }
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDisplayDirection();
+        Direction offerDirection = getOfferDirection(market);
         PriceQuote offerPriceQuote = priceService.getPriceQuote();
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
-                direction,
+                offerDirection,
                 offerPriceQuote,
-                paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
+                paymentMethodSpecificAmountLimits.getAmountLimitInUsd());
         applyTradeAmountConstraints(tradeAmountConstraints);
         amountService.clampCurrentTradeAmounts(true);
 
-        updateUserSpecificTradeAmountLimitAsSliderValue(direction, amountService.getUserSpecificTradeAmountLimit());
+        updateUserSpecificTradeAmountLimitAsSliderValue(offerDirection, amountService.getUserSpecificTradeAmountLimit());
         amountService.updateAmountSliderValues();
     }
 
@@ -310,6 +310,11 @@ public class CreateOfferDraftStateEngine {
         return marketService.getMarket() != null
                 && priceService.getPriceQuote() != null
                 && amountService.isDerivedStateInitialized();
+    }
+
+    private Direction getOfferDirection(Market market) {
+        Direction displayDirection = checkNotNull(directionService.getDisplayDirection(), "displayDirection must not be null");
+        return Direction.displayDirectionToOfferDirection(displayDirection, market);
     }
 
     private void applyTradeAmountConstraints(TradeAmountConstraints tradeAmountConstraints) {

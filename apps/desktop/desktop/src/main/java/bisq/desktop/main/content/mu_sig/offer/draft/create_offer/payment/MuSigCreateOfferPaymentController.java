@@ -280,7 +280,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         boolean isSinglePaymentMethod = selectedPaymentMethods.size() == 1;
         selectedPaymentMethods.stream()
                 .map(paymentMethod -> new Pair<>(paymentMethod.getDisplayString(),
-                        PaymentMethodBasedAmountLimits.evaluateLimit(paymentMethod.getPaymentRail())))
+                        PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentMethod.getPaymentRail())))
                 .min(Comparator.comparing(Pair::getSecond))
                 .ifPresentOrElse(pair -> {
                             String formatted = AmountFormatter.formatQuoteAmountWithCode(pair.getSecond());

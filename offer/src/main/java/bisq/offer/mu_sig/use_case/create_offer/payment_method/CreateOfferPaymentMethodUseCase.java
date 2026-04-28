@@ -21,7 +21,6 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
@@ -47,23 +46,14 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     private final CreateOfferPaymentMethodModel model;
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();
     private final AccountsProvider accountsProvider;
-    private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
 
-    public CreateOfferPaymentMethodUseCase(AccountsProvider accountsProvider,
-                                           PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits) {
+    public CreateOfferPaymentMethodUseCase(AccountsProvider accountsProvider) {
         this.accountsProvider = accountsProvider;
-        this.paymentMethodSpecificAmountLimits = paymentMethodSpecificAmountLimits;
         this.model = new CreateOfferPaymentMethodModel();
     }
 
     public void initialize(Market market) {
         checkNotNull(market, "market must not be null");
-
-        // If selectedAccountByPaymentMethod changes we update the payment rail-based trade limit in USD
-        pin(model.accountByPaymentMethodObservable().addObserver(() -> {
-            ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = model.getAccountByPaymentMethod();
-            paymentMethodSpecificAmountLimits.handleAccountByPaymentMethodChange(accountByPaymentMethod);
-        }));
     }
 
 

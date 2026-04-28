@@ -136,7 +136,7 @@ public class CreateOfferServiceTest {
         createOfferUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
 
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
-        createOfferUseCase.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
+        priceUseCase.setPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
         TradeAmount fixTradeAmountAfter = amountUseCase.getFixTradeAmount();
 
         assertEquals(fixTradeAmountBefore.getQuoteSideAmount(), fixTradeAmountAfter.getQuoteSideAmount());
@@ -211,7 +211,7 @@ public class CreateOfferServiceTest {
         createOfferUseCase.initialize(usdBtcMarket);
         int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
-        createOfferUseCase.setPriceQuote(priceUseCase.getPriceQuote());
+        priceUseCase.setPriceQuote(priceUseCase.getPriceQuote());
 
         assertEquals(recalculationCountBefore, marketPriceService.btcUsdPriceQuoteRequests);
     }
