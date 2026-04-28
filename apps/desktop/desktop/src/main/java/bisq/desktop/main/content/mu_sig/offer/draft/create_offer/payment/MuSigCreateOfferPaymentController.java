@@ -54,10 +54,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService.MAX_NUM_PAYMENT_METHODS;
+
 @Slf4j
 public class MuSigCreateOfferPaymentController implements Controller {
-    private static final int MAX_NUM_PAYMENT_METHODS = 4;
-
     private final MuSigCreateOfferPaymentModel model;
     @Getter
     private final MuSigCreateOfferPaymentView view;

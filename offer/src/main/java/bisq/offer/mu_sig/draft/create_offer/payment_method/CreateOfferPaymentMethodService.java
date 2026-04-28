@@ -44,6 +44,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class CreateOfferPaymentMethodService {
+    public static final int MAX_NUM_PAYMENT_METHODS = 4;
+
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferPaymentMethodModel model;

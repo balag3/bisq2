@@ -35,7 +35,7 @@ The user can select one or more payment methods.
 * If exactly one account exists for a payment method no dropdown is displayed.
 * If the user has exactly one payment method with one account, it is preselected.
 
-The user can select up to **5 payment methods**.
+The user can select up to **4 payment methods** (as defined in CreateOfferPaymentMethodService.MAX_NUM_PAYMENT_METHODS).
 
 Payment method selection impacts the **user-specific trade amount limits** in case of Fiat markets.
 
