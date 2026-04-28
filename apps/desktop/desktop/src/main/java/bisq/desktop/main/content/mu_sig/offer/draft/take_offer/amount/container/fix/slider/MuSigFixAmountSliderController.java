@@ -21,8 +21,8 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
-import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,12 +36,12 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final TakeOfferService takeOfferService;
+    private final TakeOfferUseCase takeOfferService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(TakeOfferService takeOfferService) {
+    public MuSigFixAmountSliderController(TakeOfferUseCase takeOfferService) {
         this.takeOfferService = takeOfferService;
         takeOfferAmountService = takeOfferService.getAmountService();
         model = new MuSigFixAmountSliderModel();

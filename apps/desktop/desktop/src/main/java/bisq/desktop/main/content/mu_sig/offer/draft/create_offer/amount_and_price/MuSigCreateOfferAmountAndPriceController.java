@@ -23,8 +23,8 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.price.MuSigCreateOfferPriceController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
@@ -40,22 +40,22 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountAndPriceView view;
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
-    private final CreateOfferService createOfferService;
-    private final CreateOfferDirectionService directionService;
+    private final CreateOfferUseCase createOfferUseCase;
+    private final CreateOfferDirectionUseCase directionUseCase;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
-                                                    CreateOfferService createOfferService,
+                                                    CreateOfferUseCase createOfferUseCase,
                                                     Region owner,
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferService = createOfferService;
-        directionService = createOfferService.getDirectionService();
-        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferService,
+        this.createOfferUseCase = createOfferUseCase;
+        directionUseCase = createOfferUseCase.getDirectionService();
+        muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferUseCase,
                 owner,
                 navigationButtonsVisibleHandler,
                 closeAndNavigateToHandler);
         muSigCreateOfferPriceController = new MuSigCreateOfferPriceController(serviceProvider,
-                createOfferService,
+                createOfferUseCase,
                 owner,
                 navigationButtonsVisibleHandler);
 
@@ -103,8 +103,8 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     }
 
     private String getHeadline() {
-        String baseCurrencyCode = createOfferService.getMarket().getBaseCurrencyCode();
-        return directionService.getDisplayDirection().isBuy()
+        String baseCurrencyCode = createOfferUseCase.getMarket().getBaseCurrencyCode();
+        return directionUseCase.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

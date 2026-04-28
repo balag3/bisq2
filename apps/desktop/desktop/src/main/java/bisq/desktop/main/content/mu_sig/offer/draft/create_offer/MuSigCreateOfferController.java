@@ -33,9 +33,9 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.review.MuSigCre
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
 import lombok.EqualsAndHashCode;
@@ -63,9 +63,9 @@ public class MuSigCreateOfferController extends NavigationController implements 
     }
 
     private final ServiceProvider serviceProvider;
-    private final CreateOfferService createOfferService;
-    private final CreateOfferMarketService marketService;
-    private final CreateOfferPaymentMethodService paymentMethodService;
+    private final CreateOfferUseCase createOfferUseCase;
+    private final CreateOfferMarketUseCase marketService;
+    private final CreateOfferPaymentMethodUseCase paymentMethodService;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -82,12 +82,12 @@ public class MuSigCreateOfferController extends NavigationController implements 
         super(NavigationTarget.MU_SIG_CREATE_OFFER);
 
         this.serviceProvider = serviceProvider;
-        createOfferService = new CreateOfferService(
+        createOfferUseCase = new CreateOfferUseCase(
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        paymentMethodService = createOfferService.getPaymentMethodService();
-        marketService = createOfferService.getMarketService();
+        paymentMethodService = createOfferUseCase.getPaymentMethodService();
+        marketService = createOfferUseCase.getMarketService();
         overlayController = OverlayController.getInstance();
 
         List<NavigationTarget> targets = new ArrayList<>(List.of(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET));
@@ -98,18 +98,18 @@ public class MuSigCreateOfferController extends NavigationController implements 
         model = new MuSigCreateOfferModel(targets);
         view = new MuSigCreateOfferView(model, this);
 
-        muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferService, this::onNext);
+        muSigCreateOfferDirectionAndMarketController = new MuSigCreateOfferDirectionAndMarketController(serviceProvider, createOfferUseCase, this::onNext);
         muSigCreateOfferPaymentController = new MuSigCreateOfferPaymentController(serviceProvider,
-                createOfferService,
+                createOfferUseCase,
                 view.getRoot(),
                 this::setMainButtonsVisibleState);
         muSigCreateOfferAmountAndPriceController = new MuSigCreateOfferAmountAndPriceController(serviceProvider,
-                createOfferService,
+                createOfferUseCase,
                 view.getRoot(),
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
-                createOfferService,
+                createOfferUseCase,
                 paymentMethodService,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
@@ -119,7 +119,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
     public void initWithData(InitData data) {
         Market market = data.getMarket();
 
-        createOfferService.initialize(market);
+        createOfferUseCase.initialize(market);
     }
 
     @Override
@@ -142,7 +142,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     @Override
     public void onDeactivate() {
-        createOfferService.dispose();
+        createOfferUseCase.dispose();
         pins.forEach(Pin::unbind);
         pins.clear();
         overlayController.setUseEscapeKeyHandler(true);

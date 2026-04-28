@@ -32,7 +32,7 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.components.MuSigPriceInput;
 import bisq.i18n.Res;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.draft.DraftOfferService;
+import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
 import bisq.presentation.formatters.AmountFormatter;
 import bisq.settings.CookieKey;
 import bisq.settings.SettingsService;
@@ -72,7 +72,7 @@ public class MuSigAmountSelectionController implements Controller {
     private final Set<UIScheduler> schedulers = new HashSet<>();
     private final SettingsService settingsService;
 
-    public MuSigAmountSelectionController(ServiceProvider serviceProvider, DraftOfferService draftOfferService) {
+    public MuSigAmountSelectionController(ServiceProvider serviceProvider, DraftOfferUseCase draftOfferService) {
         settingsService = serviceProvider.getSettingsService();
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
 

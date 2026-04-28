@@ -26,9 +26,9 @@ import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.components.controls.validator.NumberValidator;
 import bisq.desktop.main.content.bisq_easy.BisqEasyViewUtils;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
-import bisq.offer.mu_sig.draft.DraftOfferService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
 import bisq.presentation.formatters.PriceFormatter;
 import bisq.presentation.parser.PriceParser;
 import javafx.beans.property.BooleanProperty;
@@ -57,7 +57,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class MuSigPriceInput {
     private final Controller controller;
 
-    public MuSigPriceInput(MarketPriceService marketPriceService, DraftOfferService draftOfferService) {
+    public MuSigPriceInput(MarketPriceService marketPriceService, DraftOfferUseCase draftOfferService) {
         controller = new Controller(marketPriceService, draftOfferService);
     }
 
@@ -128,24 +128,24 @@ public class MuSigPriceInput {
         private final Model model;
         @Getter
         private final View view;
-        private final DraftOfferService draftOfferService;
-        private final Optional<CreateOfferService> createOfferService;
-        private final Optional<CreateOfferPriceService> createOfferPriceService;
+        private final DraftOfferUseCase draftOfferService;
+        private final Optional<CreateOfferUseCase> createOfferUseCase;
+        private final Optional<CreateOfferPriceUseCase> priceUseCase;
         private final MarketPriceService marketPriceService;
         private final NumberValidator validator = new NumberValidator(Res.get("muSig.offer.create.price.warn.invalidPrice.numberFormatException"));
         private Pin marketPricePin;
         private final Set<Subscription> subscriptions = new HashSet<>();
         private final Set<Pin> pins = new HashSet<>();
 
-        private Controller(MarketPriceService marketPriceService, DraftOfferService draftOfferService) {
+        private Controller(MarketPriceService marketPriceService, DraftOfferUseCase draftOfferUseCase) {
             this.marketPriceService = marketPriceService;
-            this.draftOfferService = draftOfferService;
-            if (draftOfferService instanceof CreateOfferService createOfferService) {
-                this.createOfferService = Optional.of(createOfferService);
-                createOfferPriceService = Optional.of(createOfferService.getPriceService());
+            this.draftOfferService = draftOfferUseCase;
+            if (draftOfferUseCase instanceof CreateOfferUseCase createOfferUseCase) {
+                this.createOfferUseCase = Optional.of(createOfferUseCase);
+                priceUseCase = Optional.of(createOfferUseCase.getPriceService());
             } else {
-                createOfferService = Optional.empty();
-                createOfferPriceService = Optional.empty();
+                createOfferUseCase = Optional.empty();
+                priceUseCase = Optional.empty();
             }
             model = new Model();
             view = new View(model, this, validator);
@@ -154,7 +154,7 @@ public class MuSigPriceInput {
         public void setQuote(PriceQuote priceQuote) {
             model.priceString.set(priceQuote == null ? "" : PriceFormatter.format(priceQuote));
             //  model.priceQuote.set(priceQuote);
-            createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
+            createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
         }
 
         public void setPercentage(String percentage) {
@@ -190,7 +190,7 @@ public class MuSigPriceInput {
             subscriptions.add(EasyBind.subscribe(model.priceString, this::onPriceInput));
             // quotePin = EasyBind.subscribe(model.priceQuote, this::onQuoteChanged);
 
-            createOfferPriceService.map(service ->
+            priceUseCase.map(service ->
                             service.priceQuoteObservable().addObserver(this::onQuoteChanged))
                     .ifPresent(pins::add);
         }
@@ -220,9 +220,9 @@ public class MuSigPriceInput {
                 PriceQuote priceQuote = PriceParser.parse(price, draftOfferService.getMarket());
                 checkArgument(priceQuote.getValue() > 0);
                 // model.priceQuote.set(priceQuote);
-                createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
+                createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
             } catch (Throwable ignore) {
-                createOfferPriceService.map(CreateOfferPriceService::getPriceQuote)
+                priceUseCase.map(CreateOfferPriceUseCase::getPriceQuote)
                         .ifPresent(this::onQuoteChanged);
                 // onQuoteChanged(model.priceQuote.get());
             }
@@ -247,7 +247,7 @@ public class MuSigPriceInput {
                     .ifPresent(marketPrice -> {
                         PriceQuote priceQuote = marketPrice.getPriceQuote();
                         // model.priceQuote.set(priceQuote);
-                        createOfferService.ifPresent(createOfferService -> createOfferService.setPriceQuote(priceQuote));
+                        createOfferUseCase.ifPresent(createOfferUseCase -> createOfferUseCase.setPriceQuote(priceQuote));
                     });
         }
     }

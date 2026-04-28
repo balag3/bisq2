@@ -25,8 +25,8 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.limits.MuSigAmountLimitsController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.MuSigRangeAmountController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -42,19 +42,19 @@ public class MuSigAmountContainerController implements Controller {
     private final MuSigAmountContainerView view;
     private final MuSigRangeAmountController muSigRangeAmountController;
     private final MuSigFixAmountController muSigFixAmountController;
-    private final CreateOfferService createOfferService;
+    private final CreateOfferUseCase createOfferUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
-    private final CreateOfferAmountService createOfferAmountService;
+    private final CreateOfferAmountUseCase amountUseCase;
 
-    public MuSigAmountContainerController(CreateOfferService createOfferService) {
-        this.createOfferService = createOfferService;
-        createOfferAmountService = createOfferService.getAmountService();
+    public MuSigAmountContainerController(CreateOfferUseCase createOfferUseCase) {
+        this.createOfferUseCase = createOfferUseCase;
+        amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigAmountContainerModel();
 
-        muSigFixAmountController = new MuSigFixAmountController(createOfferService);
-        muSigRangeAmountController = new MuSigRangeAmountController(createOfferService);
-        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferService);
+        muSigFixAmountController = new MuSigFixAmountController(createOfferUseCase);
+        muSigRangeAmountController = new MuSigRangeAmountController(createOfferUseCase);
+        MuSigAmountLimitsController amountLimitsController = new MuSigAmountLimitsController(createOfferUseCase);
 
         view = new MuSigAmountContainerView(model, this,
                 muSigFixAmountController.getView().getRoot(),
@@ -72,7 +72,7 @@ public class MuSigAmountContainerController implements Controller {
     public void onActivate() {
         applyDescription();
 
-        pins.add(createOfferAmountService.useRangeAmountObservable().addObserver(useRangeAmount -> {
+        pins.add(amountUseCase.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {
                 model.getUseRangeAmount().set(useRangeAmount);
                 applyDescription();
@@ -80,19 +80,19 @@ public class MuSigAmountContainerController implements Controller {
         }));
 
 
-        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyDescription);
         }));
 
         subscriptions.add(EasyBind.subscribe(muSigFixAmountController.getIsTextInputFocused(),
                 isTextInputFocused -> {
-                    if (!createOfferAmountService.getUseRangeAmount()) {
+                    if (!amountUseCase.getUseRangeAmount()) {
                         model.getIsTextInputFocused().set(isTextInputFocused);
                     }
                 }));
         subscriptions.add(EasyBind.subscribe(muSigRangeAmountController.getIsTextInputFocused(),
                 isTextInputFocused -> {
-                    if (createOfferAmountService.getUseRangeAmount()) {
+                    if (amountUseCase.getUseRangeAmount()) {
                         model.getIsTextInputFocused().set(isTextInputFocused);
                     }
                 }));
@@ -114,8 +114,8 @@ public class MuSigAmountContainerController implements Controller {
     /* --------------------------------------------------------------------- */
 
     private void applyDescription() {
-        Market market = createOfferService.getMarket();
-        boolean useRangeAmount = createOfferAmountService.getUseRangeAmount();
+        Market market = createOfferUseCase.getMarket();
+        boolean useRangeAmount = amountUseCase.getUseRangeAmount();
         String code = getCode(market);
         model.getDescription().set(useRangeAmount
                 ? Res.get("muSig.offer.create.amount.description.range", code)
@@ -123,7 +123,7 @@ public class MuSigAmountContainerController implements Controller {
     }
 
     private String getCode(Market market) {
-        boolean useBaseCurrencyForAmountInput = createOfferAmountService.getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountUseCase.getUseBaseCurrencyForAmountInput();
         return useBaseCurrencyForAmountInput ? market.getBaseCurrencyCode() : market.getQuoteCurrencyCode();
     }
 }

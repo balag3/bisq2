@@ -34,8 +34,8 @@ import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
-import bisq.offer.mu_sig.draft.take_offer.payment_method.TakeOfferPaymentMethodService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.TakeOfferPaymentMethodService;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.input.KeyEvent;
 import lombok.Getter;
@@ -67,7 +67,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
     private final Set<Subscription> subscriptions = new HashSet<>();
 
     public MuSigTakeOfferPaymentController(ServiceProvider serviceProvider,
-                                           TakeOfferService takeOfferService,
+                                           TakeOfferUseCase takeOfferService,
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         takeOfferPaymentMethodService = takeOfferService.getPaymentMethodService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;

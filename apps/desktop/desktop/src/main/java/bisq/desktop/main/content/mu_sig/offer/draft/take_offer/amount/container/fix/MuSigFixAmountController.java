@@ -25,8 +25,8 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.MuSigPassiveAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.fix.slider.MuSigFixAmountSliderController;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
-import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,12 +43,12 @@ public class MuSigFixAmountController implements Controller {
     private final MuSigFixAmountView view;
     private final MuSigAmountTextInputController amountTextInputController;
     private final MuSigPassiveAmountController passiveAmountController;
-    private final TakeOfferService takeOfferService;
+    private final TakeOfferUseCase takeOfferService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountController(TakeOfferService takeOfferService) {
+    public MuSigFixAmountController(TakeOfferUseCase takeOfferService) {
         this.takeOfferService = takeOfferService;
         takeOfferAmountService = takeOfferService.getAmountService();
         model = new MuSigFixAmountModel();

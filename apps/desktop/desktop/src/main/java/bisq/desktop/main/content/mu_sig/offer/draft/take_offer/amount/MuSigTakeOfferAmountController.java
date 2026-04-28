@@ -27,8 +27,8 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
-import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;
@@ -49,12 +49,12 @@ public class MuSigTakeOfferAmountController implements Controller {
     private final MuSigTakeOfferAmountModel model;
     @Getter
     private final MuSigTakeOfferAmountView view;
-    private final TakeOfferService takeOfferService;
+    private final TakeOfferUseCase takeOfferService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigTakeOfferAmountController(TakeOfferService takeOfferService,
+    public MuSigTakeOfferAmountController(TakeOfferUseCase takeOfferService,
                                           Consumer<Boolean> navigationButtonsVisibleHandler) {
         this.takeOfferService = takeOfferService;
         takeOfferAmountService = takeOfferService.getAmountService();

@@ -34,7 +34,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
 import lombok.EqualsAndHashCode;
@@ -66,7 +66,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
     }
 
     private final AccountService accountService;
-    private final TakeOfferService takeOfferService;
+    private final TakeOfferUseCase takeOfferService;
     private final OverlayController overlayController;
     @Getter
     private final MuSigTakeOfferModel model;
@@ -84,7 +84,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         accountService = serviceProvider.getAccountService();
         overlayController = OverlayController.getInstance();
 
-        takeOfferService = new TakeOfferService(serviceProvider.getBondedRolesService().getMarketPriceService(),
+        takeOfferService = new TakeOfferUseCase(serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
 

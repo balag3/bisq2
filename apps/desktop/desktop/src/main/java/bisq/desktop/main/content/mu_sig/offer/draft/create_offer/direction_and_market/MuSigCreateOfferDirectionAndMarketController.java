@@ -31,9 +31,9 @@ import bisq.desktop.main.content.mu_sig.offer.listing.MarketType;
 import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -53,21 +53,21 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigCreateOfferDirectionAndMarketModel model;
     @Getter
     private final MuSigCreateOfferDirectionAndMarketView view;
-    private final CreateOfferService createOfferService;
+    private final CreateOfferUseCase createOfferUseCase;
     private final Runnable onNextHandler;
     private final MarketPriceService marketPriceService;
     private final MuSigOfferbookService muSigOfferbookService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
-    private final CreateOfferDirectionService directionService;
-    private final CreateOfferMarketService marketService;
+    private final CreateOfferDirectionUseCase directionUseCase;
+    private final CreateOfferMarketUseCase marketUseCase;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
-                                                        CreateOfferService createOfferService,
+                                                        CreateOfferUseCase createOfferUseCase,
                                                         Runnable onNextHandler) {
-        this.createOfferService = createOfferService;
-        marketService = createOfferService.getMarketService();
-        directionService = createOfferService.getDirectionService();
+        this.createOfferUseCase = createOfferUseCase;
+        marketUseCase = createOfferUseCase.getMarketService();
+        directionUseCase = createOfferUseCase.getDirectionService();
 
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
@@ -85,9 +85,9 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public void onActivate() {
         model.getPaymentCurrencySearchText().set("");
 
-        pins.add(FxBindings.bind(model.getDisplayDirection()).to(directionService.displayDirectionObservable()));
+        pins.add(FxBindings.bind(model.getDisplayDirection()).to(directionUseCase.displayDirectionObservable()));
 
-        pins.add(marketService.marketObservable().addObserver(market
+        pins.add(marketUseCase.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
             String baseCurrencyName = market.getBaseCurrencyName();
             String quoteCurrencyName = market.getQuoteCurrencyName();
@@ -106,7 +106,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                 return;
             }
 
-            Market selectedMarket = createOfferService.getMarket();
+            Market selectedMarket = createOfferUseCase.getMarket();
             List<Market> markets;
             if (selectedMarketTypeListItem.getMarketType() == MarketType.FIAT) {
                 markets = MarketRepository.getAllFiatMarkets();
@@ -150,13 +150,13 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     }
 
     void onSelectDisplayDirection(Direction displayDirection) {
-        directionService.onSelectDisplayDirection(displayDirection);
+        directionUseCase.onSelectDisplayDirection(displayDirection);
         onNextHandler.run();
     }
 
     void onSelectMarketListItem(MarketListItem item) {
         if (item != null) {
-            marketService.onSelectMarket(item.getMarket());
+            marketUseCase.onSelectMarket(item.getMarket());
         }
     }
 

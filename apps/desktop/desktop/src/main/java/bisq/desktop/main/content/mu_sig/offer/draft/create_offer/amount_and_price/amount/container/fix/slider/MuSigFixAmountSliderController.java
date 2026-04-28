@@ -21,8 +21,8 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,14 +36,14 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final CreateOfferService createOfferService;
-    private final CreateOfferAmountService createOfferAmountService;
+    private final CreateOfferUseCase createOfferUseCase;
+    private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountSliderController(CreateOfferService createOfferService) {
-        this.createOfferService = createOfferService;
-        createOfferAmountService = createOfferService.getAmountService();
+    public MuSigFixAmountSliderController(CreateOfferUseCase createOfferUseCase) {
+        this.createOfferUseCase = createOfferUseCase;
+        amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -53,18 +53,18 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        createOfferService.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        createOfferUseCase.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 
-        pins.add(createOfferAmountService.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(amountUseCase.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getGetSliderValue())
-                .to(createOfferAmountService.fixAmountSliderValueObservable()));
+                .to(amountUseCase.fixAmountSliderValueObservable()));
     }
 
     @Override

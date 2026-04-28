@@ -25,8 +25,8 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.MuSigPassiveAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.fix.slider.MuSigFixAmountSliderController;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,19 +43,19 @@ public class MuSigFixAmountController implements Controller {
     private final MuSigFixAmountView view;
     private final MuSigAmountTextInputController amountTextInputController;
     private final MuSigPassiveAmountController passiveAmountController;
-    private final CreateOfferService createOfferService;
-    private final CreateOfferAmountService createOfferAmountService;
+    private final CreateOfferUseCase createOfferUseCase;
+    private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigFixAmountController(CreateOfferService createOfferService) {
-        this.createOfferService = createOfferService;
-        createOfferAmountService = createOfferService.getAmountService();
+    public MuSigFixAmountController(CreateOfferUseCase createOfferUseCase) {
+        this.createOfferUseCase = createOfferUseCase;
+        amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigFixAmountModel();
 
         amountTextInputController = new MuSigAmountTextInputController(true, false);
         passiveAmountController = new MuSigPassiveAmountController(false);
-        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(createOfferService);
+        MuSigFixAmountSliderController amountSliderController = new MuSigFixAmountSliderController(createOfferUseCase);
 
         view = new MuSigFixAmountView(model, this,
                 amountTextInputController.getView().getRoot(),
@@ -72,17 +72,17 @@ public class MuSigFixAmountController implements Controller {
     @Override
     public void onActivate() {
         // Domain specific
-        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
-        pins.add(createOfferAmountService.fixTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(amountUseCase.fixTradeAmountObservable().addObserver(tradeAmount -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
         subscriptions.add(EasyBind.subscribe(amountTextInputController.amountProperty(),
                 amount -> {
-                    createOfferService.setFixTradeAmountFromInputAmount(amount);
+                    createOfferUseCase.setFixTradeAmountFromInputAmount(amount);
                     applyInputAmount();
                 }));
 
@@ -126,9 +126,9 @@ public class MuSigFixAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onToggleInputMode() {
-        boolean useBaseCurrencyForAmountInput = createOfferAmountService.getUseBaseCurrencyForAmountInput();
+        boolean useBaseCurrencyForAmountInput = amountUseCase.getUseBaseCurrencyForAmountInput();
         boolean value = !useBaseCurrencyForAmountInput;
-        createOfferService.setUseBaseCurrencyForAmountInput(value);
+        createOfferUseCase.setUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -142,14 +142,14 @@ public class MuSigFixAmountController implements Controller {
     }
 
     private void applyInputAmount() {
-        TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
-        Monetary inputAmount = createOfferService.toInputAmount(tradeAmount, true);
+        TradeAmount tradeAmount = amountUseCase.getFixTradeAmount();
+        Monetary inputAmount = createOfferUseCase.toInputAmount(tradeAmount, true);
         amountTextInputController.setAmount(inputAmount);
     }
 
     private void applyPassiveAmount() {
-        TradeAmount tradeAmount = createOfferAmountService.getFixTradeAmount();
-        Monetary passiveAmount = createOfferService.toPassiveAmount(tradeAmount, true);
+        TradeAmount tradeAmount = amountUseCase.getFixTradeAmount();
+        Monetary passiveAmount = createOfferUseCase.toPassiveAmount(tradeAmount, true);
         passiveAmountController.setAmount(passiveAmount);
     }
 

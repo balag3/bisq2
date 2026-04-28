@@ -26,8 +26,8 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.MuSigAmountContainerController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;
@@ -49,25 +49,25 @@ public class MuSigCreateOfferAmountController implements Controller {
     private final MuSigCreateOfferAmountModel model;
     @Getter
     private final MuSigCreateOfferAmountView view;
-    private final CreateOfferService createOfferService;
+    private final CreateOfferUseCase createOfferUseCase;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
-    private final CreateOfferAmountService createOfferAmountService;
+    private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigCreateOfferAmountController(CreateOfferService createOfferService,
+    public MuSigCreateOfferAmountController(CreateOfferUseCase createOfferUseCase,
                                             Region owner,
                                             Consumer<Boolean> navigationButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferService = createOfferService;
+        this.createOfferUseCase = createOfferUseCase;
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
-        createOfferAmountService = createOfferService.getAmountService();
+        amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigCreateOfferAmountModel();
 
-        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferService);
+        MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferUseCase);
         view = new MuSigCreateOfferAmountView(model, this, muSigAmountComponentsController.getView().getRoot());
     }
 
@@ -78,15 +78,15 @@ public class MuSigCreateOfferAmountController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(createOfferAmountService.useRangeAmountObservable().addObserver(useRangeAmount -> {
+        pins.add(amountUseCase.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {
                 model.getUseRangeAmount().set(useRangeAmount);
             });
         }));
-        pins.add(createOfferAmountService.userSpecificTradeAmountLimitObservable().addObserver(value -> {
+        pins.add(amountUseCase.userSpecificTradeAmountLimitObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
-        pins.add(createOfferAmountService.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
+        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
             UIThread.run(this::applyAmountLimitInfo);
         }));
     }
@@ -114,7 +114,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onSetUseRangeAmount(boolean value) {
-        createOfferService.setUseRangeAmount(value);
+        createOfferUseCase.setUseRangeAmount(value);
     }
 
     void onKeyPressedWhileShowingOverlay(KeyEvent keyEvent) {
@@ -146,10 +146,10 @@ public class MuSigCreateOfferAmountController implements Controller {
     }
 
     private void applyAmountLimitInfo() {
-        Optional<TradeAmount> userSpecificTradeAmountLimit = createOfferAmountService.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = amountUseCase.getUserSpecificTradeAmountLimit();
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
-                .map(tradeAmount -> createOfferService.toInputAmount(tradeAmount, true))
+                .map(tradeAmount -> createOfferUseCase.toInputAmount(tradeAmount, true))
                 .map(monetary -> AmountFormatter.formatAmountWithCode(monetary, true))
                 .map(formatted -> Res.get("muSig.offer.create.amount.limitInfo.buyer", formatted))
                 .orElse(""));

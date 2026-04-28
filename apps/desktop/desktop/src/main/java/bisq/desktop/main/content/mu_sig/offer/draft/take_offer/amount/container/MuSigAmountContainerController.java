@@ -24,9 +24,9 @@ import bisq.desktop.common.view.Controller;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.fix.MuSigFixAmountController;
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.amount.container.limits.MuSigAmountLimitsController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
-import bisq.offer.mu_sig.draft.take_offer.amount.TakeOfferAmountService;
-import bisq.offer.mu_sig.draft.take_offer.market.TakeOfferMarketService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.use_case.take_offer.market.TakeOfferMarketService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -41,13 +41,13 @@ public class MuSigAmountContainerController implements Controller {
     @Getter
     private final MuSigAmountContainerView view;
     private final MuSigFixAmountController muSigFixAmountController;
-    private final TakeOfferService takeOfferService;
+    private final TakeOfferUseCase takeOfferService;
     private final TakeOfferMarketService takeOfferMarketService;
     private final TakeOfferAmountService takeOfferAmountService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountContainerController(TakeOfferService takeOfferService) {
+    public MuSigAmountContainerController(TakeOfferUseCase takeOfferService) {
         this.takeOfferService = takeOfferService;
         takeOfferMarketService = takeOfferService.getMarketService();
         takeOfferAmountService = takeOfferService.getAmountService();

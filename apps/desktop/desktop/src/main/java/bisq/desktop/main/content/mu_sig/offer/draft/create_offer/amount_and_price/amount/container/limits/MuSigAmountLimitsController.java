@@ -21,8 +21,8 @@ import bisq.common.observable.Pin;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -38,11 +38,11 @@ public class MuSigAmountLimitsController implements Controller {
     private final MuSigAmountLimitsModel model;
     @Getter
     private final MuSigAmountLimitsView view;
-    private final CreateOfferAmountService createOfferAmountService;
+    private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Pin> pins = new HashSet<>();
 
-    public MuSigAmountLimitsController(CreateOfferService createOfferService) {
-        createOfferAmountService = createOfferService.getAmountService();
+    public MuSigAmountLimitsController(CreateOfferUseCase createOfferUseCase) {
+        amountUseCase = createOfferUseCase.getAmountUseCase();
 
         String minInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MIN_TRADE_AMOUNT_IN_USD));
         String maxInInUsd = Res.get("muSig.offer.create.amount.slider.limit.usd", formatAmountByMonetaryType(MAX_TRADE_AMOUNT_IN_USD));
@@ -52,7 +52,7 @@ public class MuSigAmountLimitsController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(createOfferAmountService.inputAmountLimitsObservable().addObserver(inputAmountLimits -> {
+        pins.add(amountUseCase.inputAmountLimitsObservable().addObserver(inputAmountLimits -> {
             UIThread.run(() -> {
                 model.getMin().set(formatAmountByMonetaryType(inputAmountLimits.getMin()));
                 model.getMax().set(formatAmountByMonetaryType(inputAmountLimits.getMax()));

@@ -42,7 +42,7 @@ import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.take_offer.TakeOfferService;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import bisq.offer.options.OfferOptionUtil;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -89,7 +89,7 @@ public class MuSigTakeOfferReviewController implements Controller {
     private UIScheduler delayedSuccessScheduler;
 
     public MuSigTakeOfferReviewController(ServiceProvider serviceProvider,
-                                          TakeOfferService takeOfferService,
+                                          TakeOfferUseCase takeOfferService,
                                           Consumer<Boolean> mainButtonsVisibleHandler,
                                           Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;

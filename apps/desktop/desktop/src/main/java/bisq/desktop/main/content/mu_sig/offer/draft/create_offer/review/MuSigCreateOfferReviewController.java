@@ -46,12 +46,12 @@ import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.draft.create_offer.CreateOfferService;
-import bisq.offer.mu_sig.draft.create_offer.amount.CreateOfferAmountService;
-import bisq.offer.mu_sig.draft.create_offer.direction.CreateOfferDirectionService;
-import bisq.offer.mu_sig.draft.create_offer.market.CreateOfferMarketService;
-import bisq.offer.mu_sig.draft.create_offer.payment_method.CreateOfferPaymentMethodService;
-import bisq.offer.mu_sig.draft.create_offer.price.CreateOfferPriceService;
+import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
@@ -83,31 +83,31 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MuSigCreateOfferReviewModel model;
     @Getter
     private final MuSigCreateOfferReviewView view;
-    private final CreateOfferService createOfferService;
-    private final CreateOfferPaymentMethodService createOfferPaymentMethodService;
+    private final CreateOfferUseCase createOfferUseCase;
+    private final CreateOfferPaymentMethodUseCase createOfferPaymentMethodService;
     private final Consumer<Boolean> mainButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
     private final MuSigPriceInput priceInput;
     private final MarketPriceService marketPriceService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
     private final MuSigService muSigService;
-    private final CreateOfferMarketService marketService;
-    private final CreateOfferDirectionService directionService;
-    private final CreateOfferPaymentMethodService paymentMethodService;
-    private final CreateOfferPriceService priceService;
-    private final CreateOfferAmountService amountService;
+    private final CreateOfferMarketUseCase marketUseCase;
+    private final CreateOfferDirectionUseCase directionUseCase;
+    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
+    private final CreateOfferPriceUseCase priceUseCase;
+    private final CreateOfferAmountUseCase amountUseCase;
 
     public MuSigCreateOfferReviewController(ServiceProvider serviceProvider,
-                                            CreateOfferService createOfferService,
-                                            CreateOfferPaymentMethodService createOfferPaymentMethodService,
+                                            CreateOfferUseCase createOfferUseCase,
+                                            CreateOfferPaymentMethodUseCase createOfferPaymentMethodService,
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferService = createOfferService;
-        marketService = createOfferService.getMarketService();
-        directionService = createOfferService.getDirectionService();
-        paymentMethodService = createOfferService.getPaymentMethodService();
-        priceService = createOfferService.getPriceService();
-        amountService = createOfferService.getAmountService();
+        this.createOfferUseCase = createOfferUseCase;
+        marketUseCase = createOfferUseCase.getMarketService();
+        directionUseCase = createOfferUseCase.getDirectionService();
+        paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
+        priceUseCase = createOfferUseCase.getPriceService();
+        amountUseCase = createOfferUseCase.getAmountUseCase();
 
         this.createOfferPaymentMethodService = createOfferPaymentMethodService;
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
@@ -116,7 +116,7 @@ public class MuSigCreateOfferReviewController implements Controller {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigService = serviceProvider.getMuSigService();
 
-        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferService);
+        priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferUseCase);
         muSigReviewDataDisplay = new MuSigReviewDataDisplay();
 
         model = new MuSigCreateOfferReviewModel();
@@ -124,12 +124,12 @@ public class MuSigCreateOfferReviewController implements Controller {
     }
 
     public void initialize() {
-        Market market = marketService.getMarket();
-        Direction displayDirection = directionService.getDisplayDirection();
-        AmountSpec amountSpec = amountService.createAndGetAmountSpec(market);
-        PriceSpec priceSpec = priceService.createAndGetPriceSpec();
+        Market market = marketUseCase.getMarket();
+        Direction displayDirection = directionUseCase.getDisplayDirection();
+        AmountSpec amountSpec = amountUseCase.createAndGetAmountSpec(market);
+        PriceSpec priceSpec = priceUseCase.createAndGetPriceSpec();
 
-        Map<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = paymentMethodService.getAccountByPaymentMethod();
+        Map<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = paymentMethodUseCase.getAccountByPaymentMethod();
         List<PaymentMethod<?>> paymentMethods = accountByPaymentMethod.keySet().stream()
                 .sorted(Comparator.comparing(PaymentMethod::getPaymentRailName))
                 .toList();
@@ -229,7 +229,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     private void applyData(Direction displayDirection,
                            AmountSpec amountSpec,
                            PriceSpec priceSpec) {
-        Market market = createOfferService.getMarket();
+        Market market = createOfferUseCase.getMarket();
         String marketCodes = market.getMarketCodes();
 
         model.setCrypto(market.isCrypto());
