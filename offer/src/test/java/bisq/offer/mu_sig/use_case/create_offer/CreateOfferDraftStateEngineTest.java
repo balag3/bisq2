@@ -20,6 +20,10 @@ import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -76,11 +80,16 @@ public class CreateOfferDraftStateEngineTest {
 
         AmountMappingService amountMappingService = new AmountMappingService();
 
+        AbsoluteAmountLimits absoluteAmountLimits = new AbsoluteAmountLimits();
+        PaymentMethodBasedAmountLimits  paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits();
+        UserSpecificAmountLimits  userSpecificAmountLimits = new UserSpecificAmountLimits();
+        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
+
         marketService = new CreateOfferMarketUseCase();
-        directionService = new CreateOfferDirectionUseCase(cookieStore);
+        directionService = new CreateOfferDirectionUseCase(cookieStore, userSpecificAmountLimits);
         priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
-        amountService = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountMappingService);
-        paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of() );
+        amountService = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountLimits, amountMappingService);
+        paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of(), paymentMethodSpecificAmountLimits);
         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         stateEngine = new CreateOfferDraftStateEngine(marketService,
@@ -90,7 +99,7 @@ public class CreateOfferDraftStateEngineTest {
                 amountService,
                 marketPriceService,
                 amountMappingService,
-                tradeAmountConstraintsService,
+                paymentMethodSpecificAmountLimits, tradeAmountConstraintsService,
                 CreateOfferUseCase.DEFAULT_TRADE_AMOUNT_IN_USD);
     }
 

@@ -19,18 +19,12 @@ package bisq.offer.mu_sig.use_case.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.common.monetary.Fiat;
-import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
 
 public interface CreateOfferPaymentMethodReadOnlyModel {
-
-    Fiat getPaymentRailBasedTradeLimitInUsd();
-
-    ReadOnlyObservable<Fiat> paymentRailBasedTradeLimitInUsdObservable();
 
     ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodObservable();
 

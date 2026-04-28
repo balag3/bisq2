@@ -21,7 +21,7 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
-import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccountSelection;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
@@ -115,7 +115,7 @@ public class PaymentMethodSelectionService {
         return selectedAccountByPaymentMethod.values().stream()
                 .map(Account::getPaymentMethod)
                 .map(PaymentMethod::getPaymentRail)
-                .min(Comparator.comparing(MuSigTradeAmountLimits::getMaxTradeLimitInUsd))
+                .min(Comparator.comparing(PaymentMethodBasedAmountLimits::evaluateLimit))
                 .orElse(null);
     }
 

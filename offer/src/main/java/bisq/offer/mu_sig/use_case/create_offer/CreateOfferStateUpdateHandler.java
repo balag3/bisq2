@@ -20,6 +20,7 @@ package bisq.offer.mu_sig.use_case.create_offer;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.observable.Pin;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -36,6 +37,7 @@ public class CreateOfferStateUpdateHandler {
     private final CreateOfferPaymentMethodUseCase paymentMethodService;
     private final CreateOfferPriceUseCase priceService;
     private final CreateOfferAmountUseCase amountService;
+    private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
     private final CreateOfferDraftStateEngine stateEngine;
     private final Set<Pin> pins = new HashSet<>();
@@ -47,6 +49,7 @@ public class CreateOfferStateUpdateHandler {
                                   CreateOfferPriceUseCase priceService,
                                   CreateOfferAmountUseCase amountService,
                                   MarketPriceService marketPriceService,
+                                  PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits,
                                   CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService,
                                   CreateOfferDraftStateEngine stateEngine) {
         this.marketService = checkNotNull(marketService, "createOfferMarketService must not be null");
@@ -54,6 +57,7 @@ public class CreateOfferStateUpdateHandler {
         this.paymentMethodService = checkNotNull(paymentMethodService, "paymentMethodService must not be null");
         this.priceService = checkNotNull(priceService, "createOfferPriceService must not be null");
         this.amountService = checkNotNull(amountService, "createOfferAmountService must not be null");
+        this.paymentMethodSpecificAmountLimits = paymentMethodSpecificAmountLimits;
         this.tradeAmountConstraintsService = tradeAmountConstraintsService;
         this.stateEngine = checkNotNull(stateEngine, "stateEngine must not be null");
     }
@@ -68,7 +72,7 @@ public class CreateOfferStateUpdateHandler {
                 tradeAmountConstraintsService.compute(marketService.getMarket(),
                         directionService.getDisplayDirection(),
                         priceService.getPriceQuote(),
-                        paymentMethodService.getPaymentRailBasedTradeLimitInUsd());
+                        paymentMethodSpecificAmountLimits.getPaymentRailBasedTradeLimitInUsd());
             }
         });
         marketService.marketObservable().addObserver(market -> {
@@ -77,7 +81,7 @@ public class CreateOfferStateUpdateHandler {
             }
         });
 
-        pins.add(paymentMethodService.paymentRailBasedTradeLimitInUsdObservable().addObserver(paymentRailBasedTradeLimitInUsd -> {
+        pins.add(paymentMethodSpecificAmountLimits.paymentRailBasedTradeLimitInUsdObservable().addObserver(paymentRailBasedTradeLimitInUsd -> {
             if (!paymentRailObserverInitialized) {
                 paymentRailObserverInitialized = true;
                 return;

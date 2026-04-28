@@ -33,25 +33,12 @@ public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodRe
     private final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
     private final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = new ObservableHashMap<>();
 
-    protected final Observable<Fiat> paymentRailBasedTradeLimitInUsd = new Observable<>();
 
     //Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
     public CreateOfferPaymentMethodModel() {
     }
 
-    void setPaymentRailBasedTradeLimitInUsd(Fiat paymentRailBasedTradeLimitInUsd) {
-        this.paymentRailBasedTradeLimitInUsd.set(paymentRailBasedTradeLimitInUsd);
-    }
 
-    @Override
-    public ReadOnlyObservable<Fiat> paymentRailBasedTradeLimitInUsdObservable() {
-        return paymentRailBasedTradeLimitInUsd;
-    }
-
-    @Override
-    public Fiat getPaymentRailBasedTradeLimitInUsd() {
-        return paymentRailBasedTradeLimitInUsd.get();
-    }
 
     /* --------------------------------------------------------------------- */
     // accountsByPaymentMethod

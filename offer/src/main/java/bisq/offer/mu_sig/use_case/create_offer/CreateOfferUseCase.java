@@ -29,6 +29,10 @@ import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -69,6 +73,10 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     private final CreateOfferDraftStateEngine stateEngine;
     private final CreateOfferStateUpdateHandler stateUpdateHandler;
     private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
+    private final UserSpecificAmountLimits userSpecificAmountLimits;
+    private final AmountLimits amountLimits;
+    private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
+    private final AbsoluteAmountLimits absoluteAmountLimits;
 
 
     /* --------------------------------------------------------------------- */
@@ -93,12 +101,16 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         amountMappingService = new AmountMappingService();
         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
-        marketService = new CreateOfferMarketUseCase();
-        directionService = new CreateOfferDirectionUseCase(cookieStore);
-        paymentMethodService = new CreateOfferPaymentMethodUseCase(accountsProvider);
-        priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
-        amountUseCase = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountMappingService);
+        absoluteAmountLimits = new AbsoluteAmountLimits();
+        paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits();
+        userSpecificAmountLimits = new UserSpecificAmountLimits();
+        amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
 
+        marketService = new CreateOfferMarketUseCase();
+        directionService = new CreateOfferDirectionUseCase(cookieStore, userSpecificAmountLimits);
+        paymentMethodService = new CreateOfferPaymentMethodUseCase(accountsProvider, paymentMethodSpecificAmountLimits);
+        priceService = new CreateOfferPriceUseCase(marketPriceService, cookieStore);
+        amountUseCase = new CreateOfferAmountUseCase(marketPriceService, cookieStore, amountLimits, amountMappingService);
 
         marketService.marketObservable().addObserver(market -> {
             if (market != null) {
@@ -114,6 +126,7 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
                 amountUseCase,
                 marketPriceService,
                 amountMappingService,
+                paymentMethodSpecificAmountLimits,
                 tradeAmountConstraintsService,
                 DEFAULT_TRADE_AMOUNT_IN_USD);
 
@@ -123,6 +136,7 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
                 priceService,
                 amountUseCase,
                 marketPriceService,
+                paymentMethodSpecificAmountLimits,
                 tradeAmountConstraintsService,
                 stateEngine);
     }

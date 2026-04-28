@@ -28,6 +28,7 @@ import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.AmountUtils;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -45,13 +46,16 @@ public class CreateOfferAmountUseCase {
     private final CreateOfferAmountModel model;
     private final MarketPriceService marketPriceService;
     private final CreateOfferDraftCookieStore cookieStore;
+    private final AmountLimits amountLimits;
     private final AmountMappingService amountMappingService;
 
     public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
                                     CreateOfferDraftCookieStore cookieStore,
+                                    AmountLimits amountLimits,
                                     AmountMappingService amountMappingService) {
         this.marketPriceService = marketPriceService;
         this.cookieStore = cookieStore;
+        this.amountLimits = amountLimits;
         this.amountMappingService = amountMappingService;
         this.model = new CreateOfferAmountModel();
     }

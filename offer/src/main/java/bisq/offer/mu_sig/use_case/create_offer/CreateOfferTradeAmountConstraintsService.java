@@ -25,9 +25,9 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
 
 import java.util.Optional;
 
@@ -64,7 +64,7 @@ class CreateOfferTradeAmountConstraintsService {
         Market usdBitcoinMarket = MarketRepository.getUSDBitcoinMarket();
         PriceQuote btcUsdPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(usdBitcoinMarket);
 
-        Fiat minTradeAmountInUsd = MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
+        Fiat minTradeAmountInUsd = AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
                 offerPriceQuote,
                 btcUsdPriceQuote,

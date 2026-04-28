@@ -29,8 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.HashSet;
 import java.util.Set;
 
-import static bisq.offer.mu_sig.MuSigTradeAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
-import static bisq.offer.mu_sig.MuSigTradeAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
+import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
+import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
 import static bisq.presentation.formatters.AmountFormatter.formatAmountByMonetaryType;
 
 @Slf4j

@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.direction;
 
 import bisq.offer.Direction;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -32,10 +33,13 @@ public class CreateOfferDirectionUseCase {
     @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
+    private final UserSpecificAmountLimits userSpecificAmountLimits;
     private final Set<Consumer<Direction>> displayDirectionListeners = new CopyOnWriteArraySet<>();
 
-    public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore) {
+    public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore,
+                                       UserSpecificAmountLimits userSpecificAmountLimits) {
         this.cookieStore = cookieStore;
+        this.userSpecificAmountLimits = userSpecificAmountLimits;
         this.model = new CreateOfferDirectionModel();
     }
 
@@ -53,11 +57,11 @@ public class CreateOfferDirectionUseCase {
         applyDisplayDirection(displayDirection, true);
     }
 
-
     private void applyDisplayDirection(Direction displayDirection, boolean notifyListeners) {
         if (displayDirection != model.getDisplayDirection()) {
             model.setDisplayDirection(displayDirection);
             cookieStore.persistDisplayDirection(displayDirection);
+            userSpecificAmountLimits.handleDisplayDirectionChange(displayDirection);
             if (notifyListeners) {
                 displayDirectionListeners.forEach(listener -> listener.accept(displayDirection));
             }

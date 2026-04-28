@@ -1,28 +1,37 @@
-## Specification for the create offer process 
+## Specification for the create offer process
 
 ### Direction
 
 The user can select **BUY** or **SELL**.
-For Bitcin-Fiat markets the BUY direction means buying Bitcoin with Fiat. 
-For Altcoin-Bitcoin market the BUY direction means buying Altcoin with Bitcoin.
-The direction shown in the UI is called the displayDirection. 
-Internally the direction is always referring to the Bitcoin side, thus for altcoins the direction is flipped to the one displayed in the UI.
-Furthermore, for the taker the offers direction is mirrored. A taker who wants to buy Bitcoin from a Fiat offer is looking for offers with direction SELL.
 
-The selected direction impacts the **user-specific trade amount limits**, which are applied only for buyers.
+Terminology:
+
+* `displayDirection` is the direction shown to the maker in the create-offer UI.
+* `offerDirection` is the direction stored in the offer and is always expressed from the Bitcoin side.
+* For Bitcoin-Fiat markets, `displayDirection == offerDirection`.
+* For Altcoin-Bitcoin markets, `offerDirection == displayDirection.mirror()`.
+
+Examples:
+
+* In Bitcoin-Fiat markets, `displayDirection` **BUY** means buying Bitcoin with Fiat.
+* In Altcoin-Bitcoin markets, `displayDirection` **BUY** means buying Altcoin with Bitcoin. The stored `offerDirection` is therefore **SELL** from the Bitcoin side.
+
+For takers, the direction is mirrored from the maker offer direction. A taker who wants to buy Bitcoin from a Fiat offer is looking for maker offers with direction **SELL**.
+
+The selected direction impacts the **user-specific trade amount limit** only when `offerDirection` is **BUY** in a Bitcoin-Fiat market.
 
 ---
 
 ### Market
 
-The user can select either a **Bitcoin–Fiat market** or an **Altcoin–Bitcoin market**.
+The user can select either a **Bitcoin-Fiat market** or an **Altcoin-Bitcoin market**.
 
 The selected market affects:
 
 * available payment methods
 * default price quote
 * trade amount limits
-* user-specific trade amount limits (only Fiat markets are affected by user-specific trade amount limits)
+* whether a user-specific trade amount limit can apply
 
 ---
 
@@ -32,18 +41,20 @@ The user can select one or more payment methods.
 
 * If no account exists for a selected payment method, a popup is shown prompting the user to create one. The method cannot be selected until an account exists.
 * If multiple accounts exist, a dropdown is shown to choose the desired account.
-* If exactly one account exists for a payment method no dropdown is displayed.
-* If the user has exactly one payment method with one account, it is preselected.
+* If exactly one account exists for the selected payment method, no dropdown is displayed.
+* If exactly one market-eligible account exists in total, its payment method and account are preselected.
 
-The user can select up to **4 payment methods** (as defined in CreateOfferPaymentMethodService.MAX_NUM_PAYMENT_METHODS).
+The user can select up to **4 payment methods** (as defined by `CreateOfferPaymentMethodUseCase.MAX_NUM_PAYMENT_METHODS`).
 
-Payment method selection impacts the **user-specific trade amount limits** in case of Fiat markets.
+Payment method selection affects the payment-rail based maximum trade amount. If multiple payment methods are selected, the method with the lowest maximum amount determines the effective payment-rail maximum.
+
+The user-specific trade amount limit is independent of the selected payment method, but it can further reduce the effective maximum in Bitcoin-Fiat buy offers.
 
 ---
 
 ### Price
 
-The user can define the price using either:
+The user can define the offer price using either:
 
 * a **floating price** (percentage based on market price), or
 * a **fixed price**
@@ -55,7 +66,7 @@ Input can be done via:
 
 Both inputs are synchronized.
 
-Allowed price range: **-10% to +50%**.
+Allowed floating-price percentage range: **-10% to +50%**.
 
 Changing the price affects:
 
@@ -98,15 +109,17 @@ Trade amount limits define the minimum and maximum allowed trade size.
     * market price
     * offer price quote
 
+If no payment method is selected yet, the unrestricted system maximum is used.
+
 All limits are internally defined in **USD** to reduce the impact of market volatility.
 
 Conversion rules:
 
-* **Bitcoin–Fiat markets**:
+* **Bitcoin-Fiat markets**:
   USD → Fiat using market price (Fiat is the stable reference)
   Bitcoin amount is adjusted using the offer price
 
-* **Altcoin–Bitcoin markets**:
+* **Altcoin-Bitcoin markets**:
   USD → Bitcoin (Bitcoin is the stable reference)
   Altcoin amount is adjusted using the offer price
 
@@ -121,21 +134,21 @@ Depending on the payment method, the maximum may be reduced by up to **50%** (i.
 
 #### User-specific trade amount limit
 
-For **Bitcoin buyers in Fiat markets**, an additional limit based on reputation data is applied.
+For **Bitcoin buyers in Bitcoin-Fiat markets**, an additional limit based on reputation data is applied.
 
-* Not applied to Altcoin markets
+* Not applied to Altcoin-Bitcoin markets
+* Not applied to Bitcoin-Fiat sell offers
 * Can reduce the maximum allowed trade amount
 
 Rules:
 
-* If below the system max → becomes the effective max
-* If above the system max → clamped to the system max
-* If below the minimum → clamped to the minimum
+* If between the minimum and the system maximum, it becomes the effective maximum.
+* If above the system maximum, it does not reduce the effective maximum.
+* If below the minimum, it is clamped to the minimum, so the effective range collapses to the minimum amount.
 
 Summary:
 
-* Only affects **buyers in Fiat markets**
-* Only effective if within the global min/max range
+* Only affects **Bitcoin buyers in Bitcoin-Fiat markets**
 * Always reduces (never increases) the allowed trade amount
 
 UI behavior:

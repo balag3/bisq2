@@ -14,9 +14,9 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
@@ -35,7 +35,7 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         PaymentRail paymentRail = FiatPaymentRail.ACH_TRANSFER;
-        Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
+        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.BUY,
                 offerPriceQuote,
@@ -55,7 +55,7 @@ public class CreateOfferTradeAmountConstraintsServiceTest {
         CreateOfferTradeAmountConstraintsService service = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
         PaymentRail paymentRail = null;
-        Fiat paymentRailBasedTradeLimitInUsd = MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentRail);
+        Fiat paymentRailBasedTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimit(paymentRail);
         TradeAmountConstraints constraints = service.compute(market,
                 Direction.SELL,
                 offerPriceQuote,

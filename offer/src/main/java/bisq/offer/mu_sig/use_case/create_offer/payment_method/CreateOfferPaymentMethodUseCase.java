@@ -19,18 +19,15 @@ package bisq.offer.mu_sig.use_case.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
-import bisq.common.monetary.Fiat;
 import bisq.common.observable.Pin;
-import bisq.offer.mu_sig.MuSigTradeAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
 
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -52,9 +49,12 @@ public class CreateOfferPaymentMethodUseCase {
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();
     private final Set<Pin> pins = new HashSet<>();
     private final AccountsProvider accountsProvider;
+    private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
 
-    public CreateOfferPaymentMethodUseCase(AccountsProvider accountsProvider) {
+    public CreateOfferPaymentMethodUseCase(AccountsProvider accountsProvider,
+                                           PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits) {
         this.accountsProvider = accountsProvider;
+        this.paymentMethodSpecificAmountLimits = paymentMethodSpecificAmountLimits;
         this.model = new CreateOfferPaymentMethodModel();
     }
 
@@ -63,9 +63,8 @@ public class CreateOfferPaymentMethodUseCase {
 
         // If selectedAccountByPaymentMethod changes we update the payment rail-based trade limit in USD
         pins.add(model.accountByPaymentMethodObservable().addObserver(() -> {
-            ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = model.getAccountByPaymentMethod();
-            Fiat paymentRailBasedTradeLimitInUsd = getMaxTradeLimitInUsd(selectedAccountByPaymentMethod);
-            model.setPaymentRailBasedTradeLimitInUsd(paymentRailBasedTradeLimitInUsd);
+            ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = model.getAccountByPaymentMethod();
+            paymentMethodSpecificAmountLimits.handleAccountByPaymentMethodChange(accountByPaymentMethod);
         }));
     }
 
@@ -150,22 +149,6 @@ public class CreateOfferPaymentMethodUseCase {
 
     public void removeMethodAccountEntryListener(Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>> listener) {
         methodAccountEntryListeners.remove(listener);
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Static helpers
-    /* --------------------------------------------------------------------- */
-
-    static Fiat getMaxTradeLimitInUsd(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        return selectedAccountByPaymentMethod.values().stream()
-                .map(Account::getPaymentMethod)
-                .map(PaymentMethod::getPaymentRail)
-                .map(PaymentRail.class::cast)
-                .min(Comparator.comparing(MuSigTradeAmountLimits::getMaxTradeLimitInUsd))
-                .map(MuSigTradeAmountLimits::getMaxTradeLimitInUsd)
-                .orElse(MuSigTradeAmountLimits.MAX_TRADE_AMOUNT_IN_USD);
     }
 
 

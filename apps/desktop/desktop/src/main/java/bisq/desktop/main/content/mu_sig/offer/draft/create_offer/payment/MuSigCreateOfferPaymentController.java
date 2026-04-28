@@ -33,8 +33,8 @@ import bisq.desktop.components.overlay.Popup;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.MuSigTradeAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelectionResult;
 import bisq.presentation.formatters.AmountFormatter;
@@ -280,7 +280,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         boolean isSinglePaymentMethod = selectedPaymentMethods.size() == 1;
         selectedPaymentMethods.stream()
                 .map(paymentMethod -> new Pair<>(paymentMethod.getDisplayString(),
-                        MuSigTradeAmountLimits.getMaxTradeLimitInUsd(paymentMethod.getPaymentRail())))
+                        PaymentMethodBasedAmountLimits.evaluateLimit(paymentMethod.getPaymentRail())))
                 .min(Comparator.comparing(Pair::getSecond))
                 .ifPresentOrElse(pair -> {
                             String formatted = AmountFormatter.formatQuoteAmountWithCode(pair.getSecond());
