@@ -140,7 +140,7 @@ public class CreateOfferService extends DraftOfferService {
         paymentMethodService.initialize(market);
         priceService.initialize(market);
         amountService.initialize(market);
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
 
         stateUpdateHandler.initialize();
 

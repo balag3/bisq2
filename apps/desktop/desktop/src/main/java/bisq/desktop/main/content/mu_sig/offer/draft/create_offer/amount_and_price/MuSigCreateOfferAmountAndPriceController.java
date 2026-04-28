@@ -41,7 +41,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
     private final CreateOfferService createOfferService;
-    private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferDirectionService directionService;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
                                                     CreateOfferService createOfferService,
@@ -49,7 +49,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferService = createOfferService;
-        createOfferDirectionService = createOfferService.getDirectionService();
+        directionService = createOfferService.getDirectionService();
         muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferService,
                 owner,
                 navigationButtonsVisibleHandler,
@@ -104,7 +104,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
 
     private String getHeadline() {
         String baseCurrencyCode = createOfferService.getMarket().getBaseCurrencyCode();
-        return createOfferDirectionService.getDirection().isBuy()
+        return directionService.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

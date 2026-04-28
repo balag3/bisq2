@@ -68,6 +68,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
         this.createOfferService = createOfferService;
         marketService = createOfferService.getMarketService();
         directionService = createOfferService.getDirectionService();
+
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigOfferbookService = serviceProvider.getOfferService().getMuSigOfferService().getMuSigOfferbookService();
@@ -84,7 +85,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public void onActivate() {
         model.getPaymentCurrencySearchText().set("");
 
-        pins.add(FxBindings.bind(model.getDirection()).to(directionService.directionObservable()));
+        pins.add(FxBindings.bind(model.getDisplayDirection()).to(directionService.displayDirectionObservable()));
 
         pins.add(marketService.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
@@ -148,8 +149,8 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
         pins.clear();
     }
 
-    void onSelectDirection(Direction direction) {
-        directionService.onSelectDirection(direction);
+    void onSelectDisplayDirection(Direction displayDirection) {
+        directionService.onSelectDisplayDirection(displayDirection);
         onNextHandler.run();
     }
 

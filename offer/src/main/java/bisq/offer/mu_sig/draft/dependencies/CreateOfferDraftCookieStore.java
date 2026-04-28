@@ -24,9 +24,9 @@ import bisq.offer.Direction;
 import java.util.Optional;
 
 public interface CreateOfferDraftCookieStore {
-    void persistDirection(Direction direction);
+    void persistDisplayDirection(Direction direction);
 
-    Direction getDirection();
+    Direction getDisplayDirection();
 
     boolean getUseBaseCurrencyForAmountInput(Market market);
 

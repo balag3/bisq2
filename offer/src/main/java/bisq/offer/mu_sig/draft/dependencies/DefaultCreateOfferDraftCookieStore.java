@@ -35,13 +35,13 @@ public class DefaultCreateOfferDraftCookieStore implements CreateOfferDraftCooki
     }
 
     @Override
-    public void persistDirection(Direction direction) {
-        checkNotNull(direction, "direction must not be null");
-        settingsService.setCookie(CookieKey.MU_SIG_CREATE_OFFER_USE_BUY_DIRECTION, direction.isBuy());
+    public void persistDisplayDirection(Direction displayDirection) {
+        checkNotNull(displayDirection, "displayDirection must not be null");
+        settingsService.setCookie(CookieKey.MU_SIG_CREATE_OFFER_USE_BUY_DIRECTION, displayDirection.isBuy());
     }
 
     @Override
-    public Direction getDirection() {
+    public Direction getDisplayDirection() {
         boolean useBuyDirection = settingsService.getCookie()
                 .asBoolean(CookieKey.MU_SIG_CREATE_OFFER_USE_BUY_DIRECTION)
                 .orElse(false);

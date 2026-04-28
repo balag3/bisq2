@@ -22,7 +22,7 @@ import bisq.offer.Direction;
 
 public interface CreateOfferDirectionReadOnlyModel {
 
-    ReadOnlyObservable<Direction> directionObservable();
+    ReadOnlyObservable<Direction> displayDirectionObservable();
 
-    Direction getDirection();
+    Direction getDisplayDirection();
 }

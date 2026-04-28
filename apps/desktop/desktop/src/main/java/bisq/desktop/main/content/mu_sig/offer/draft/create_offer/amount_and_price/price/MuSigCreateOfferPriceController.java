@@ -71,7 +71,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private final SettingsService settingsService;
     private final Set<Pin> pins = new HashSet<>();
     private final Set<Subscription> subscriptions = new HashSet<>();
-    private final CreateOfferDirectionService createOfferDirectionService;
+    private final CreateOfferDirectionService directionService;
     private final CreateOfferPriceService createOfferPriceService;
 
     public MuSigCreateOfferPriceController(ServiceProvider serviceProvider,
@@ -80,7 +80,7 @@ public class MuSigCreateOfferPriceController implements Controller {
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         settingsService = serviceProvider.getSettingsService();
-        createOfferDirectionService = createOfferService.getDirectionService();
+        directionService = createOfferService.getDirectionService();
         createOfferPriceService = createOfferService.getPriceService();
 
         priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferService);
@@ -407,7 +407,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private String getFeedbackSentence(String adjective) {
-        return createOfferDirectionService.getDirection().isBuy()
+        return directionService.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.create.price.feedback.buyOffer.sentence", adjective)
                 : Res.get("muSig.offer.create.price.feedback.sellOffer.sentence", adjective);
     }

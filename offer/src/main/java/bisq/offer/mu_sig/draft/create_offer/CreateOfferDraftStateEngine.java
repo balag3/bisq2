@@ -88,10 +88,10 @@ public class CreateOfferDraftStateEngine {
 
     void initialize() {
         marketService.addListener(this::onMarketChanged);
-        directionService.addListener(this::onDirectionChanged);
+        directionService.addDisplayDirectionListener(this::onDirectionChanged);
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
         PriceQuote priceQuote = priceService.getPriceQuote();
 
         Fiat paymentRailBasedTradeLimitInUsd = paymentMethodService.getPaymentRailBasedTradeLimitInUsd();
@@ -109,7 +109,7 @@ public class CreateOfferDraftStateEngine {
     }
 
     void dispose() {
-        directionService.removeListener(this::onDirectionChanged);
+        directionService.removeDisplayDirectionListener(this::onDirectionChanged);
     }
 
     // Impact on:
@@ -130,7 +130,7 @@ public class CreateOfferDraftStateEngine {
             recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }*/
 
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
 
         // At new market we use market price as default offer price
         PriceQuote offerPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
@@ -188,7 +188,7 @@ public class CreateOfferDraftStateEngine {
         applyUseFixPriceChanged(priceService.getUseFixPrice());
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
         TradeAmount fixTradeAmount = amountService.getFixTradeAmount();
         TradeAmount minTradeAmount = amountService.getMinTradeAmount();
         TradeAmount maxTradeAmount = amountService.getMaxTradeAmount();
@@ -217,7 +217,7 @@ public class CreateOfferDraftStateEngine {
 
     boolean applyUseBaseCurrencyForAmountInputChanged(boolean useBaseCurrencyForAmountInput) {
         amountService.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
         if (!amountService.isDerivedStateInitialized()) {
             return false;
         }
@@ -248,7 +248,7 @@ public class CreateOfferDraftStateEngine {
         }
 
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDirection();
+        Direction direction = directionService.getDisplayDirection();
         PriceQuote offerPriceQuote = priceService.getPriceQuote();
 
         TradeAmountConstraints tradeAmountConstraints = tradeAmountConstraintsService.compute(market,
@@ -294,7 +294,7 @@ public class CreateOfferDraftStateEngine {
     }
 
     boolean isDerivedStateInitialized() {
-        return amountService.isDerivedStateInitialized() && directionService.getDirection() != null;
+        return amountService.isDerivedStateInitialized() && directionService.getDisplayDirection() != null;
     }
 
 

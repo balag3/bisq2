@@ -67,7 +67,7 @@ public class CreateOfferDraftStateEngineTest {
         marketPriceService.put(usdBtcMarket, usdBtcPriceQuote, usdBtcDefaultTradeAmount);
 
         cookieStore = mock(CreateOfferDraftCookieStore.class);
-        when(cookieStore.getDirection()).thenReturn(Direction.SELL);
+        when(cookieStore.getDisplayDirection()).thenReturn(Direction.SELL);
         when(cookieStore.getUseBaseCurrencyForAmountInput(any())).thenReturn(false);
         when(cookieStore.getUseRangeAmount()).thenReturn(false);
         when(cookieStore.getUseFixPrice(any())).thenReturn(false);
@@ -100,7 +100,7 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine.initialize();
 
         assertEquals(usdBtcMarket, marketService.getMarket());
-        assertEquals(Direction.SELL, directionService.getDirection());
+        assertEquals(Direction.SELL, directionService.getDisplayDirection());
         assertEquals(usdBtcPriceQuote, priceService.getPriceQuote());
         assertEquals(usdBtcDefaultTradeAmount, amountService.getFixTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, amountService.getMinTradeAmount());
@@ -111,8 +111,8 @@ public class CreateOfferDraftStateEngineTest {
 
     @Test
     public void onDirectionChangedReturnsFalseWithoutPricingContext() {
-        directionService.onSelectDirection(Direction.BUY);
-        assertEquals(Direction.BUY, directionService.getDirection());
+        directionService.onSelectDisplayDirection(Direction.BUY);
+        assertEquals(Direction.BUY, directionService.getDisplayDirection());
     }
 
     @Test

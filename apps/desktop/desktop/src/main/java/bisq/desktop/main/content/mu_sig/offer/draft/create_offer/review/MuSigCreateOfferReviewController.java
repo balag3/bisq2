@@ -125,7 +125,7 @@ public class MuSigCreateOfferReviewController implements Controller {
 
     public void initialize() {
         Market market = marketService.getMarket();
-        Direction direction = directionService.getDirection();
+        Direction displayDirection = directionService.getDisplayDirection();
         AmountSpec amountSpec = amountService.createAndGetAmountSpec(market);
         PriceSpec priceSpec = priceService.createAndGetPriceSpec();
 
@@ -150,7 +150,7 @@ public class MuSigCreateOfferReviewController implements Controller {
 
         model.setPaymentMethodsDisplayString(PaymentMethodSpecFormatter.fromPaymentMethods(paymentMethods));
 
-        applyData(direction, amountSpec, priceSpec);
+        applyData(displayDirection, amountSpec, priceSpec);
 
         String offerId = StringUtils.createUid();
         List<OfferOption> offerOptions = accountByPaymentMethod.values().stream()
@@ -176,9 +176,9 @@ public class MuSigCreateOfferReviewController implements Controller {
         // We use static values for both traders of 25%
         offerOptions.add(new CollateralOption(model.getSecurityDepositAsPercent(), model.getSecurityDepositAsPercent()));
 
-        Direction domainDirection = market.isBaseCurrencyBitcoin() ? direction : direction.mirror();
+        Direction offerDirection = Direction.displayDirectionToOfferDirection(displayDirection, market);
         MuSigOffer offer = muSigService.createAndGetMuSigOffer(offerId,
-                domainDirection,
+                offerDirection,
                 market,
                 amountSpec,
                 priceSpec,
@@ -186,7 +186,6 @@ public class MuSigCreateOfferReviewController implements Controller {
                 offerOptions);
         model.setOffer(offer);
 
-        Direction displayDirection = offer.getDisplayDirection();
         if (displayDirection.isSell()) {
             model.setFee(Res.get("muSig.offer.create.review.sellerPaysMinerFee"));
             model.setFeeDetails(Res.get("muSig.offer.create.review.noTradeFeesLong"));

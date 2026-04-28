@@ -40,7 +40,7 @@ import java.util.Map;
 public class MuSigCreateOfferDirectionAndMarketModel implements Model {
     static final Map<String, StackPane> MARKET_ICON_CACHE = new HashMap<>();
 
-    private final ObjectProperty<Direction> direction = new SimpleObjectProperty<>();
+    private final ObjectProperty<Direction> displayDirection = new SimpleObjectProperty<>();
     private final BooleanProperty buyButtonDisabled = new SimpleBooleanProperty();
     private final StringProperty headlineText = new SimpleStringProperty();
     private final StringProperty buyButtonText = new SimpleStringProperty();

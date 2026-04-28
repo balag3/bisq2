@@ -60,13 +60,13 @@ public class CreateOfferStateUpdateHandler {
 
     public void initialize() {
         paymentRailObserverInitialized = false;
-        directionService.directionObservable().addObserver(direction -> {
+        directionService.displayDirectionObservable().addObserver(direction -> {
             if (direction != null) {
                 // Direction direction,
                 //                                   PriceQuote offerPriceQuote,
                 //                                   PriceQuote marketPriceQuote,
                 tradeAmountConstraintsService.compute(marketService.getMarket(),
-                        directionService.getDirection(),
+                        directionService.getDisplayDirection(),
                         priceService.getPriceQuote(),
                         paymentMethodService.getPaymentRailBasedTradeLimitInUsd());
             }

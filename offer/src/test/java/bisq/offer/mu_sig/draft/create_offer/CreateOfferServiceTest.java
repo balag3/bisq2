@@ -104,7 +104,7 @@ public class CreateOfferServiceTest {
         createOfferService.initialize(defaultMarket);
 
         assertEquals(defaultMarket, createOfferService.getMarket());
-        assertEquals(Direction.SELL, directionService.getDirection());
+        assertEquals(Direction.SELL, directionService.getDisplayDirection());
         assertEquals(defaultMarketPriceQuote, priceService.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, amountService.getFixTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, amountService.getMinTradeAmount());
@@ -147,11 +147,11 @@ public class CreateOfferServiceTest {
     public void setDirectionRecomputesUserSpecificLimitAndKeepsAmountsStable() {
         createOfferService.initialize(usdBtcMarket);
         TradeAmount fixTradeAmountBefore = amountService.getFixTradeAmount();
-        Direction persistedDirection = directionService.getDirection();
-        directionService.onSelectDirection(Direction.BUY);
+        Direction persistedDirection = directionService.getDisplayDirection();
+        directionService.onSelectDisplayDirection(Direction.BUY);
         Optional<TradeAmount> buyLimit = amountService.getUserSpecificTradeAmountLimit();
 
-        directionService.onSelectDirection(Direction.SELL);
+        directionService.onSelectDisplayDirection(Direction.SELL);
 
         assertTrue(buyLimit.isPresent());
         assertTrue(amountService.getUserSpecificTradeAmountLimit().isEmpty());
@@ -198,9 +198,9 @@ public class CreateOfferServiceTest {
     @Test
     public void setDirectionWithCurrentValueIsNoOp() {
         createOfferService.initialize(usdBtcMarket);
-        Direction persistedDirection = directionService.getDirection();
+        Direction persistedDirection = directionService.getDisplayDirection();
         TradeAmount fixTradeAmountBefore = amountService.getFixTradeAmount();
-        directionService.onSelectDirection(persistedDirection.mirror());
+        directionService.onSelectDisplayDirection(persistedDirection.mirror());
 
         assertEquals(fixTradeAmountBefore, amountService.getFixTradeAmount());
         assertEquals(List.of(persistedDirection, persistedDirection.mirror()), cookieStore.persistedDirections);
@@ -513,7 +513,7 @@ public class CreateOfferServiceTest {
         }
 
         @Override
-        public Direction getDirection() {
+        public Direction getDisplayDirection() {
             return defaultDirection;
         }
 
@@ -528,7 +528,7 @@ public class CreateOfferServiceTest {
         }
 
         @Override
-        public void persistDirection(Direction direction) {
+        public void persistDisplayDirection(Direction direction) {
             persistedDirections.add(direction);
         }
 

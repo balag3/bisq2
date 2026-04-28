@@ -32,7 +32,7 @@ public class CreateOfferDirectionService {
     @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
-    private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
+    private final Set<Consumer<Direction>> displayDirectionListeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferDirectionService(CreateOfferDraftCookieStore cookieStore) {
         this.cookieStore = cookieStore;
@@ -40,8 +40,8 @@ public class CreateOfferDirectionService {
     }
 
     public void initialize() {
-        Direction direction = cookieStore.getDirection();
-        applyDirection(direction, false);
+        Direction displayDirection = cookieStore.getDisplayDirection();
+        applyDisplayDirection(displayDirection, false);
     }
 
 
@@ -49,26 +49,26 @@ public class CreateOfferDirectionService {
     // User input
     /* --------------------------------------------------------------------- */
 
-    public void onSelectDirection(Direction direction) {
-        applyDirection(direction, true);
+    public void onSelectDisplayDirection(Direction displayDirection) {
+        applyDisplayDirection(displayDirection, true);
     }
 
 
-    private void applyDirection(Direction direction, boolean notifyListeners) {
-        if (direction != model.getDirection()) {
-            model.setDirection(direction);
-            cookieStore.persistDirection(direction);
+    private void applyDisplayDirection(Direction displayDirection, boolean notifyListeners) {
+        if (displayDirection != model.getDisplayDirection()) {
+            model.setDisplayDirection(displayDirection);
+            cookieStore.persistDisplayDirection(displayDirection);
             if (notifyListeners) {
-                listeners.forEach(listener -> listener.accept(direction));
+                displayDirectionListeners.forEach(listener -> listener.accept(displayDirection));
             }
         }
     }
 
-    public void addListener(Consumer<Direction> listener) {
-        listeners.add(listener);
+    public void addDisplayDirectionListener(Consumer<Direction> listener) {
+        displayDirectionListeners.add(listener);
     }
 
-    public void removeListener(Consumer<Direction> listener) {
-        listeners.remove(listener);
+    public void removeDisplayDirectionListener(Consumer<Direction> listener) {
+        displayDirectionListeners.remove(listener);
     }
 }

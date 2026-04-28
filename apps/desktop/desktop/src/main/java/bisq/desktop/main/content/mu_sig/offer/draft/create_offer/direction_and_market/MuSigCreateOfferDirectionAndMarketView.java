@@ -142,8 +142,8 @@ public class MuSigCreateOfferDirectionAndMarketView extends View<StackPane, MuSi
         paymentCurrencySearchBox.textProperty().bindBidirectional(model.getPaymentCurrencySearchText());
 
         buyButton.disableProperty().bind(model.getBuyButtonDisabled());
-        buyButton.setOnAction(evt -> controller.onSelectDirection(Direction.BUY));
-        sellButton.setOnAction(evt -> controller.onSelectDirection(Direction.SELL));
+        buyButton.setOnAction(e -> controller.onSelectDisplayDirection(Direction.BUY));
+        sellButton.setOnAction(e -> controller.onSelectDisplayDirection(Direction.SELL));
 
         selectedMarketListItemPin = EasyBind.subscribe(model.getSelectedMarketListItem(),
                 selected -> marketsTableView.getSelectionModel().select(selected));
@@ -151,7 +151,7 @@ public class MuSigCreateOfferDirectionAndMarketView extends View<StackPane, MuSi
         selectedMarketTypePin = EasyBind.subscribe(model.getSelectedMarketTypeListItem(),
                 selected -> marketTypeTableView.getSelectionModel().select(selected));
 
-        displayDirectionPin = EasyBind.subscribe(model.getDirection(), direction -> {
+        displayDirectionPin = EasyBind.subscribe(model.getDisplayDirection(), direction -> {
             if (direction != null) {
                 buyButton.setDefaultButton(direction.isBuy());
                 sellButton.setDefaultButton(direction.isSell());
