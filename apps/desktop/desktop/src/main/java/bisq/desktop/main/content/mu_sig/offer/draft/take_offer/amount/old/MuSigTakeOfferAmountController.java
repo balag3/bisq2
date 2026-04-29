@@ -33,8 +33,8 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.amount.OfferAmountUtil;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import bisq.offer.price.PriceUtil;
 import bisq.presentation.formatters.AmountFormatter;
@@ -193,8 +193,8 @@ public class MuSigTakeOfferAmountController implements Controller {
     private void applyTradeAmountLimitsInUsd() {
         PaymentMethodSpec<?> takersPaymentMethodSpec = model.getTakersPaymentMethodSpec();
         if (takersPaymentMethodSpec != null) {
-            Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(takersPaymentMethodSpec.getPaymentMethod().getPaymentRail());
-            MonetaryRange tradeAmountLimitsInUsd = new MonetaryRange(AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD, maxTradeLimitInUsd);
+            Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(takersPaymentMethodSpec.getPaymentMethod().getPaymentRail());
+            MonetaryRange tradeAmountLimitsInUsd = new MonetaryRange(AbsoluteAmountLimitsProvider.MIN_TRADE_AMOUNT_IN_USD, maxTradeLimitInUsd);
             amountSelectionController.setTradeAmountLimitsInUsd(tradeAmountLimitsInUsd);
         }
     }

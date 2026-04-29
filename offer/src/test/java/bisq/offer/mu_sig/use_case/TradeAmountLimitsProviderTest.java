@@ -14,7 +14,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class TradeAmountLimitsTest {
+public class TradeAmountLimitsProviderTest {
 
     @Test
     public void testToTradeAmountLimits_FiatMarket() {

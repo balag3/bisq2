@@ -32,6 +32,7 @@ public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
     public PaymentMethodSelectionResult {
         checkNotNull(status, "status must not be null");
         checkNotNull(accountsRequiringSelection, "accountsRequiringSelection must not be null");
+        checkNotNull(methodAccountEntry, "methodAccountEntry must not be null");
         accountsRequiringSelection = List.copyOf(accountsRequiringSelection);
     }
 
@@ -40,6 +41,7 @@ public record PaymentMethodSelectionResult(PaymentMethodSelectionStatus status,
     }
 
     public static PaymentMethodSelectionResult singleAccountSelected(Map.Entry<PaymentMethod<?>, Account<?, ?>> methodAccountEntry) {
+        checkNotNull(methodAccountEntry, "methodAccountEntry must not be null");
         return new PaymentMethodSelectionResult(PaymentMethodSelectionStatus.SINGLE_ACCOUNT_SELECTED, List.of(), Optional.of(methodAccountEntry));
     }
 

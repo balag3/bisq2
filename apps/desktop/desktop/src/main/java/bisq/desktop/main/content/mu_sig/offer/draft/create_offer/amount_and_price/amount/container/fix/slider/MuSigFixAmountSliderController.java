@@ -36,13 +36,11 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigFixAmountSliderController(CreateOfferUseCase createOfferUseCase) {
-        this.createOfferUseCase = createOfferUseCase;
         amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
@@ -53,7 +51,7 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        createOfferUseCase.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountUseCase.onSetFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 

@@ -27,8 +27,8 @@ import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimitsProvider;
 
 import java.util.Optional;
 
@@ -60,12 +60,10 @@ class CreateOfferTradeAmountConstraintsService {
         checkNotNull(offerPriceQuote, "offerPriceQuote must not be null");
 
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-        checkNotNull(marketPriceQuote, "marketPriceQuote must not be null");
-
         Market usdBitcoinMarket = MarketRepository.getUSDBitcoinMarket();
         PriceQuote btcUsdPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(usdBitcoinMarket);
 
-        Fiat minTradeAmountInUsd = AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
+        Fiat minTradeAmountInUsd = AbsoluteAmountLimitsProvider.MIN_TRADE_AMOUNT_IN_USD;
         TradeAmountRange tradeAmountLimits = TradeAmountLimits.toTradeAmountLimits(market,
                 offerPriceQuote,
                 btcUsdPriceQuote,
@@ -81,7 +79,7 @@ class CreateOfferTradeAmountConstraintsService {
                 offerPriceQuote,
                 btcUsdPriceQuote,
                 marketPriceQuote,
-                UserSpecificAmountLimits.getUserSpecificLimitInUsd());
+                UserSpecificAmountLimitsProvider.getUserSpecificLimitInUsd());
         return new TradeAmountConstraints(tradeAmountLimits, Optional.of(userSpecificTradeAmountLimit));
     }
 

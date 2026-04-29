@@ -35,7 +35,7 @@ import bisq.desktop.common.utils.ClipboardUtil;
 import bisq.desktop.common.utils.GridPaneUtil;
 import bisq.desktop.components.controls.BisqMenuItem;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
 import bisq.presentation.formatters.AmountFormatter;
 import bisq.presentation.formatters.DateFormatter;
 import bisq.presentation.formatters.TimeFormatter;
@@ -163,7 +163,7 @@ public abstract class AccountDetails<A extends Account<?, ?>, R extends PaymentR
 
     protected Label addTradeLimitInfo() {
         PaymentRail paymentRail = account.getPaymentMethod().getPaymentRail();
-        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
+        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(paymentRail);
         String maxTradeLimit = AmountFormatter.formatQuoteAmount(maxTradeLimitInUsd);
         return addDescriptionAndValue(Res.get("paymentAccounts.tradeLimit"), maxTradeLimit);
     }

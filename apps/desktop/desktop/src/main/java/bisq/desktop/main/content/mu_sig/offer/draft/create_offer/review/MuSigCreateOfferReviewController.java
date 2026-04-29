@@ -83,7 +83,6 @@ public class MuSigCreateOfferReviewController implements Controller {
     private final MuSigCreateOfferReviewModel model;
     @Getter
     private final MuSigCreateOfferReviewView view;
-    private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferPaymentMethodUseCase createOfferPaymentMethodService;
     private final Consumer<Boolean> mainButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
@@ -102,7 +101,6 @@ public class MuSigCreateOfferReviewController implements Controller {
                                             CreateOfferPaymentMethodUseCase createOfferPaymentMethodService,
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferUseCase = createOfferUseCase;
         marketUseCase = createOfferUseCase.getMarketUseCase();
         directionUseCase = createOfferUseCase.getDirectionService();
         paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
@@ -229,7 +227,7 @@ public class MuSigCreateOfferReviewController implements Controller {
     private void applyData(Direction displayDirection,
                            AmountSpec amountSpec,
                            PriceSpec priceSpec) {
-        Market market = createOfferUseCase.getMarket();
+        Market market = marketUseCase.getMarket();
         String marketCodes = market.getMarketCodes();
 
         model.setCrypto(market.isCrypto());

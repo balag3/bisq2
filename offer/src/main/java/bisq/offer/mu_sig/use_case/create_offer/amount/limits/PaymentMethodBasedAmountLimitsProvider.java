@@ -40,8 +40,8 @@ import java.util.Map;
 import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PaymentMethodBasedAmountLimits extends UseCase {
-    private final Observable<Fiat> amountLimitInUsd = new Observable<>(AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD); //todo remove
+public class PaymentMethodBasedAmountLimitsProvider extends UseCase {
+    private final Observable<Fiat> amountLimitInUsd = new Observable<>(AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD); //todo remove
     private final Observable<TradeAmount> tradeAmountLimit = new Observable<>();
 
     private final MarketPriceService marketPriceService;
@@ -49,10 +49,10 @@ public class PaymentMethodBasedAmountLimits extends UseCase {
     private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
     private final CreateOfferPriceUseCase priceService;
 
-    public PaymentMethodBasedAmountLimits(MarketPriceService marketPriceService,
-                                          CreateOfferMarketUseCase marketService,
-                                          CreateOfferPaymentMethodUseCase paymentMethodUseCase,
-                                          CreateOfferPriceUseCase priceService) {
+    PaymentMethodBasedAmountLimitsProvider(MarketPriceService marketPriceService,
+                                           CreateOfferMarketUseCase marketService,
+                                           CreateOfferPaymentMethodUseCase paymentMethodUseCase,
+                                           CreateOfferPriceUseCase priceService) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.marketService = marketService;
         this.paymentMethodUseCase = paymentMethodUseCase;
@@ -80,9 +80,9 @@ public class PaymentMethodBasedAmountLimits extends UseCase {
     // Update
     /* --------------------------------------------------------------------- */
 
-    public void update(Market market,
-                       PriceQuote priceQuote,
-                       ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
+    private void update(Market market,
+                        PriceQuote priceQuote,
+                        ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
         if (dependenciesValid(market, priceQuote, accountByPaymentMethod)) {
             Fiat limitInUsd = evaluateLimitInUsd(accountByPaymentMethod);
             amountLimitInUsd.set(limitInUsd);
@@ -97,21 +97,21 @@ public class PaymentMethodBasedAmountLimits extends UseCase {
     // Getters
     /* --------------------------------------------------------------------- */
 
-    public ReadOnlyObservable<TradeAmount> tradeAmountLimitObservable() {
+    ReadOnlyObservable<TradeAmount> tradeAmountLimitObservable() {
         return tradeAmountLimit;
     }
 
-    public TradeAmount getTradeAmountLimit() {
+    TradeAmount getTradeAmountLimit() {
         return tradeAmountLimit.get();
     }
 
     //todo remove
-    public ReadOnlyObservable<Fiat> amountLimitInUsdObservable() {
+    ReadOnlyObservable<Fiat> amountLimitInUsdObservable() {
         return amountLimitInUsd;
     }
 
     //todo remove
-    public Fiat getAmountLimitInUsd() {
+    Fiat getAmountLimitInUsd() {
         return amountLimitInUsd.get();
     }
 
@@ -128,18 +128,19 @@ public class PaymentMethodBasedAmountLimits extends UseCase {
     // Static
     /* --------------------------------------------------------------------- */
 
-    public static Fiat evaluateLimitInUsd(Map<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
+    static Fiat evaluateLimitInUsd(Map<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
         return accountByPaymentMethod.values().stream()
                 .map(Account::getPaymentMethod)
                 .map(PaymentMethod::getPaymentRail)
                 .map(PaymentRail.class::cast)
-                .min(Comparator.comparing(PaymentMethodBasedAmountLimits::evaluateLimitInUsd))
-                .map(PaymentMethodBasedAmountLimits::evaluateLimitInUsd)
-                .orElse(AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD);
+                .min(Comparator.comparing(PaymentMethodBasedAmountLimitsProvider::evaluateLimitInUsd))
+                .map(PaymentMethodBasedAmountLimitsProvider::evaluateLimitInUsd)
+                .orElse(AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD);
     }
 
     public static Fiat evaluateLimitInUsd(PaymentRail paymentRail) {
-        Fiat maxTradeLimitByProtocol = AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
+        checkNotNull(paymentRail, "paymentRail must not be null");
+        Fiat maxTradeLimitByProtocol = AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD;
         if (paymentRail instanceof FiatPaymentRail fiatPaymentRail) {
             return switch (fiatPaymentRail.getChargebackRisk()) {
                 case VERY_LOW -> maxTradeLimitByProtocol;

@@ -21,9 +21,7 @@ import bisq.account.AccountService;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
-import bisq.common.monetary.Monetary;
-import bisq.common.monetary.TradeAmount;
-import bisq.common.monetary.TradeAmountRange;
+import bisq.common.observable.Observable;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
@@ -40,31 +38,17 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-/**
- * User-facing workflow facade for creating an offer draft.
- * <p>
- * Design: exposes stable UI/API mutation methods and persistence side effects (cookies), while
- * delegating transition ordering and derived-state recalculation to {@link CreateOfferDraftStateEngine}
- * and isolated domain services.
- */
 @Slf4j
+@Getter
 public class CreateOfferUseCase extends DraftOfferUseCase {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
-    @Getter
-    private final CreateOfferMarketUseCase marketUseCase;
-    @Getter
-    private final CreateOfferDirectionUseCase directionService;
-    @Getter
-    private final CreateOfferPriceUseCase priceService;
-    @Getter
-    private final CreateOfferAmountUseCase amountUseCase;
 
-    private final CreateOfferDraftCookieStore cookieStore;
-    @Getter
+    private final CreateOfferMarketUseCase marketUseCase;
+    private final CreateOfferDirectionUseCase directionService;
     private final CreateOfferPaymentMethodUseCase paymentMethodService;
-    private final CreateOfferDraftStateEngine stateEngine;
-    private final CreateOfferStateUpdateHandler stateUpdateHandler;
-    private final CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
+    private final CreateOfferPriceUseCase priceService;
+    private final CreateOfferAmountUseCase amountUseCase;
+    private final Observable<Boolean> initialized = new Observable<>(false);
 
 
     /* --------------------------------------------------------------------- */
@@ -74,17 +58,14 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     public CreateOfferUseCase(MarketPriceService marketPriceService,
                               SettingsService settingsService,
                               AccountService accountService) {
-        this(marketPriceService,
-                new DefaultCreateOfferDraftCookieStore(settingsService),
-                new DefaultAccountsProvider(accountService));
+        this(checkNotNull(marketPriceService, "marketPriceService must not be null"),
+                new DefaultCreateOfferDraftCookieStore(checkNotNull(settingsService, "settingsService must not be null")),
+                new DefaultAccountsProvider(checkNotNull(accountService, "accountService must not be null")));
     }
 
     CreateOfferUseCase(MarketPriceService marketPriceService,
                        CreateOfferDraftCookieStore cookieStore,
                        AccountsProvider accountsProvider) {
-        checkNotNull(accountsProvider, "accountsProvider must not be null");
-        checkNotNull(marketPriceService, "marketPriceProvider must not be null");
-        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         marketUseCase = new CreateOfferMarketUseCase();
         directionService = new CreateOfferDirectionUseCase(cookieStore);
@@ -96,30 +77,6 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
                 paymentMethodService,
                 priceService,
                 cookieStore);
-
-        //todo remove once refactoring finished
-        tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
-        stateEngine = new CreateOfferDraftStateEngine(marketUseCase,
-                directionService,
-                paymentMethodService,
-                priceService,
-                amountUseCase,
-                marketPriceService,
-                amountUseCase.getAmountMappingService(),
-                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
-                tradeAmountConstraintsService,
-                DEFAULT_TRADE_AMOUNT_IN_USD);
-
-        //todo remove once refactoring finished
-        stateUpdateHandler = new CreateOfferStateUpdateHandler(marketUseCase,
-                directionService,
-                paymentMethodService,
-                priceService,
-                amountUseCase,
-                marketPriceService,
-                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
-                tradeAmountConstraintsService,
-                stateEngine);
     }
 
 
@@ -135,13 +92,17 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         priceService.initialize();
         amountUseCase.initialize();
 
-        stateUpdateHandler.initialize();
-        stateEngine.initialize();
-
-        pin(priceService.addPriceQuoteListener(priceQuote -> {
-            //todo
-            stateEngine.applyPriceQuoteChanged(priceQuote);
+        pin(amountUseCase.initializedObservable().addObserver(initialized -> {
+            if (initialized != null) {
+                extracted();
+            }
         }));
+    }
+
+    private void extracted() {
+        if (amountUseCase.isInitialized()) {
+            setInitialized(true);
+        }
     }
 
     @Override
@@ -153,122 +114,25 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
         paymentMethodService.dispose();
         priceService.dispose();
         amountUseCase.dispose();
-
-        stateUpdateHandler.dispose();
-        stateEngine.dispose();
     }
 
 
     /* --------------------------------------------------------------------- */
-    // Mutation API
+    // initialized
     /* --------------------------------------------------------------------- */
 
-
-   /* public void setUseFixPrice(boolean useFixPrice) {
-        if (useFixPrice == priceService.getUseFixPrice()) {
-            return;
-        }
-        Market market = checkNotNull(getMarket(), "market must not be null");
-        cookieStore.persistUseFixPrice(market, useFixPrice);
-        stateEngine.applyUseFixPriceChanged(useFixPrice);
-    }*/
-
-  /*  public void setPricePercentage(double pricePercentage) {
-        if (Double.compare(pricePercentage, priceService.getPricePercentage()) == 0) {
-            return;
-        }
-        priceService.setPricePercentage(pricePercentage);
-        Market market = checkNotNull(getMarket(), "market must not be null");
-        cookieStore.persistPricePercentage(market, pricePercentage);
-    }*/
-
-   /* public void setFixPrice(PriceQuote fixPriceQuote) {
-        checkNotNull(fixPriceQuote, "fixPriceQuote must not be null");
-        if (priceService.getPriceQuote().equals(fixPriceQuote)) {
-            return;
-        }
-        priceService.setPriceQuote(fixPriceQuote);
-    }*/
-
-    public void setUseBaseCurrencyForAmountInput(boolean value) {
-        if (value == amountUseCase.getUseBaseCurrencyForAmountInput()) {
-            return;
-        }
-
-        Market market = getMarket();
-        if (market == null) {
-            amountUseCase.setUseBaseCurrencyForAmountInput(value);
-            return;
-        }
-
-        if (stateEngine.applyUseBaseCurrencyForAmountInputChanged(value)) {
-            cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
-        }
+    private void setInitialized(boolean value) {
+        initialized.set(value);
     }
 
-    public void setUseRangeAmount(boolean useRangeAmount) {
-        if (useRangeAmount == amountUseCase.getUseRangeAmount()) {
-            return;
-        }
-
-        if (stateEngine.applyUseRangeAmountChanged(useRangeAmount)) {
-            cookieStore.persistUseRangeAmount(useRangeAmount);
-        }
+    public Observable<Boolean> initializedObservable() {
+        return initialized;
     }
 
-    /* --------------------------------------------------------------------- */
-    // Amount input entry points
-    /* --------------------------------------------------------------------- */
-
-    public void setFixTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        amountUseCase.setFixTradeAmount(tradeAmount);
+    public boolean isInitialized() {
+        return initialized.get();
     }
 
-    public void setMinTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        amountUseCase.setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        amountUseCase.setMaxTradeAmount(tradeAmount);
-    }
-
-    public void setFixTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount fixTradeAmount = checkNotNull(amountUseCase.getFixTradeAmount(), "fixTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
-        amountUseCase.setFixTradeAmount(tradeAmount);
-    }
-
-    public void setMinTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount minTradeAmount = checkNotNull(amountUseCase.getMinTradeAmount(), "minTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(minTradeAmount, sliderValue);
-        amountUseCase.setMinTradeAmount(tradeAmount);
-    }
-
-    public void setMaxTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount maxTradeAmount = checkNotNull(amountUseCase.getMaxTradeAmount(), "maxTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(maxTradeAmount, sliderValue);
-        amountUseCase.setMaxTradeAmount(tradeAmount);
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // Amount conversion
-    /* --------------------------------------------------------------------- */
-
-    public Monetary toInputAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = amountUseCase.getUseBaseCurrencyForAmountInput();
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return amountUseCase.getAmountMappingService().toInputAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
-    }
-
-    public Monetary toPassiveAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = amountUseCase.getUseBaseCurrencyForAmountInput();
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return amountUseCase.getAmountMappingService().toPassiveAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
-    }
 
 
     /* --------------------------------------------------------------------- */
@@ -276,12 +140,8 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     @Override
+    // not used anymore
     public Market getMarket() {
         return marketUseCase.getMarket();
-    }
-
-
-    private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
-        return stateEngine.getClampLimits(includeUserSpecificTradeAmountLimit);
     }
 }

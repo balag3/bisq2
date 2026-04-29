@@ -248,6 +248,10 @@ public abstract class Monetary implements Comparable<Monetary>, PersistableProto
         return from(this, newValue);
     }
 
+    public boolean isBitcoin() {
+        return code.endsWith("BTC");
+    }
+
     private enum ComparisonOperator {
         IS_LESS_THAN,
         IS_LESS_THAN_OR_EQUAL,

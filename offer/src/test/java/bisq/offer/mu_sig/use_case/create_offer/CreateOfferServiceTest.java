@@ -21,7 +21,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -106,14 +106,14 @@ public class CreateOfferServiceTest {
     public void initializePopulatesDraftAndUpdatesPaymentMethods() {
         initialize(defaultMarket);
 
-        assertEquals(defaultMarket, createOfferUseCase.getMarket());
+        assertEquals(defaultMarket, marketUseCase.getMarket());
         assertEquals(Direction.SELL, directionUseCase.getDisplayDirection());
         assertEquals(defaultMarketPriceQuote, priceUseCase.getPriceQuote());
         assertEquals(defaultMarketDefaultTradeAmount, amountUseCase.getFixTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, amountUseCase.getMinTradeAmount());
         assertEquals(defaultMarketDefaultTradeAmount, amountUseCase.getMaxTradeAmount());
         assertNotNull(amountUseCase.getTradeAmountLimits());
-        assertNotNull(amountUseCase.getInputAmountLimits());
+        assertNotNull(amountUseCase.getInputAmountRange());
         assertEquals(List.of(defaultMarket), accountsProvider.requestedMarkets);
     }
 
@@ -122,13 +122,13 @@ public class CreateOfferServiceTest {
         initialize(defaultMarket);
         marketUseCase.onSetMarket(xmrBtcMarket);
 
-        assertEquals(xmrBtcMarket, createOfferUseCase.getMarket());
+        assertEquals(xmrBtcMarket, marketUseCase.getMarket());
         assertEquals(xmrBtcPriceQuote, priceUseCase.getPriceQuote());
         assertEquals(xmrBtcDefaultTradeAmount, amountUseCase.getFixTradeAmount());
         assertEquals(xmrBtcDefaultTradeAmount, amountUseCase.getMinTradeAmount());
         assertEquals(xmrBtcDefaultTradeAmount, amountUseCase.getMaxTradeAmount());
         assertNotNull(amountUseCase.getTradeAmountLimits());
-        assertNotNull(amountUseCase.getInputAmountLimits());
+        assertNotNull(amountUseCase.getInputAmountRange());
         assertEquals(List.of(defaultMarket, xmrBtcMarket), accountsProvider.requestedMarkets);
     }
 
@@ -145,7 +145,7 @@ public class CreateOfferServiceTest {
                 xmrBtcMarket,
                 directionUseCase.getDisplayDirection(),
                 expectedPriceQuote,
-                AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD);
+                AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD);
 
         assertEquals(persistedPercentage, priceUseCase.getPricePercentage());
         assertEquals(expectedPriceQuote, priceUseCase.getPriceQuote());
@@ -429,7 +429,7 @@ public class CreateOfferServiceTest {
     @Test
     public void setInputAmountLimitsUpdatesLimits() {
         initialize(usdBtcMarket);
-        var currentLimits = amountUseCase.getInputAmountLimits();
+        var currentLimits = amountUseCase.getInputAmountRange();
 
         var newLimits = new MonetaryRange(
                 currentLimits.getMin(),
@@ -437,7 +437,7 @@ public class CreateOfferServiceTest {
         );
         amountUseCase.setInputAmountLimits(newLimits);
 
-        assertEquals(newLimits, amountUseCase.getInputAmountLimits());
+        assertEquals(newLimits, amountUseCase.getInputAmountRange());
     }
 
     @Test

@@ -36,7 +36,7 @@ public class CreateOfferDirectionUseCase extends UseCase {
     private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore) {
-        this.cookieStore = cookieStore;
+        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         this.model = new CreateOfferDirectionModel();
     }
 
@@ -70,6 +70,7 @@ public class CreateOfferDirectionUseCase extends UseCase {
     }
 
     public Pin addDisplayDirectionListener(Consumer<Direction> listener) {
+        checkNotNull(listener, "listener must not be null");
         listeners.add(listener);
         return () -> listeners.remove(listener);
     }

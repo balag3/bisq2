@@ -44,7 +44,6 @@ class TradeAmountLimitUtils {
         Monetary quoteSideAmount;
         if (market.isBtcFiatMarket()) {
             PriceQuote btcFiatPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
-            checkNotNull(btcFiatPriceQuote, "btcFiatPriceQuote must not be null for BTC/fiat market");
             // For Fiat markets we convert the USD value to the Fiat currency (quote side) by using the market price and use
             // that as stable side.
             // The Bitcoin side (base side) will get adjusted by the price quote.

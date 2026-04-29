@@ -35,7 +35,7 @@ import java.util.Optional;
 import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class UserSpecificAmountLimits extends UseCase {
+public class UserSpecificAmountLimitsProvider extends UseCase {
     private static final long USER_SPECIFIC_LIMIT_IN_USD = 4000;
 
     private final MarketPriceService marketPriceService;
@@ -44,10 +44,10 @@ public class UserSpecificAmountLimits extends UseCase {
     private final CreateOfferPriceUseCase priceService;
     private final Observable<Optional<TradeAmount>> tradeAmountLimit = new Observable<>(Optional.empty());
 
-    public UserSpecificAmountLimits(MarketPriceService marketPriceService,
-                                    CreateOfferMarketUseCase marketService,
-                                    CreateOfferDirectionUseCase directionService,
-                                    CreateOfferPriceUseCase priceService) {
+    UserSpecificAmountLimitsProvider(MarketPriceService marketPriceService,
+                                     CreateOfferMarketUseCase marketService,
+                                     CreateOfferDirectionUseCase directionService,
+                                     CreateOfferPriceUseCase priceService) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
         this.marketService = marketService;
         this.directionService = directionService;
@@ -80,9 +80,9 @@ public class UserSpecificAmountLimits extends UseCase {
     // Update
     /* --------------------------------------------------------------------- */
 
-    public void update(Market market,
-                       Direction displayDirection,
-                       PriceQuote priceQuote) {
+    private void update(Market market,
+                        Direction displayDirection,
+                        PriceQuote priceQuote) {
         if (dependenciesValid(market, displayDirection, priceQuote)) {
             if (market.isBtcFiatMarket() && displayDirection.isBuy()) {
                 Fiat userSpecificLimitInUsd = getUserSpecificLimitInUsd();
@@ -106,11 +106,11 @@ public class UserSpecificAmountLimits extends UseCase {
     // Getters
     /* --------------------------------------------------------------------- */
 
-    public ReadOnlyObservable<Optional<TradeAmount>> tradeAmountLimitObservable() {
+    ReadOnlyObservable<Optional<TradeAmount>> tradeAmountLimitObservable() {
         return tradeAmountLimit;
     }
 
-    public Optional<TradeAmount> getTradeAmountLimit() {
+    Optional<TradeAmount> getTradeAmountLimit() {
         return tradeAmountLimit.get();
     }
 }

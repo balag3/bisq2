@@ -18,7 +18,6 @@
 package bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range;
 
 import bisq.common.monetary.Monetary;
-import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Pin;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
@@ -45,13 +44,11 @@ public class MuSigRangeAmountController implements Controller {
     private final MuSigPassiveAmountController minPassiveAmountController;
     private final MuSigAmountTextInputController maxAmountInputController;
     private final MuSigPassiveAmountController maxPassiveAmountController;
-    private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountController(CreateOfferUseCase createOfferUseCase) {
-        this.createOfferUseCase = createOfferUseCase;
         amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigRangeAmountModel();
 
@@ -79,40 +76,53 @@ public class MuSigRangeAmountController implements Controller {
     public void onActivate() {
         // Domain specific
         pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
-            UIThread.run(this::applyAllAmounts);
+            if (useBaseCurrencyForAmountInput != null) {
+                UIThread.run(this::applyAllAmounts);
+            }
         }));
 
         pins.add(amountUseCase.minTradeAmountObservable().addObserver(tradeAmount -> {
-            UIThread.run(this::applyAllAmounts);
+            if (tradeAmount != null) {
+                UIThread.run(this::applyAllAmounts);
+            }
         }));
         pins.add(amountUseCase.maxTradeAmountObservable().addObserver(tradeAmount -> {
-            UIThread.run(this::applyAllAmounts);
+            if (tradeAmount != null) {
+                UIThread.run(this::applyAllAmounts);
+            }
         }));
 
         subscriptions.add(EasyBind.subscribe(minAmountInputController.amountProperty(),
                 amount -> {
-                    createOfferUseCase.setMinTradeAmountFromInputAmount(amount);
-                    applyMinInputAmount();
-
+                    if (amount != null) {
+                        amountUseCase.onSetMinTradeAmountFromInputAmount(amount);
+                        applyMinInputAmount();
+                    }
                 }));
 
 
         subscriptions.add(EasyBind.subscribe(maxAmountInputController.amountProperty(),
                 amount -> {
-                    createOfferUseCase.setMaxTradeAmountFromInputAmount(amount);
-                    applyMaxInputAmount();
+                    if (amount != null) {
+                        amountUseCase.onSetMaxTradeAmountFromInputAmount(amount);
+                        applyMaxInputAmount();
+                    }
                 }));
 
         // UI specific
         subscriptions.add(EasyBind.subscribe(minAmountInputController.inputTextProperty(),
                 inputText -> {
-                    model.getMinAmountInputText().set(inputText);
-                    applySumNumChars();
+                    if (inputText != null) {
+                        model.getMinAmountInputText().set(inputText);
+                        applySumNumChars();
+                    }
                 }));
         subscriptions.add(EasyBind.subscribe(maxAmountInputController.inputTextProperty(),
                 inputText -> {
-                    model.getMaxAmountInputText().set(inputText);
-                    applySumNumChars();
+                    if (inputText != null) {
+                        model.getMaxAmountInputText().set(inputText);
+                        applySumNumChars();
+                    }
                 }));
 
         subscriptions.add(EasyBind.subscribe(model.getMinAmountInputFieldWidth(), width -> {
@@ -134,12 +144,16 @@ public class MuSigRangeAmountController implements Controller {
 
         subscriptions.add(EasyBind.subscribe(minAmountInputController.focusedProperty(),
                 focused -> {
-                    applyIsTextInputFocused();
+                    if (focused != null) {
+                        applyIsTextInputFocused();
+                    }
                 }));
 
         subscriptions.add(EasyBind.subscribe(maxAmountInputController.focusedProperty(),
                 focused -> {
-                    applyIsTextInputFocused();
+                    if (focused != null) {
+                        applyIsTextInputFocused();
+                    }
                 }));
     }
 
@@ -167,7 +181,7 @@ public class MuSigRangeAmountController implements Controller {
 
     void onToggleInputMode() {
         boolean value = !amountUseCase.getUseBaseCurrencyForAmountInput();
-        createOfferUseCase.setUseBaseCurrencyForAmountInput(value);
+        amountUseCase.onSetUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -183,26 +197,22 @@ public class MuSigRangeAmountController implements Controller {
     }
 
     private void applyMinInputAmount() {
-        TradeAmount tradeAmount = amountUseCase.getMinTradeAmount();
-        Monetary inputAmount = createOfferUseCase.toInputAmount(tradeAmount, true);
+        Monetary inputAmount = amountUseCase.getMinInputAmount();
         minAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMaxInputAmount() {
-        TradeAmount tradeAmount = amountUseCase.getMaxTradeAmount();
-        Monetary inputAmount = createOfferUseCase.toInputAmount(tradeAmount, true);
+        Monetary inputAmount = amountUseCase.getMaxInputAmount();
         maxAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMinPassiveAmount() {
-        TradeAmount tradeAmount = amountUseCase.getMinTradeAmount();
-        Monetary passiveAmount = createOfferUseCase.toPassiveAmount(tradeAmount, true);
+        Monetary passiveAmount = amountUseCase.getMinPassiveAmount();
         minPassiveAmountController.setAmount(passiveAmount);
     }
 
     private void applyMaxPassiveAmount() {
-        TradeAmount tradeAmount = amountUseCase.getMaxTradeAmount();
-        Monetary passiveAmount = createOfferUseCase.toPassiveAmount(tradeAmount, true);
+        Monetary passiveAmount = amountUseCase.getMaxPassiveAmount();
         maxPassiveAmountController.setAmount(passiveAmount);
     }
 

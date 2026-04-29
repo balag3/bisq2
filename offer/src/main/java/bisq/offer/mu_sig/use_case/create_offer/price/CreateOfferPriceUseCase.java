@@ -67,9 +67,9 @@ public class CreateOfferPriceUseCase extends UseCase {
     public CreateOfferPriceUseCase(MarketPriceService marketPriceService,
                                    CreateOfferMarketUseCase marketUseCase,
                                    CreateOfferDraftCookieStore cookieStore) {
-        this.marketPriceService = marketPriceService;
-        this.marketUseCase = marketUseCase;
-        this.cookieStore = cookieStore;
+        this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
+        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
+        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         priceLimits = new PriceLimits(marketPriceService, marketUseCase);
         this.model = new CreateOfferPriceModel();
@@ -206,6 +206,7 @@ public class CreateOfferPriceUseCase extends UseCase {
 
 
     public Pin addPriceQuoteListener(Consumer<PriceQuote> listener) {
+        checkNotNull(listener, "listener must not be null");
         listeners.add(listener);
         return () -> listeners.remove(listener);
     }
@@ -215,23 +216,23 @@ public class CreateOfferPriceUseCase extends UseCase {
         return priceLimits.clamp(pricePercentage);
     }
 
-    PriceQuote percentageToPriceQuote(double pricePercentage) {
+    private PriceQuote percentageToPriceQuote(double pricePercentage) {
         Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         return PriceUtil.fromMarketPriceMarkup(marketPriceQuote, pricePercentage);
     }
 
-    double priceQuoteToPercentage(PriceQuote priceQuote) {
+    private double priceQuoteToPercentage(PriceQuote priceQuote) {
         Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
     }
 
-    static PriceQuote percentageToPriceQuote(PriceQuote marketPriceQuote, double pricePercentage) {
+    private static PriceQuote percentageToPriceQuote(PriceQuote marketPriceQuote, double pricePercentage) {
         return PriceUtil.fromMarketPriceMarkup(marketPriceQuote, pricePercentage);
     }
 
-    static double priceQuoteToPercentage(PriceQuote marketPriceQuote, PriceQuote priceQuote) {
+    private static double priceQuoteToPercentage(PriceQuote marketPriceQuote, PriceQuote priceQuote) {
         return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
     }
 

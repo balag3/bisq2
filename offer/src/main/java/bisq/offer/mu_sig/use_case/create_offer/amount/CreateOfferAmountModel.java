@@ -19,28 +19,49 @@ package bisq.offer.mu_sig.use_case.create_offer.amount;
 
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.TradeAmount;
-import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
 
 import java.util.Optional;
 
 public class CreateOfferAmountModel {
-    protected final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
-    protected final Observable<Boolean> useRangeAmount = new Observable<>(false);
-    protected final Observable<TradeAmount> fixTradeAmount = new Observable<>();
-    protected final Observable<TradeAmount> minTradeAmount = new Observable<>();
-    protected final Observable<TradeAmount> maxTradeAmount = new Observable<>();
-    protected final Observable<Optional<TradeAmount>> userSpecificTradeAmountLimit = new Observable<>(Optional.empty());
-    protected final Observable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValue = new Observable<>(Optional.empty());
-    protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
-    protected final Observable<MonetaryRange> inputAmountLimits = new Observable<>();
-    protected final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
-    protected final Observable<Double> minAmountSliderValue = new Observable<>(0d);
-    protected final Observable<Double> maxAmountSliderValue = new Observable<>(0d);
+    private final Observable<Boolean> initialized = new Observable<>(false);
+
+    private final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
+    private final Observable<Boolean> useRangeAmount = new Observable<>(false);
+
+    private final Observable<TradeAmount> fixTradeAmount = new Observable<>();
+    private final Observable<TradeAmount> minTradeAmount = new Observable<>();
+    private final Observable<TradeAmount> maxTradeAmount = new Observable<>();
+
+    private final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
+    private final Observable<Double> minAmountSliderValue = new Observable<>(0d);
+    private final Observable<Double> maxAmountSliderValue = new Observable<>(0d);
+
+    private final Observable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValue = new Observable<>(Optional.empty());
+    private final Observable<MonetaryRange> inputAmountRange = new Observable<>();
 
     public CreateOfferAmountModel() {
     }
+
+
+    /* --------------------------------------------------------------------- */
+    // initialized
+    /* --------------------------------------------------------------------- */
+
+    void setInitialized(boolean value) {
+        initialized.set(value);
+    }
+
+    public Observable<Boolean> initializedObservable() {
+        return initialized;
+    }
+
+    public boolean isInitialized() {
+        return initialized.get();
+    }
+
+
 
     /* --------------------------------------------------------------------- */
     // useBaseCurrencyForAmountInput
@@ -93,6 +114,7 @@ public class CreateOfferAmountModel {
     }
 
 
+
     /* --------------------------------------------------------------------- */
     // minTradeAmount
     /* --------------------------------------------------------------------- */
@@ -126,73 +148,6 @@ public class CreateOfferAmountModel {
         return maxTradeAmount.get();
     }
 
-
-    /* --------------------------------------------------------------------- */
-    // TradeAmountLimits
-    /* --------------------------------------------------------------------- */
-
-    void setTradeAmountLimits(TradeAmountRange tradeAmountLimits) {
-        this.tradeAmountLimits.set(tradeAmountLimits);
-    }
-
-    public TradeAmountRange getTradeAmountLimits() {
-        return tradeAmountLimits.get();
-    }
-
-    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
-        return tradeAmountLimits;
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // userSpecificTradeAmountLimit
-    /* --------------------------------------------------------------------- */
-
-    void setUserSpecificTradeAmountLimit(Optional<TradeAmount> userSpecificTradeAmountLimit) {
-        this.userSpecificTradeAmountLimit.set(userSpecificTradeAmountLimit);
-    }
-
-    public ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable() {
-        return userSpecificTradeAmountLimit;
-    }
-
-    public Optional<TradeAmount> getUserSpecificTradeAmountLimit() {
-        return userSpecificTradeAmountLimit.get();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // userSpecificTradeAmountLimitAsSliderValue
-    /* --------------------------------------------------------------------- */
-
-    void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> sliderValue) {
-        userSpecificTradeAmountLimitAsSliderValue.set(sliderValue);
-    }
-
-    public ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable() {
-        return userSpecificTradeAmountLimitAsSliderValue;
-    }
-
-    public Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue() {
-        return userSpecificTradeAmountLimitAsSliderValue.get();
-    }
-
-
-    /* --------------------------------------------------------------------- */
-    // InputAmountLimits
-    /* --------------------------------------------------------------------- */
-
-    void setInputAmountLimits(MonetaryRange inputAmountLimits) {
-        this.inputAmountLimits.set(inputAmountLimits);
-    }
-
-    public ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable() {
-        return inputAmountLimits;
-    }
-
-    public MonetaryRange getInputAmountLimits() {
-        return inputAmountLimits.get();
-    }
 
 
     /* --------------------------------------------------------------------- */
@@ -243,5 +198,40 @@ public class CreateOfferAmountModel {
 
     public Double getMaxAmountSliderValue() {
         return maxAmountSliderValue.get();
+    }
+
+
+
+    /* --------------------------------------------------------------------- */
+    // userSpecificTradeAmountLimitAsSliderValue
+    /* --------------------------------------------------------------------- */
+
+    void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> sliderValue) {
+        userSpecificTradeAmountLimitAsSliderValue.set(sliderValue);
+    }
+
+    public ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable() {
+        return userSpecificTradeAmountLimitAsSliderValue;
+    }
+
+    public Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue() {
+        return userSpecificTradeAmountLimitAsSliderValue.get();
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // inputAmountRange
+    /* --------------------------------------------------------------------- */
+
+    void setInputAmountRange(MonetaryRange inputAmountRange) {
+        this.inputAmountRange.set(inputAmountRange);
+    }
+
+    public ReadOnlyObservable<MonetaryRange> inputAmountRangeObservable() {
+        return inputAmountRange;
+    }
+
+    public MonetaryRange getInputAmountRange() {
+        return inputAmountRange.get();
     }
 }

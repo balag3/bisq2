@@ -33,7 +33,7 @@ import bisq.offer.amount.spec.FixedAmountSpec;
 import bisq.offer.amount.spec.RangeAmountSpec;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimitsProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -125,7 +125,7 @@ class TakeOfferTradeAmountConstraintsService {
                     offerPriceQuote,
                     btcUsdPriceQuote,
                     marketPriceQuote,
-                    UserSpecificAmountLimits.getUserSpecificLimitInUsd());
+                    UserSpecificAmountLimitsProvider.getUserSpecificLimitInUsd());
             return new TradeAmountConstraints(tradeAmountRange, Optional.of(userSpecificTradeAmountLimit));
         }
     }

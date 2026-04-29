@@ -65,7 +65,6 @@ public class MuSigCreateOfferController extends NavigationController implements 
     private final ServiceProvider serviceProvider;
     private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferMarketUseCase marketUseCase;
-    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -87,7 +86,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
         marketUseCase = createOfferUseCase.getMarketUseCase();
-        paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
+        CreateOfferPaymentMethodUseCase paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
 
         overlayController = OverlayController.getInstance();
 
@@ -123,14 +122,13 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     @Override
     public void initWithData(InitData data) {
-        Market market = data.getMarket();
-
-        marketUseCase.onSetMarket(market);
-        createOfferUseCase.initialize();
+        marketUseCase.onSetMarket(data.getMarket());
     }
 
     @Override
     public void onActivate() {
+        createOfferUseCase.initialize();
+
         overlayController.setUseEscapeKeyHandler(false);
         overlayController.setEnterKeyHandler(null);
         overlayController.getApplicationRoot().addEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);

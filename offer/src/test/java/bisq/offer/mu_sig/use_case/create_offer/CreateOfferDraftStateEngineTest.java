@@ -96,7 +96,7 @@ public class CreateOfferDraftStateEngineTest {
                 amountUseCase,
                 marketPriceService,
                 amountMappingService,
-                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
+                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimitsProvider(),
                 tradeAmountConstraintsService,
                 CreateOfferUseCase.DEFAULT_TRADE_AMOUNT_IN_USD);
         stateUpdateHandler = new CreateOfferStateUpdateHandler(marketUseCase,
@@ -105,7 +105,7 @@ public class CreateOfferDraftStateEngineTest {
                 priceUseCase,
                 amountUseCase,
                 marketPriceService,
-                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
+                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimitsProvider(),
                 tradeAmountConstraintsService,
                 stateEngine);
     }
@@ -122,7 +122,7 @@ public class CreateOfferDraftStateEngineTest {
         assertEquals(usdBtcDefaultTradeAmount, amountUseCase.getMinTradeAmount());
         assertEquals(usdBtcDefaultTradeAmount, amountUseCase.getMaxTradeAmount());
         assertNotNull(amountUseCase.getTradeAmountLimits());
-        assertNotNull(amountUseCase.getInputAmountLimits());
+        assertNotNull(amountUseCase.getInputAmountRange());
     }
 
     @Test

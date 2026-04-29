@@ -29,7 +29,7 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 
-public class AbsoluteAmountLimits extends UseCase {
+public class AbsoluteAmountLimitsProvider extends UseCase {
     public static final Fiat MIN_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10, "USD");
     public static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
 
@@ -38,9 +38,9 @@ public class AbsoluteAmountLimits extends UseCase {
     private final CreateOfferMarketUseCase marketService;
     private final CreateOfferPriceUseCase priceService;
 
-    public AbsoluteAmountLimits(MarketPriceService marketPriceService,
-                                CreateOfferMarketUseCase marketService,
-                                CreateOfferPriceUseCase priceService) {
+    AbsoluteAmountLimitsProvider(MarketPriceService marketPriceService,
+                                        CreateOfferMarketUseCase marketService,
+                                        CreateOfferPriceUseCase priceService) {
         this.marketService = marketService;
         this.priceService = priceService;
         this.marketPriceService = marketPriceService;
@@ -51,13 +51,13 @@ public class AbsoluteAmountLimits extends UseCase {
         pin(marketService.addMarketListener(market -> update(market, priceService.getPriceQuote())));
         pin(priceService.addPriceQuoteListener(priceQuote -> update(marketService.getMarket(), priceQuote)));
     }
-    
+
 
     /* --------------------------------------------------------------------- */
     // Update
     /* --------------------------------------------------------------------- */
 
-    public void update(Market market, PriceQuote priceQuote) {
+    private void update(Market market, PriceQuote priceQuote) {
         if (dependenciesValid(market, priceQuote)) {
             TradeAmount minTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
                     market,
@@ -77,15 +77,16 @@ public class AbsoluteAmountLimits extends UseCase {
                 market.equals(priceQuote.getMarket());
     }
 
+
     /* --------------------------------------------------------------------- */
     // Getters
     /* --------------------------------------------------------------------- */
 
-    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
+    ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
         return tradeAmountLimits;
     }
 
-    public TradeAmountRange getTradeAmountLimits() {
+    TradeAmountRange getTradeAmountLimits() {
         return tradeAmountLimits.get();
     }
 }

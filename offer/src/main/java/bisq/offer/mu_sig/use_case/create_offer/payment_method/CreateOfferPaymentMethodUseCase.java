@@ -59,8 +59,8 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     private final AccountsProvider accountsProvider;
 
     public CreateOfferPaymentMethodUseCase(CreateOfferMarketUseCase marketUseCase, AccountsProvider accountsProvider) {
-        this.marketUseCase = marketUseCase;
-        this.accountsProvider = accountsProvider;
+        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
+        this.accountsProvider = checkNotNull(accountsProvider, "accountsProvider must not be null");
         this.model = new CreateOfferPaymentMethodModel();
     }
 
@@ -142,15 +142,18 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     }
 
     public void onDeselectPaymentMethod(PaymentMethod<?> paymentMethod) {
+        checkNotNull(paymentMethod, "paymentMethod must not be null");
         model.removeAccountByPaymentMethod(paymentMethod);
     }
 
 
     public void addMethodAccountEntryListener(Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>> listener) {
+        checkNotNull(listener, "listener must not be null");
         methodAccountEntryListeners.add(listener);
     }
 
     public void removeMethodAccountEntryListener(Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>> listener) {
+        checkNotNull(listener, "listener must not be null");
         methodAccountEntryListeners.remove(listener);
     }
 
@@ -159,8 +162,7 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     // Account helpers
     /* --------------------------------------------------------------------- */
 
-    static MarketAccounts loadAccountsForMarket(Market market, AccountsProvider accountsProvider) {
-        checkNotNull(market, "market must not be null");
+    private static MarketAccounts loadAccountsForMarket(Market market, AccountsProvider accountsProvider) {
         List<Account<?, ?>> accountsForMarket = checkNotNull(accountsProvider.findAccountsForMarket(market),
                 "accountsForMarket must not be null");
         Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = accountsForMarket.stream()
@@ -168,11 +170,8 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
         return new MarketAccounts(accountsForMarket, accountsByPaymentMethod);
     }
 
-    static Optional<Account<?, ?>> findAccountToAutoSelect(List<Account<?, ?>> accountsForMarket,
-                                                           ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        checkNotNull(accountsForMarket, "accountsForMarket must not be null");
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-
+    private static Optional<Account<?, ?>> findAccountToAutoSelect(List<Account<?, ?>> accountsForMarket,
+                                                                   ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
         if (accountsForMarket.size() != 1) {
             return Optional.empty();
         }
@@ -182,11 +181,8 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
         return account.equals(existing) ? Optional.empty() : Optional.of(account);
     }
 
-    static PaymentMethodAccountSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
-                                                               PaymentMethod<?> paymentMethod) {
-        checkNotNull(accountsByPaymentMethod, "accountsByPaymentMethod must not be null");
-        checkNotNull(paymentMethod, "paymentMethod must not be null");
-
+    private static PaymentMethodAccountSelection findAccountsSelection(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod,
+                                                                       PaymentMethod<?> paymentMethod) {
         List<Account<?, ?>> accountsForPaymentMethod = accountsByPaymentMethod.get(paymentMethod);
         if (accountsForPaymentMethod == null || accountsForPaymentMethod.isEmpty()) {
             return PaymentMethodAccountSelection.noAccount();
@@ -200,10 +196,8 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     }
 
 
-    static List<? extends PaymentMethod<?>> findSelectedPaymentMethodsToRemove(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
-                                                                               List<Account<?, ?>> accountsForMarket) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        checkNotNull(accountsForMarket, "accountsForMarket must not be null");
+    private static List<? extends PaymentMethod<?>> findSelectedPaymentMethodsToRemove(ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
+                                                                                       List<Account<?, ?>> accountsForMarket) {
         return selectedAccountByPaymentMethod.entrySet().stream()
                 .filter(entry -> !accountsForMarket.contains(entry.getValue()))
                 .map(Map.Entry::getKey)

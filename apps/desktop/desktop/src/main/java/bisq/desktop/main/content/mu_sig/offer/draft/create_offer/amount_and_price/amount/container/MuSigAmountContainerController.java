@@ -27,6 +27,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -42,13 +43,13 @@ public class MuSigAmountContainerController implements Controller {
     private final MuSigAmountContainerView view;
     private final MuSigRangeAmountController muSigRangeAmountController;
     private final MuSigFixAmountController muSigFixAmountController;
-    private final CreateOfferUseCase createOfferUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
     private final CreateOfferAmountUseCase amountUseCase;
+    private final CreateOfferMarketUseCase marketUseCase;
 
     public MuSigAmountContainerController(CreateOfferUseCase createOfferUseCase) {
-        this.createOfferUseCase = createOfferUseCase;
+        marketUseCase = createOfferUseCase.getMarketUseCase();
         amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigAmountContainerModel();
 
@@ -114,7 +115,7 @@ public class MuSigAmountContainerController implements Controller {
     /* --------------------------------------------------------------------- */
 
     private void applyDescription() {
-        Market market = createOfferUseCase.getMarket();
+        Market market = marketUseCase.getMarket();
         boolean useRangeAmount = amountUseCase.getUseRangeAmount();
         String code = getCode(market);
         model.getDescription().set(useRangeAmount

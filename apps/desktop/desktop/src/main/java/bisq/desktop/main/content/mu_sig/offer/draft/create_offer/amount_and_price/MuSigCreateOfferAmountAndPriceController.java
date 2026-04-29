@@ -25,6 +25,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
@@ -40,16 +41,16 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountAndPriceView view;
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
-    private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferDirectionUseCase directionUseCase;
+    private final CreateOfferMarketUseCase marketUseCase;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
                                                     CreateOfferUseCase createOfferUseCase,
                                                     Region owner,
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferUseCase = createOfferUseCase;
         directionUseCase = createOfferUseCase.getDirectionService();
+        marketUseCase = createOfferUseCase.getMarketUseCase();
         muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferUseCase,
                 owner,
                 navigationButtonsVisibleHandler,
@@ -103,7 +104,7 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     }
 
     private String getHeadline() {
-        String baseCurrencyCode = createOfferUseCase.getMarket().getBaseCurrencyCode();
+        String baseCurrencyCode = marketUseCase.getMarket().getBaseCurrencyCode();
         return directionUseCase.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);

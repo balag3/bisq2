@@ -49,7 +49,6 @@ public class MuSigCreateOfferAmountController implements Controller {
     private final MuSigCreateOfferAmountModel model;
     @Getter
     private final MuSigCreateOfferAmountView view;
-    private final CreateOfferUseCase createOfferUseCase;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
@@ -60,7 +59,6 @@ public class MuSigCreateOfferAmountController implements Controller {
                                             Region owner,
                                             Consumer<Boolean> navigationButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        this.createOfferUseCase = createOfferUseCase;
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
@@ -83,11 +81,17 @@ public class MuSigCreateOfferAmountController implements Controller {
                 model.getUseRangeAmount().set(useRangeAmount);
             });
         }));
+
         pins.add(amountUseCase.userSpecificTradeAmountLimitObservable().addObserver(value -> {
-            UIThread.run(this::applyAmountLimitInfo);
+            if (value != null) {
+                UIThread.run(() -> applyUserSpecificTradeAmountLimitInfo(value));
+            }
         }));
         pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
-            UIThread.run(this::applyAmountLimitInfo);
+            Optional<TradeAmount> userSpecificTradeAmountLimit = amountUseCase.getUserSpecificTradeAmountLimit();
+            if (value != null && userSpecificTradeAmountLimit != null) {
+                UIThread.run(() -> applyUserSpecificTradeAmountLimitInfo(userSpecificTradeAmountLimit));
+            }
         }));
     }
 
@@ -114,7 +118,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onSetUseRangeAmount(boolean value) {
-        createOfferUseCase.setUseRangeAmount(value);
+        amountUseCase.onSetUseRangeAmount(value);
     }
 
     void onKeyPressedWhileShowingOverlay(KeyEvent keyEvent) {
@@ -145,11 +149,10 @@ public class MuSigCreateOfferAmountController implements Controller {
         Browser.open(url);
     }
 
-    private void applyAmountLimitInfo() {
-        Optional<TradeAmount> userSpecificTradeAmountLimit = amountUseCase.getUserSpecificTradeAmountLimit();
+    private void applyUserSpecificTradeAmountLimitInfo(Optional<TradeAmount> userSpecificTradeAmountLimit) {
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
-                .map(tradeAmount -> createOfferUseCase.toInputAmount(tradeAmount, true))
+                .map(amountUseCase::toInputAmount)
                 .map(monetary -> AmountFormatter.formatAmountWithCode(monetary, true))
                 .map(formatted -> Res.get("muSig.offer.create.amount.limitInfo.buyer", formatted))
                 .orElse(""));

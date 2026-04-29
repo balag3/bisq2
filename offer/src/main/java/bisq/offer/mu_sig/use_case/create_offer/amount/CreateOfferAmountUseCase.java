@@ -21,16 +21,19 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
+import bisq.common.monetary.Monetary;
 import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
+import bisq.common.monetary.TradeAmountConversion;
 import bisq.common.monetary.TradeAmountRange;
+import bisq.common.observable.ReadOnlyObservable;
+import bisq.common.util.MathUtils;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.AmountUtils;
-import bisq.offer.mu_sig.use_case.TradeAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
@@ -53,37 +56,37 @@ public class CreateOfferAmountUseCase extends UseCase {
     private final CreateOfferAmountModel model;
 
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketService;
+    private final CreateOfferMarketUseCase marketUseCase;
     private final CreateOfferDirectionUseCase directionService;
     private final CreateOfferPaymentMethodUseCase paymentMethodService;
-    private final CreateOfferPriceUseCase priceService;
+    private final CreateOfferPriceUseCase priceUseCase;
     private final CreateOfferDraftCookieStore cookieStore;
     @Getter
-    private final AmountLimits amountLimits;
+    private final AmountLimitsProvider amountLimits;
     @Getter
     private final AmountMappingService amountMappingService;
 
     public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
-                                    CreateOfferMarketUseCase marketService,
+                                    CreateOfferMarketUseCase marketUseCase,
                                     CreateOfferDirectionUseCase directionService,
                                     CreateOfferPaymentMethodUseCase paymentMethodService,
-                                    CreateOfferPriceUseCase priceService,
+                                    CreateOfferPriceUseCase priceUseCase,
                                     CreateOfferDraftCookieStore cookieStore) {
-        this.marketPriceService = marketPriceService;
-        this.marketService = marketService;
-        this.directionService = directionService;
-        this.paymentMethodService = paymentMethodService;
-        this.priceService = priceService;
-        this.cookieStore = cookieStore;
+        this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
+        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
+        this.directionService = checkNotNull(directionService, "directionService must not be null");
+        this.paymentMethodService = checkNotNull(paymentMethodService, "paymentMethodService must not be null");
+        this.priceUseCase = checkNotNull(priceUseCase, "priceUseCase must not be null");
+        this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         this.amountMappingService = new AmountMappingService();
         this.model = new CreateOfferAmountModel();
 
-        amountLimits = new AmountLimits(marketPriceService,
-                marketService,
+        amountLimits = new AmountLimitsProvider(marketPriceService,
+                marketUseCase,
                 directionService,
                 paymentMethodService,
-                priceService);
+                priceUseCase);
     }
 
     @Override
@@ -91,32 +94,29 @@ public class CreateOfferAmountUseCase extends UseCase {
         amountLimits.initialize();
 
         boolean useRangeAmount = cookieStore.getUseRangeAmount();
-        setUseRangeAmount(useRangeAmount);
+        model.setUseRangeAmount(useRangeAmount);
 
-        Market market = marketService.getMarket();
+        Market market = marketUseCase.getMarket();
         if (market != null) {
             boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
-            setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+            model.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
 
             // Not clamped yet as we do not have established the trade amount limits
-            TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
-            setFixTradeAmount(defaultTradeAmount);
-            setMinTradeAmount(defaultTradeAmount);
-            setMaxTradeAmount(defaultTradeAmount);
+            TradeAmount defaultTradeAmount = getDefaultTradeAmountForMarket(market);
+            applyDefaultAmountAndSliderValue(defaultTradeAmount);
         }
 
-        pin(amountLimits.amountLimitsObservable().addObserver(amountLimits ->
-                update(marketService.getMarket(),
-                        priceService.getPriceQuote(),
-                        amountLimits)));
-        pin(marketService.addMarketListener(_market ->
-                update(_market,
-                        priceService.getPriceQuote(),
-                        amountLimits.getAmountLimits())));
-        pin(priceService.addPriceQuoteListener(priceQuote ->
-                update(marketService.getMarket(),
-                        priceQuote,
-                        amountLimits.getAmountLimits())));
+        pin(amountLimits.initializedObservable().addObserver(initialized -> {
+            if (initialized) {
+                pin(amountLimits.effectiveTradeAmountLimitsObservable().addObserver(this::handleEffectiveTradeAmountLimitsChange));
+                pin(amountLimits.potentialTradeAmountLimitsObservable().addObserver(this::handlePotentialTradeAmountLimitsChange));
+                pin(amountLimits.userSpecificAmountLimitObservable().addObserver(this::handleUserSpecificAmountLimitChange));
+
+                pin(marketUseCase.addMarketListener(this::handleMarketChange));
+                pin(priceUseCase.addPriceQuoteListener(this::handlePriceQuoteChange));
+                model.setInitialized(true);
+            }
+        }));
     }
 
     @Override
@@ -125,141 +125,226 @@ public class CreateOfferAmountUseCase extends UseCase {
         amountLimits.dispose();
     }
 
+
     /* --------------------------------------------------------------------- */
-    // Update
+    // Handle changes from dependencies
     /* --------------------------------------------------------------------- */
 
-    public void update(Market market, PriceQuote priceQuote, TradeAmountRange tradeAmountLimits) {
-        if (dependenciesValid(market, priceQuote, tradeAmountLimits)) {
-
+    private void handleMarketChange(Market market) {
+        if (market != null) {
+            TradeAmount defaultTradeAmount = getDefaultTradeAmountForMarket(market);
+            applyDefaultAmountAndSliderValue(defaultTradeAmount);
         }
     }
 
 
-    private static boolean dependenciesValid(Market market,
-                                             PriceQuote priceQuote,
-                                             TradeAmountRange tradeAmountLimits) {
-        if (market == null ||
-                priceQuote == null ||
-                !market.equals(priceQuote.getMarket())) {
-            return false;
-        }
-
-        if (tradeAmountLimits == null) {
-            return true;
-        }
-
-        TradeAmount min = tradeAmountLimits.getMin();
-        TradeAmount max = tradeAmountLimits.getMax();
-        return min != null &&
-                max != null &&
-                matchingMarket(market, min) &&
-                matchingMarket(market, max);
-    }
-
-    private static boolean matchingMarket(Market market, TradeAmount tradeAmount) {
-        return market.getBaseCurrencyCode().equals(tradeAmount.getBaseSideAmount().getCode()) &&
-                market.getQuoteCurrencyCode().equals(tradeAmount.getQuoteSideAmount().getCode());
-    }
-
-
-    public TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return TradeAmountLimits.clampTradeAmount(limits, tradeAmount);
-    }
-
-    public TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
-        TradeAmountRange tradeAmountLimits = getTradeAmountLimits();
-        Optional<TradeAmount> userSpecificTradeAmountLimit = getUserSpecificTradeAmountLimit();
-        return TradeAmountLimits.getClampLimits(tradeAmountLimits,
-                userSpecificTradeAmountLimit,
-                includeUserSpecificTradeAmountLimit);
-    }
-
-    public boolean isDerivedStateInitialized() {
-        return getTradeAmountLimits() != null && getInputAmountLimits() != null;
-    }
-
-    public void clampCurrentTradeAmounts(boolean includeUserSpecificTradeAmountLimit) {
-        if (getFixTradeAmount() != null) {
-            setFixTradeAmount(clampTradeAmount(getFixTradeAmount(), includeUserSpecificTradeAmountLimit));
-        }
-        if (getMinTradeAmount() != null) {
-            setMinTradeAmount(clampTradeAmount(getMinTradeAmount(), includeUserSpecificTradeAmountLimit));
-        }
-        if (getMaxTradeAmount() != null) {
-            setMaxTradeAmount(clampTradeAmount(getMaxTradeAmount(), includeUserSpecificTradeAmountLimit));
+    private void handlePriceQuoteChange(PriceQuote priceQuote) {
+        if (priceQuote != null) {
+            applyPriceQuoteToFixTradeAmount(priceQuote);
+            applyPriceQuoteToMinTradeAmount(priceQuote);
+            applyPriceQuoteToMaxTradeAmount(priceQuote);
         }
     }
 
-    public void setUseBaseCurrencyForAmountInput(boolean value) {
-        model.setUseBaseCurrencyForAmountInput(value);
+    private void applyPriceQuoteToFixTradeAmount(PriceQuote priceQuote) {
+        TradeAmount fixTradeAmount = getFixTradeAmount();
+        TradeAmount newFixTradeAmount = applyPriceQuoteToPassiveSide(fixTradeAmount, priceQuote);
+        model.setFixTradeAmount(newFixTradeAmount);
     }
 
-    public void setUseRangeAmount(boolean useRangeAmount) {
-        model.setUseRangeAmount(useRangeAmount);
+    private void applyPriceQuoteToMinTradeAmount(PriceQuote priceQuote) {
+        TradeAmount minTradeAmount = getMinTradeAmount();
+        TradeAmount newMinTradeAmount = applyPriceQuoteToPassiveSide(minTradeAmount, priceQuote);
+        model.setMinTradeAmount(newMinTradeAmount);
+    }
+
+    private void applyPriceQuoteToMaxTradeAmount(PriceQuote priceQuote) {
+        TradeAmount maxTradeAmount = getMaxTradeAmount();
+        TradeAmount newMaxTradeAmount = applyPriceQuoteToPassiveSide(maxTradeAmount, priceQuote);
+        model.setMaxTradeAmount(newMaxTradeAmount);
     }
 
 
-    public void setFixTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        model.setFixTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateFixAmountSliderValue();
+    private void handlePotentialTradeAmountLimitsChange(TradeAmountRange potentialTradeAmountLimits) {
+        if (potentialTradeAmountLimits != null) {
+            applyPotentialTradeAmountLimits(potentialTradeAmountLimits);
         }
     }
 
-    public void setMinTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        model.setMinTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMinAmountSliderValue();
+    private void applyPotentialTradeAmountLimits(TradeAmountRange potentialTradeAmountLimits) {
+        MonetaryRange inputAmountRange = toInputSideMonetaryRange(potentialTradeAmountLimits);
+        model.setInputAmountRange(inputAmountRange);
+    }
+
+
+    private void handleUserSpecificAmountLimitChange(Optional<TradeAmount> userSpecificAmountLimit) {
+        if (userSpecificAmountLimit != null) {
+            applyUserSpecificAmountLimitChange(userSpecificAmountLimit);
         }
     }
 
-    public void setMaxTradeAmount(TradeAmount tradeAmount) {
-        checkNotNull(tradeAmount, "tradeAmount must not be null");
-        TradeAmount valueToSet = isDerivedStateInitialized() ? clampTradeAmount(tradeAmount, true) : tradeAmount;
-        model.setMaxTradeAmount(valueToSet);
-        if (isDerivedStateInitialized()) {
-            updateMaxAmountSliderValue();
-        }
-    }
-
-    public void setUserSpecificTradeAmountLimit(Optional<TradeAmount> userSpecificTradeAmountLimit) {
-        model.setUserSpecificTradeAmountLimit(userSpecificTradeAmountLimit);
-    }
-
-    public void setUserSpecificTradeAmountLimitAsSliderValue(Optional<Double> sliderValue) {
-        sliderValue.ifPresent(value -> checkArgument(value >= 0 && value <= 1, "value must be in range of 0 and 1"));
+    private void applyUserSpecificAmountLimitChange(Optional<TradeAmount> userSpecificAmountLimit) {
+        Optional<Double> sliderValue = userSpecificAmountLimit
+                .map(this::toInputAmount)
+                .map(this::toSliderValueFromAmount);
         model.setUserSpecificTradeAmountLimitAsSliderValue(sliderValue);
+
     }
 
-    public void setTradeAmountLimits(TradeAmountRange tradeAmountLimits) {
-        model.setTradeAmountLimits(tradeAmountLimits);
+    private void handleEffectiveTradeAmountLimitsChange(TradeAmountRange effectiveTradeAmountLimits) {
+        if (effectiveTradeAmountLimits != null) {
+            applyFixAmountAndSliderValue(model.getFixTradeAmount());
+            applyMinAmountAndSliderValue(model.getMinTradeAmount());
+            applyMaxAmountAndSliderValue(model.getMaxTradeAmount());
+        }
     }
 
-    public void setInputAmountLimits(MonetaryRange inputAmountLimits) {
-        model.setInputAmountLimits(inputAmountLimits);
+
+    /* --------------------------------------------------------------------- */
+    // User interaction
+    /* --------------------------------------------------------------------- */
+
+    public void onSetUseBaseCurrencyForAmountInput(boolean value) {
+        model.setUseBaseCurrencyForAmountInput(value);
+        Market market = marketUseCase.getMarket();
+        if (market != null) {
+            cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
+        }
     }
 
-    public void setFixAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        model.setFixAmountSliderValue(sliderValue);
+    public void onSetUseRangeAmount(boolean value) {
+        model.setUseRangeAmount(value);
+        cookieStore.persistUseRangeAmount(value);
     }
 
-    public void setMinAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        model.setMinAmountSliderValue(sliderValue);
+
+    /* --------------------------------------------------------------------- */
+    // Amount as input
+    /* --------------------------------------------------------------------- */
+
+    public void onSetFixTradeAmountFromInputAmount(Monetary inputAmount) {
+        checkNotNull(inputAmount, "inputAmount must not be null");
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && market != null && priceQuote != null) {
+            TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
+            applyFixAmountAndSliderValue(tradeAmount);
+        }
     }
 
-    public void setMaxAmountSliderValue(double sliderValue) {
-        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be in range of 0 and 1");
-        model.setMaxAmountSliderValue(sliderValue);
+    public void onSetMinTradeAmountFromInputAmount(Monetary inputAmount) {
+        checkNotNull(inputAmount, "inputAmount must not be null");
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && market != null && priceQuote != null) {
+            TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
+            applyMinAmountAndSliderValue(tradeAmount);
+        }
     }
+
+    public void onSetMaxTradeAmountFromInputAmount(Monetary inputAmount) {
+        checkNotNull(inputAmount, "inputAmount must not be null");
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && market != null && priceQuote != null) {
+            TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
+            applyMaxAmountAndSliderValue(tradeAmount);
+        }
+    }
+
+
+
+    /* --------------------------------------------------------------------- */
+    // Slider value as input
+    /* --------------------------------------------------------------------- */
+
+    public void onSetFixTradeAmountFromSliderValue(double sliderValue) {
+        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
+        TradeAmount fixTradeAmount = model.getFixTradeAmount();
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && fixTradeAmount != null && market != null && priceQuote != null) {
+            TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, fixTradeAmount, sliderValue);
+            model.setFixTradeAmount(newTradeAmount);
+
+            double newSliderValue = toSliderValueFromTradeAmount(newTradeAmount); // We might have got clamped
+            model.setFixAmountSliderValue(newSliderValue);
+        }
+    }
+
+    public void onSetMinTradeAmountFromSliderValue(double sliderValue) {
+        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
+
+        TradeAmount minTradeAmount = model.getMinTradeAmount();
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && minTradeAmount != null && market != null && priceQuote != null) {
+            TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, minTradeAmount, sliderValue);
+            model.setMinTradeAmount(newTradeAmount);
+
+            double newSliderValue = toSliderValueFromTradeAmount(newTradeAmount); // We might have got clamped
+            model.setMinAmountSliderValue(newSliderValue);
+        }
+    }
+
+    public void onSetMaxTradeAmountFromSliderValue(double sliderValue) {
+        checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
+
+        TradeAmount maxTradeAmount = model.getMaxTradeAmount();
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        if (amountLimits.isInitialized() && maxTradeAmount != null && market != null && priceQuote != null) {
+            TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, maxTradeAmount, sliderValue);
+            model.setMaxTradeAmount(newTradeAmount);
+
+            double newSliderValue = toSliderValueFromTradeAmount(newTradeAmount); // We might have got clamped
+            model.setMaxAmountSliderValue(newSliderValue);
+        }
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // API for input amount
+    /* --------------------------------------------------------------------- */
+
+    public Monetary getFixInputAmount() {
+        return toInputAmount(getFixTradeAmount());
+    }
+
+    public Monetary getMinInputAmount() {
+        return toInputAmount(getMinTradeAmount());
+    }
+
+    public Monetary getMaxInputAmount() {
+        return toInputAmount(getMaxTradeAmount());
+    }
+
+    public Monetary toInputAmount(TradeAmount tradeAmount) {
+        checkNotNull(tradeAmount, "tradeAmount must not be null");
+        return toInputAmount(tradeAmount, getUseBaseCurrencyForAmountInput());
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // API for passive amount
+    /* --------------------------------------------------------------------- */
+
+    public Monetary getFixPassiveAmount() {
+        return toPassiveAmount(getFixTradeAmount());
+    }
+
+    public Monetary getMinPassiveAmount() {
+        return toPassiveAmount(getMinTradeAmount());
+    }
+
+    public Monetary getMaxPassiveAmount() {
+        return toPassiveAmount(getMaxTradeAmount());
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // AmountSpec
+    /* --------------------------------------------------------------------- */
 
     public AmountSpec createAndGetAmountSpec(Market market) {
         checkNotNull(market, "market must not be null");
@@ -272,39 +357,234 @@ public class CreateOfferAmountUseCase extends UseCase {
                 getFixTradeAmount());
     }
 
-    public void updateAmountSliderValues() {
-        if (getFixTradeAmount() != null) {
-            updateFixAmountSliderValue();
+
+    /* --------------------------------------------------------------------- */
+    // Delegates
+    /* --------------------------------------------------------------------- */
+
+    public ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable() {
+        return getAmountLimits().userSpecificAmountLimitObservable();
+    }
+
+    public Optional<TradeAmount> getUserSpecificTradeAmountLimit() {
+        return userSpecificTradeAmountLimitObservable().get();
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Private
+    /* --------------------------------------------------------------------- */
+
+    /* --------------------------------------------------------------------- */
+    // Apply default amount and slider value
+    /* --------------------------------------------------------------------- */
+
+    private TradeAmount getDefaultTradeAmountForMarket(Market market) {
+        return AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
+    }
+
+    private void applyDefaultAmountAndSliderValue(TradeAmount defaultTradeAmount) {
+        model.setFixTradeAmount(defaultTradeAmount);
+        model.setMinTradeAmount(defaultTradeAmount);
+        model.setMaxTradeAmount(defaultTradeAmount);
+        double defaultSliderValue = toSliderValueFromTradeAmount(defaultTradeAmount);
+        model.setFixAmountSliderValue(defaultSliderValue);
+        model.setMinAmountSliderValue(defaultSliderValue);
+        model.setMaxAmountSliderValue(defaultSliderValue);
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Apply amount and slider value
+    /* --------------------------------------------------------------------- */
+
+    private void applyFixAmountAndSliderValue(TradeAmount fixTradeAmount) {
+        fixTradeAmount = amountLimits.clamp(fixTradeAmount);
+        model.setFixTradeAmount(fixTradeAmount);
+
+        double sliderValue = toSliderValueFromTradeAmount(fixTradeAmount);
+        model.setFixAmountSliderValue(sliderValue);
+    }
+
+    private void applyMinAmountAndSliderValue(TradeAmount minTradeAmount) {
+        minTradeAmount = amountLimits.clamp(minTradeAmount);
+        model.setMinTradeAmount(minTradeAmount);
+
+        double sliderValue = toSliderValueFromTradeAmount(minTradeAmount);
+        model.setMinAmountSliderValue(sliderValue);
+    }
+
+    private void applyMaxAmountAndSliderValue(TradeAmount maxTradeAmount) {
+        maxTradeAmount = amountLimits.clamp(maxTradeAmount);
+        model.setMaxTradeAmount(maxTradeAmount);
+
+        double sliderValue = toSliderValueFromTradeAmount(maxTradeAmount);
+        model.setMaxAmountSliderValue(sliderValue);
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Slider Utils
+    /* --------------------------------------------------------------------- */
+
+    private TradeAmount toTradeAmountFromSliderValue(Market market,
+                                                     PriceQuote priceQuote,
+                                                     TradeAmount tradeAmount,
+                                                     double sliderValue) {
+        Monetary inputAmount = toInputAmount(tradeAmount);
+        // We do not use the effective trade amount limits as the slider represents the full potential range
+        TradeAmountRange potentialTradeAmountLimits = amountLimits.getPotentialTradeAmountLimits();
+        MonetaryRange inputAmountRange = toInputSideMonetaryRange(potentialTradeAmountLimits);
+        TradeAmount fromSliderValue = toTradeAmountFromSliderValue(market,
+                priceQuote,
+                inputAmountRange,
+                inputAmount,
+                sliderValue);
+        return amountLimits.clamp(fromSliderValue);
+    }
+
+    // TODO add test
+    static TradeAmount toTradeAmountFromSliderValue(Market market,
+                                                    PriceQuote priceQuote,
+                                                    MonetaryRange amountRange,
+                                                    Monetary amount,
+                                                    double sliderValue) {
+        long sliderAmountValue = getAmountValueFromSliderValue(amountRange, sliderValue);
+        Monetary sliderAmount = Monetary.from(amount, sliderAmountValue);
+
+        return TradeAmountConversion.toTradeAmount(market, priceQuote, sliderAmount);
+    }
+
+
+    // todo add tests
+    static long getAmountValueFromSliderValue(MonetaryRange amountRange, double sliderValue) {
+        long min = amountRange.getMin().getValue();
+        long max = amountRange.getMax().getValue();
+        long range = max - min;
+        return min + Math.round(sliderValue * range);
+    }
+
+    private double toSliderValueFromTradeAmount(TradeAmount tradeAmount) {
+        MonetaryRange inputAmountRange = model.getInputAmountRange();
+        if (inputAmountRange != null) {
+            Monetary inputAmount = toInputAmount(tradeAmount);
+            return toSliderValueFromAmount(inputAmount, inputAmountRange);
+        } else {
+            return 0;
         }
-        if (getMinTradeAmount() != null) {
-            updateMinAmountSliderValue();
+    }
+
+    private double toSliderValueFromAmount(Monetary amount) {
+        MonetaryRange inputAmountRange = model.getInputAmountRange();
+        if (inputAmountRange != null) {
+            return toSliderValueFromAmount(amount, inputAmountRange);
+        } else {
+            return 0;
         }
-        if (getMaxTradeAmount() != null) {
-            updateMaxAmountSliderValue();
+    }
+
+    // todo add tests
+    static double toSliderValueFromAmount(Monetary amount, MonetaryRange amountRange) {
+        long min = amountRange.getMin().getValue();
+        long max = amountRange.getMax().getValue();
+        double range = max - min;
+        double sliderValue = range != 0 ? (amount.getValue() - min) / range : 0;
+        return MathUtils.bounded(0, 1, sliderValue);
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Utils for selecting input side
+    /* --------------------------------------------------------------------- */
+
+    private MonetaryRange toInputSideMonetaryRange(TradeAmountRange amountLimits) {
+        return new MonetaryRange(toInputAmount(amountLimits.getMin()), toInputAmount(amountLimits.getMax()));
+    }
+
+
+    private static Monetary toInputAmount(TradeAmount tradeAmount, boolean useBaseCurrencyForAmountInput) {
+        if (useBaseCurrencyForAmountInput) {
+            return tradeAmount.getBaseSideAmount();
+        } else {
+            return tradeAmount.getQuoteSideAmount();
         }
     }
 
-    public void updateFixAmountSliderValue() {
-        double sliderValue = toSliderValue(getFixTradeAmount());
-        setFixAmountSliderValue(sliderValue);
+
+    /* --------------------------------------------------------------------- */
+    // Utils for selecting passive (non-input) side
+    /* --------------------------------------------------------------------- */
+
+    private Monetary toPassiveAmount(TradeAmount tradeAmount) {
+        return toPassiveAmount(tradeAmount, getUseBaseCurrencyForAmountInput());
     }
 
-    public void updateMinAmountSliderValue() {
-        double sliderValue = toSliderValue(getMinTradeAmount());
-        setMinAmountSliderValue(sliderValue);
+    private static Monetary toPassiveAmount(TradeAmount tradeAmount, boolean useBaseCurrencyForAmountInput) {
+        if (useBaseCurrencyForAmountInput) {
+            return tradeAmount.getQuoteSideAmount();
+        } else {
+            return tradeAmount.getBaseSideAmount();
+        }
     }
 
-    public void updateMaxAmountSliderValue() {
-        double sliderValue = toSliderValue(getMaxTradeAmount());
-        setMaxAmountSliderValue(sliderValue);
+    private TradeAmount applyPriceQuoteToPassiveSide(TradeAmount tradeAmount, PriceQuote priceQuote) {
+        return applyPriceQuoteToPassiveSide(tradeAmount, priceQuote, getUseBaseCurrencyForAmountInput());
     }
 
-    public double toSliderValue(TradeAmount tradeAmount) {
-        TradeAmountRange limits = getClampLimits(true);
-        MonetaryRange inputAmountLimits = checkNotNull(getInputAmountLimits(), "inputAmountLimits must not be null");
-        return amountMappingService.toSliderValue(tradeAmount,
-                limits,
-                inputAmountLimits,
-                getUseBaseCurrencyForAmountInput());
+    // TODO add tests
+    static TradeAmount applyPriceQuoteToPassiveSide(TradeAmount tradeAmount,
+                                                    PriceQuote priceQuote,
+                                                    boolean useBaseCurrencyForAmountInput) {
+        Monetary baseSideMonetary, quoteSideMonetary;
+        if (useBaseCurrencyForAmountInput) {
+            baseSideMonetary = tradeAmount.getBaseSideAmount();
+            quoteSideMonetary = priceQuote.toQuoteSideMonetary(baseSideMonetary);
+        } else {
+            quoteSideMonetary = tradeAmount.getQuoteSideAmount();
+            baseSideMonetary = priceQuote.toBaseSideMonetary(quoteSideMonetary);
+        }
+        return new TradeAmount(baseSideMonetary, quoteSideMonetary);
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Private
+    /* --------------------------------------------------------------------- */
+
+
+    private boolean dependenciesValid() {
+        Market market = marketUseCase.getMarket();
+        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        TradeAmountRange effectiveAmountLimits = amountLimits.getEffectiveAmountLimits();
+
+        return dependenciesValid(market, priceQuote, effectiveAmountLimits);
+    }
+
+    // TODO add tests
+    static boolean dependenciesValid(Market market,
+                                     PriceQuote priceQuote,
+                                     TradeAmountRange effectiveAmountLimits) {
+        if (market == null ||
+                priceQuote == null ||
+                !market.equals(priceQuote.getMarket())) {
+            return false;
+        }
+
+        if (effectiveAmountLimits == null) {
+            return true;
+        }
+
+        TradeAmount min = effectiveAmountLimits.getMin();
+        TradeAmount max = effectiveAmountLimits.getMax();
+        return min != null &&
+                max != null &&
+                matchingMarket(market, min) &&
+                matchingMarket(market, max);
+    }
+
+    // TODO add tests
+    static boolean matchingMarket(Market market, TradeAmount tradeAmount) {
+        return market.getBaseCurrencyCode().equals(tradeAmount.getBaseSideAmount().getCode()) &&
+                market.getQuoteCurrencyCode().equals(tradeAmount.getQuoteSideAmount().getCode());
     }
 }

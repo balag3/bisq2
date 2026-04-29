@@ -53,7 +53,6 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigCreateOfferDirectionAndMarketModel model;
     @Getter
     private final MuSigCreateOfferDirectionAndMarketView view;
-    private final CreateOfferUseCase createOfferUseCase;
     private final Runnable onNextHandler;
     private final MarketPriceService marketPriceService;
     private final MuSigOfferbookService muSigOfferbookService;
@@ -65,7 +64,6 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
                                                         CreateOfferUseCase createOfferUseCase,
                                                         Runnable onNextHandler) {
-        this.createOfferUseCase = createOfferUseCase;
         marketUseCase = createOfferUseCase.getMarketUseCase();
         directionUseCase = createOfferUseCase.getDirectionService();
 
@@ -106,7 +104,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                 return;
             }
 
-            Market selectedMarket = createOfferUseCase.getMarket();
+            Market selectedMarket = marketUseCase.getMarket();
             List<Market> markets;
             if (selectedMarketTypeListItem.getMarketType() == MarketType.FIAT) {
                 markets = MarketRepository.getAllFiatMarkets();

@@ -55,6 +55,29 @@ public class TradeAmount {
         return new TradeAmount(clampedBaseSideAmount, clampedQuoteSideAmount);
     }
 
+    public Monetary getBitcoinSideAmount() {
+        if (isBaseSideAmountBitcoin()) {
+            return getBaseSideAmount();
+        } else {
+            return getQuoteSideAmount();
+        }
+    }
+    public Monetary getNonBitcoinSideAmount() {
+        if (isQuoteSideAmountBitcoin()) {
+            return getBaseSideAmount();
+        } else {
+            return getQuoteSideAmount();
+        }
+    }
+
+    public boolean isBaseSideAmountBitcoin() {
+        return getBaseSideAmount().isBitcoin();
+    }
+
+    public boolean isQuoteSideAmountBitcoin() {
+        return getQuoteSideAmount().isBitcoin();
+    }
+
     public int compareToRange(TradeAmountRange limits) {
         return compareToRange(limits.getMin(), limits.getMax());
     }

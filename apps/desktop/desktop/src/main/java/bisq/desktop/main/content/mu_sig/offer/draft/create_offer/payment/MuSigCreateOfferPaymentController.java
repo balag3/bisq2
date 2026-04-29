@@ -34,7 +34,8 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelectionResult;
 import bisq.presentation.formatters.AmountFormatter;
@@ -63,19 +64,19 @@ public class MuSigCreateOfferPaymentController implements Controller {
     @Getter
     private final MuSigCreateOfferPaymentView view;
     private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
-    private final CreateOfferUseCase createOfferUseCase;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final ListChangeListener<PaymentMethod<?>> selectedPaymentMethodsListener;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
+    private final CreateOfferMarketUseCase marketUseCase;
 
     public MuSigCreateOfferPaymentController(ServiceProvider serviceProvider,
                                              CreateOfferUseCase createOfferUseCase,
                                              Region owner,
                                              Consumer<Boolean> navigationButtonsVisibleHandler) {
         paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
-        this.createOfferUseCase = createOfferUseCase;
+        marketUseCase = createOfferUseCase.getMarketUseCase();
 
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
@@ -91,7 +92,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
             navigationButtonsVisibleHandler.accept(false);
             model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
             model.getNoPaymentMethodSelectedOverlayText().set(
-                    createOfferUseCase.getMarket().isCrypto()
+                    marketUseCase.getMarket().isCrypto()
                             ? Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.crypto")
                             : Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.fiat"));
             return false;
@@ -110,7 +111,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         updateShouldShowMultipleAccountsOverlay(false);
         model.getPaymentMethodWithoutAccount().set(null);
 
-        Market market = createOfferUseCase.getMarket();
+        Market market = marketUseCase.getMarket();
         pins.add(paymentMethodUseCase.accountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
@@ -288,7 +289,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         boolean isSinglePaymentMethod = selectedPaymentMethods.size() == 1;
         selectedPaymentMethods.stream()
                 .map(paymentMethod -> new Pair<>(paymentMethod.getDisplayString(),
-                        PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentMethod.getPaymentRail())))
+                        PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(paymentMethod.getPaymentRail())))
                 .min(Comparator.comparing(Pair::getSecond))
                 .ifPresentOrElse(pair -> {
                             String formatted = AmountFormatter.formatQuoteAmountWithCode(pair.getSecond());

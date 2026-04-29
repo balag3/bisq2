@@ -28,6 +28,7 @@ import bisq.common.util.MathUtils;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.price.PriceUtil;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 public class PriceLimits extends UseCase {
@@ -63,10 +64,12 @@ public class PriceLimits extends UseCase {
 
 
     public PriceQuote clamp(PriceQuote priceQuote) {
+        checkNotNull(priceQuote, "priceQuote must not be null");
         return priceQuote.clamp(getAmountLimits());
     }
 
     public double clamp(double pricePercentage) {
+        checkArgument(Double.isFinite(pricePercentage), "pricePercentage must be finite");
         return MathUtils.bounded(MIN_PERCENTAGE_FROM_MARKET_PRICE, MAX_PERCENTAGE_FROM_MARKET_PRICE, pricePercentage);
     }
 
@@ -83,9 +86,9 @@ public class PriceLimits extends UseCase {
         return tradeAmountLimits.get();
     }
 
-    static PriceQuote percentageToPriceQuote(MarketPriceService marketPriceService,
-                                             Market market,
-                                             double pricePercentage) {
+    private static PriceQuote percentageToPriceQuote(MarketPriceService marketPriceService,
+                                                     Market market,
+                                                     double pricePercentage) {
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         return PriceUtil.fromMarketPriceMarkup(marketPriceQuote, pricePercentage);
     }

@@ -29,8 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.HashSet;
 import java.util.Set;
 
-import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
-import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits.MIN_TRADE_AMOUNT_IN_USD;
+import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD;
+import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider.MIN_TRADE_AMOUNT_IN_USD;
 import static bisq.presentation.formatters.AmountFormatter.formatAmountByMonetaryType;
 
 @Slf4j
@@ -52,12 +52,14 @@ public class MuSigAmountLimitsController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(amountUseCase.inputAmountLimitsObservable().addObserver(inputAmountLimits -> {
-            UIThread.run(() -> {
-                model.getMin().set(formatAmountByMonetaryType(inputAmountLimits.getMin()));
-                model.getMax().set(formatAmountByMonetaryType(inputAmountLimits.getMax()));
-                model.getCode().set(inputAmountLimits.getMax().getCode());
-            });
+        pins.add(amountUseCase.inputAmountRangeObservable().addObserver(inputAmountLimits -> {
+            if (inputAmountLimits != null) {
+                UIThread.run(() -> {
+                    model.getMin().set(formatAmountByMonetaryType(inputAmountLimits.getMin()));
+                    model.getMax().set(formatAmountByMonetaryType(inputAmountLimits.getMax()));
+                    model.getCode().set(inputAmountLimits.getMax().getCode());
+                });
+            }
         }));
     }
 

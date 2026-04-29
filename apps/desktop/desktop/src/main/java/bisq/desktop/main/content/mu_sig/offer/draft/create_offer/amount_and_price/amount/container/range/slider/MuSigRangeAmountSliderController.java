@@ -36,13 +36,11 @@ public class MuSigRangeAmountSliderController implements Controller {
     private final MuSigRangeAmountSliderModel model;
     @Getter
     private final MuSigRangeAmountSliderView view;
-    private final CreateOfferUseCase createOfferUseCase;
     private final CreateOfferAmountUseCase amountUseCase;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountSliderController(CreateOfferUseCase createOfferUseCase) {
-        this.createOfferUseCase = createOfferUseCase;
         amountUseCase = createOfferUseCase.getAmountUseCase();
         model = new MuSigRangeAmountSliderModel();
         view = new MuSigRangeAmountSliderView(model, this);
@@ -53,13 +51,13 @@ public class MuSigRangeAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getLowValue(),
                 value -> {
                     if (value != null) {
-                        createOfferUseCase.setMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountUseCase.onSetMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
         subscriptions.add(EasyBind.subscribe(model.getHighValue(),
                 value -> {
                     if (value != null) {
-                        createOfferUseCase.setMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountUseCase.onSetMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 

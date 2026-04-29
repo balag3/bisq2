@@ -28,7 +28,7 @@ import bisq.desktop.common.view.Navigation;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
 import bisq.presentation.formatters.AmountFormatter;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -100,7 +100,7 @@ public class MuSigTradeLimitsSimulationController implements Controller {
     private void applySelectFiatPaymentRail(FiatPaymentRail paymentRail) {
         model.getSelectedFiatPaymentRail().set(paymentRail);
         
-        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(paymentRail);
+        Fiat maxTradeLimitInUsd = PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(paymentRail);
         String maxTradeLimit = AmountFormatter.formatQuoteAmount(maxTradeLimitInUsd);
         model.getFiatPaymentRailMaxLimit().set(Res.get("muSig.trade.limits.simulation.fiatRail.maxLimit", maxTradeLimit));
         updateLimits();
@@ -112,7 +112,7 @@ public class MuSigTradeLimitsSimulationController implements Controller {
             return;
         }
 
-        double maxTradeLimit = PaymentMethodBasedAmountLimits.evaluateLimitInUsd(fiatPaymentRail).getValue() / 10000d;
+        double maxTradeLimit = PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(fiatPaymentRail).getValue() / 10000d;
         // We use 10% of max limit as default limit
         double defaultTradeLimit = maxTradeLimit * 0.1;    // 250-1000
 

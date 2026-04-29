@@ -32,8 +32,8 @@ import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.AmountUtils;
 import bisq.offer.mu_sig.use_case.TradeAmountConstraints;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
 import bisq.offer.mu_sig.use_case.take_offer.direction.TakeOfferDirectionService;
 import bisq.offer.mu_sig.use_case.take_offer.market.TakeOfferMarketService;
@@ -189,8 +189,8 @@ public class TakeOfferDraftStateEngine {
         // Initially, the selected payment rail is null, and we use the MAX_TRADE_AMOUNT_IN_USD
         PaymentRail selectedPaymentRail = getSelectedPaymentRail();
         return selectedPaymentRail != null
-                ? PaymentMethodBasedAmountLimits.evaluateLimitInUsd(selectedPaymentRail)
-                : AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD;
+                ? PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(selectedPaymentRail)
+                : AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD;
     }
 
     /* --------------------------------------------------------------------- */

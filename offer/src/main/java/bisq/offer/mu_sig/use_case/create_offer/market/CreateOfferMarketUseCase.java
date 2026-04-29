@@ -68,6 +68,7 @@ public class CreateOfferMarketUseCase extends UseCase {
     }
 
     public Pin addMarketListener(Consumer<Market> listener) {
+        checkNotNull(listener, "listener must not be null");
         listeners.add(listener);
         return () -> listeners.remove(listener);
     }
