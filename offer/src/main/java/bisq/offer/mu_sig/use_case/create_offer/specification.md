@@ -20,6 +20,12 @@ For takers, the direction is mirrored from the maker offer direction. A taker wh
 
 The selected direction impacts the **user-specific trade amount limit** only when `offerDirection` is **BUY** in a Bitcoin-Fiat market.
 
+#### Dependencies / update triggers
+
+* Direction is a root input and does not depend on another create-offer sub-domain.
+* Changing direction requires updating the **user-specific trade amount limit**.
+* When the effective amount limits change because of direction, amount slider restrictions and user-specific limit visualization must be refreshed as well.
+
 ---
 
 ### Market
@@ -32,6 +38,15 @@ The selected market affects:
 * default price quote
 * trade amount limits
 * whether a user-specific trade amount limit can apply
+
+#### Dependencies / update triggers
+
+* Market is a root input and does not depend on another create-offer sub-domain.
+* Changing market requires updating payment-method eligibility and auto-selection.
+* Changing market requires updating price state.
+* Changing market requires updating price limits.
+* Changing market requires updating amount limits.
+* Changing market requires resetting the default trade amounts and refreshing derived amount input limits.
 
 ---
 
@@ -49,6 +64,12 @@ The user can select up to **4 payment methods** (as defined by `CreateOfferPayme
 Payment method selection affects the payment-rail based maximum trade amount. If multiple payment methods are selected, the method with the lowest maximum amount determines the effective payment-rail maximum.
 
 The user-specific trade amount limit is independent of the selected payment method, but it can further reduce the effective maximum in Bitcoin-Fiat buy offers.
+
+#### Dependencies / update triggers
+
+* Payment-method availability depends on the selected market.
+* Changing the selected payment methods or accounts requires updating the payment-method-specific amount limit.
+* When the payment-method-specific amount limit changes, the effective amount limits and clamped trade amounts must be recomputed.
 
 ---
 
@@ -75,6 +96,26 @@ Changing the price affects:
 
 The entered amount is treated as the **stable value**, while price changes are applied to the **passive value**.
 
+#### Dependencies / update triggers
+
+* Price depends on the selected market.
+* Changing market requires reloading the persisted price mode and the last persisted percentage for that market.
+* Changing price requires updating amount limits.
+* Changing price requires updating trade amounts by recalculating the base side amount against the new quote.
+
+#### Price limits
+
+Price limits are a sub-aspect of the price use case.
+
+* The floating-price percentage is clamped to **-10% to +50%**.
+* The allowed price-quote range is derived from the selected market and its current market price.
+* Percentage input and quote input are synchronized and both are clamped through the same price-limit rules.
+
+##### Dependencies / update triggers
+
+* Price limits depend on the selected market.
+* When market changes, the minimum and maximum allowed price quotes must be recomputed.
+
 ---
 
 ### Amount
@@ -96,18 +137,41 @@ Constraints:
 * Minimum and maximum allowed amounts are determined by the payment method with the **highest chargeback risk**
 * An optional **user-specific trade amount limit** may further reduce the maximum
 
+#### Dependencies / update triggers
+
+* Amount depends on the selected market.
+* Amount depends on the selected price quote.
+* Amount depends on the effective amount limits.
+* Changing the active input side requires recomputing input amount limits and slider mapping.
+* Direction and payment method affect amount indirectly through the effective amount limits.
+
 ---
 
-#### Trade amount limits
+#### Amount limits
 
-Trade amount limits define the minimum and maximum allowed trade size.
+Amount limits are a sub-aspect of the amount use case. They define the minimum and maximum allowed trade amount.
 
-* Limits are determined by the payment method with the **highest chargeback risk**
-* They are calculated based on:
+The amount-limits sub-domain consists of:
 
-    * selected payment methods
-    * market price
-    * offer price quote
+* `absolute amount limits`
+* `payment-method-specific amount limit`
+* `user-specific trade amount limit`
+* `effective amount limits`
+
+##### Dependencies / update triggers
+
+* `absolute amount limits` require update when market or price changes.
+* `payment-method-specific amount limit` requires update when market, price, or selected payment method change.
+* `user-specific trade amount limit` requires update when market, direction, or price changes.
+* `effective amount limits` require update when any of the above limit sub-aspects change.
+
+The effective maximum is determined by the payment method with the **highest chargeback risk** and can be further reduced by the optional user-specific trade amount limit.
+
+The limit calculations are based on:
+
+* selected payment methods
+* market price
+* offer price quote
 
 If no payment method is selected yet, the unrestricted system maximum is used.
 
@@ -130,9 +194,7 @@ Bounds:
 
 Depending on the payment method, the maximum may be reduced by up to **50%** (i.e., down to **5,000 USD**).
 
----
-
-#### User-specific trade amount limit
+##### User-specific trade amount limit
 
 For **Bitcoin buyers in Bitcoin-Fiat markets**, an additional limit based on reputation data is applied.
 
