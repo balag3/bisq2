@@ -42,6 +42,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -94,7 +95,7 @@ public class CreateOfferServiceTest {
         cookieStore = new FakeCookieStore(Direction.SELL, false, true, false);
         accountsProvider = new FakeAccountsProvider();
         createOfferUseCase = new CreateOfferUseCase(marketPriceService, cookieStore, accountsProvider);
-        marketUseCase = createOfferUseCase.getMarketService();
+        marketUseCase = createOfferUseCase.getMarketUseCase();
         directionUseCase = createOfferUseCase.getDirectionService();
         paymentMethodService = createOfferUseCase.getPaymentMethodService();
         priceUseCase = createOfferUseCase.getPriceService();
@@ -103,7 +104,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void initializePopulatesDraftAndUpdatesPaymentMethods() {
-        createOfferUseCase.initialize(defaultMarket);
+        initialize(defaultMarket);
 
         assertEquals(defaultMarket, createOfferUseCase.getMarket());
         assertEquals(Direction.SELL, directionUseCase.getDisplayDirection());
@@ -118,7 +119,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setMarketResetsPriceAndAmountsDeterministically() {
-        createOfferUseCase.initialize(defaultMarket);
+        initialize(defaultMarket);
         marketUseCase.onSetMarket(xmrBtcMarket);
 
         assertEquals(xmrBtcMarket, createOfferUseCase.getMarket());
@@ -136,7 +137,7 @@ public class CreateOfferServiceTest {
         double persistedPercentage = -0.1;
         cookieStore.setPricePercentage(xmrBtcMarket, persistedPercentage);
 
-        createOfferUseCase.initialize(defaultMarket);
+        initialize(defaultMarket);
         marketUseCase.onSetMarket(xmrBtcMarket);
 
         PriceQuote expectedPriceQuote = PriceUtil.fromMarketPriceMarkup(xmrBtcPriceQuote, persistedPercentage);
@@ -153,21 +154,24 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setPriceQuoteKeepsQuoteInputAmountConstant() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
         createOfferUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(500, "USD"));
 
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
         priceUseCase.onSetPriceQuote(PriceQuote.fromFiatPrice(40000, "USD"));
         TradeAmount fixTradeAmountAfter = amountUseCase.getFixTradeAmount();
+        TradeAmount expectedTradeAmount = TradeAmountConversion.toTradeAmount(usdBtcMarket,
+                priceUseCase.getPriceQuote(),
+                Fiat.fromFaceValue(500, "USD"));
 
         assertEquals(fixTradeAmountBefore.getQuoteSideAmount(), fixTradeAmountAfter.getQuoteSideAmount());
-        assertEquals(Coin.asBtcFromFaceValue(0.0125), fixTradeAmountAfter.getBaseSideAmount());
+        assertEquals(expectedTradeAmount.getBaseSideAmount(), fixTradeAmountAfter.getBaseSideAmount());
     }
 
     @Test
     public void setDirectionRecomputesUserSpecificLimitAndKeepsAmountsStable() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
         Direction persistedDirection = directionUseCase.getDisplayDirection();
         directionUseCase.onSetDisplayDirection(Direction.BUY);
@@ -183,12 +187,12 @@ public class CreateOfferServiceTest {
 
     @Test
     public void selectedAccountsUseMostRestrictivePaymentRailLimit() {
-        createOfferUseCase.initialize(usdBtcMarket);
-
         PaymentMethod<?> veryLowRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
+        accountsProvider.put(usdBtcMarket, List.of(veryLowRiskAccount, moderateRiskAccount));
+        initialize(usdBtcMarket);
 
         paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(veryLowRiskMethod, veryLowRiskAccount));
         assertEquals(Fiat.fromFaceValue(10000, "USD"),
@@ -201,14 +205,14 @@ public class CreateOfferServiceTest {
 
     @Test
     public void selectedAccountLimitChangeClampsExistingAmounts() {
-        createOfferUseCase.initialize(usdBtcMarket);
-        createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
-        createOfferUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(9000, "USD"));
-
         PaymentMethod<?> veryLowRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> veryLowRiskAccount = createAccount(veryLowRiskMethod);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
+        accountsProvider.put(usdBtcMarket, List.of(veryLowRiskAccount, moderateRiskAccount));
+        initialize(usdBtcMarket);
+        createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
+        createOfferUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(9000, "USD"));
 
         paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(veryLowRiskMethod, veryLowRiskAccount));
         assertEquals(Fiat.fromFaceValue(9000, "USD"), amountUseCase.getFixTradeAmount().getQuoteSideAmount());
@@ -218,8 +222,51 @@ public class CreateOfferServiceTest {
     }
 
     @Test
+    public void selectingFifthDistinctPaymentMethodThrows() {
+        PaymentMethod<?> achTransfer = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        PaymentMethod<?> advancedCash = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
+        PaymentMethod<?> revolut = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.REVOLUT);
+        PaymentMethod<?> sepa = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SEPA);
+        PaymentMethod<?> swift = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SWIFT);
+        Account<?, ?> achTransferAccount = createAccount(achTransfer);
+        Account<?, ?> advancedCashAccount = createAccount(advancedCash);
+        Account<?, ?> revolutAccount = createAccount(revolut);
+        Account<?, ?> sepaAccount = createAccount(sepa);
+        Account<?, ?> swiftAccount = createAccount(swift);
+        accountsProvider.put(usdBtcMarket,
+                List.of(achTransferAccount, advancedCashAccount, revolutAccount, sepaAccount, swiftAccount));
+        initialize(usdBtcMarket);
+
+        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(achTransfer, achTransferAccount));
+        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(advancedCash, advancedCashAccount));
+        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(revolut, revolutAccount));
+        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(sepa, sepaAccount));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(swift, swiftAccount)));
+
+        assertEquals(CreateOfferPaymentMethodUseCase.MAX_PAYMENT_METHODS_REACHED, exception.getMessage());
+    }
+
+    @Test
+    public void selectingAccountNotEligibleForCurrentMarketThrows() {
+        PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        Account<?, ?> eligibleAccount = createAccount(method);
+        Account<?, ?> anotherEligibleAccount = createAccount(method);
+        Account<?, ?> ineligibleAccount = createAccount(method);
+        accountsProvider.put(usdBtcMarket, List.of(eligibleAccount, anotherEligibleAccount));
+        initialize(usdBtcMarket);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(method, ineligibleAccount)));
+
+        assertEquals(CreateOfferPaymentMethodUseCase.ACCOUNT_NOT_ELIGIBLE_FOR_MARKET, exception.getMessage());
+        assertTrue(paymentMethodService.getAccountByPaymentMethod().isEmpty());
+    }
+
+    @Test
     public void setDirectionWithCurrentValueIsNoOp() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         Direction persistedDirection = directionUseCase.getDisplayDirection();
         TradeAmount fixTradeAmountBefore = amountUseCase.getFixTradeAmount();
         directionUseCase.onSetDisplayDirection(persistedDirection.mirror());
@@ -230,7 +277,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setPriceQuoteWithCurrentValueIsNoOp() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         int recalculationCountBefore = marketPriceService.btcUsdPriceQuoteRequests;
 
         priceUseCase.onSetPriceQuote(priceUseCase.getPriceQuote());
@@ -240,7 +287,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setMarketWithCurrentValueIsNoOp() {
-        createOfferUseCase.initialize(defaultMarket);
+        initialize(defaultMarket);
 
         marketUseCase.onSetMarket(defaultMarket);
 
@@ -249,10 +296,11 @@ public class CreateOfferServiceTest {
 
     @Test
     public void selectingSameAccountTwiceDoesNotRecalculateConstraints() {
-        createOfferUseCase.initialize(usdBtcMarket);
-
         PaymentMethod<?> moderateRiskMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> moderateRiskAccount = createAccount(moderateRiskMethod);
+        Account<?, ?> anotherModerateRiskAccount = createAccount(moderateRiskMethod);
+        accountsProvider.put(usdBtcMarket, List.of(moderateRiskAccount, anotherModerateRiskAccount));
+        initialize(usdBtcMarket);
 
         paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(moderateRiskMethod, moderateRiskAccount));
         int recalculationCountAfterFirstSelection = marketPriceService.btcUsdPriceQuoteRequests;
@@ -264,7 +312,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUseBaseCurrencyForAmountInputWithCurrentValueIsNoOp() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
 
         createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
 
@@ -273,7 +321,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUseBaseCurrencyForAmountInputWithDifferentValuePersistsPreference() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
 
         createOfferUseCase.setUseBaseCurrencyForAmountInput(true);
 
@@ -282,7 +330,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUseRangeAmountWithCurrentValueIsNoOp() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
 
         createOfferUseCase.setUseRangeAmount(false);
 
@@ -291,7 +339,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUseRangeAmountWithDifferentValuePersistsPreference() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
 
         createOfferUseCase.setUseRangeAmount(true);
 
@@ -310,7 +358,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void toInputAmountAndToPassiveAmountAreConsistent() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
 
         TradeAmount tradeAmount = amountUseCase.getFixTradeAmount();
@@ -323,7 +371,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setFixTradeAmountFromSliderValueUpdatesAmount() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         createOfferUseCase.setUseBaseCurrencyForAmountInput(false);
 
         createOfferUseCase.setFixTradeAmountFromSliderValue(0.0);
@@ -337,7 +385,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setMinAndMaxTradeAmountFromSliderValueWorksCorrectly() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         createOfferUseCase.setUseRangeAmount(true);
 
         createOfferUseCase.setMinTradeAmountFromSliderValue(0.2);
@@ -351,7 +399,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setTradeAmountLimitsUpdatesLimits() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         TradeAmountRange currentLimits = amountUseCase.getTradeAmountLimits();
 
         TradeAmount doubledMax = TradeAmountConversion.toTradeAmount(usdBtcMarket,
@@ -368,7 +416,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUserSpecificTradeAmountLimitUpdatesLimit() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         TradeAmount customLimit = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(3000, "USD"));
@@ -380,7 +428,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setInputAmountLimitsUpdatesLimits() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         var currentLimits = amountUseCase.getInputAmountLimits();
 
         var newLimits = new MonetaryRange(
@@ -394,7 +442,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void setUseRangeAmountUpdatesSliderValues() {
-        createOfferUseCase.initialize(defaultMarket);
+        initialize(defaultMarket);
         createOfferUseCase.setUseRangeAmount(true);
 
         assertTrue(amountUseCase.getUseRangeAmount());
@@ -405,7 +453,7 @@ public class CreateOfferServiceTest {
 
     @Test
     public void onPaymentMethodSelectedReturnsNoAccountIfNoneExists() {
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
 
         PaymentMethodSelectionResult result = paymentMethodService.evaluatePaymentMethodSelectionResult(method);
@@ -420,7 +468,7 @@ public class CreateOfferServiceTest {
         PaymentMethod<?> method = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         Account<?, ?> account = createAccount(method);
         accountsProvider.put(usdBtcMarket, List.of(account));
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
         PaymentMethodSelectionResult result = paymentMethodService.evaluatePaymentMethodSelectionResult(method);
         paymentMethodService.onAddAccountByPaymentMethodEntry(result.methodAccountEntry().orElseThrow());
 
@@ -435,13 +483,18 @@ public class CreateOfferServiceTest {
         Account<?, ?> account1 = createAccount(method);
         Account<?, ?> account2 = createAccount(method);
         accountsProvider.put(usdBtcMarket, List.of(account1, account2));
-        createOfferUseCase.initialize(usdBtcMarket);
+        initialize(usdBtcMarket);
 
         PaymentMethodSelectionResult result = paymentMethodService.evaluatePaymentMethodSelectionResult(method);
 
         assertEquals(PaymentMethodSelectionStatus.ACCOUNT_SELECTION_REQUIRED, result.status());
         assertEquals(List.of(account1, account2), result.accountsRequiringSelection());
         assertTrue(paymentMethodService.getAccountByPaymentMethod().isEmpty());
+    }
+
+    private void initialize(Market market) {
+        marketUseCase.onSetMarket(market);
+        createOfferUseCase.initialize();
     }
 
     private static class MockMarketPriceService implements MarketPriceService {

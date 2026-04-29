@@ -22,6 +22,7 @@ import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.observable.Pin;
+import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
@@ -32,8 +33,8 @@ import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.experimental.Delegate;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -54,10 +55,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * floating offset becomes {@link MarketPriceSpec}, and non-zero offsets become
  * {@link FloatPriceSpec}.
  */
-@Slf4j
-public class CreateOfferPriceUseCase extends UseCase {
+public class CreateOfferPriceUseCase extends UseCase implements CreateOfferPriceReadOnlyModel {
+    private static final Logger log = LoggerFactory.getLogger(CreateOfferPriceUseCase.class);
+
     @Getter(AccessLevel.PACKAGE)
-    @Delegate
     private final CreateOfferPriceModel model;
     private final MarketPriceService marketPriceService;
     private final PriceLimits priceLimits;
@@ -66,24 +67,41 @@ public class CreateOfferPriceUseCase extends UseCase {
     private final Set<Consumer<PriceQuote>> listeners = new CopyOnWriteArraySet<>();
 
     public CreateOfferPriceUseCase(MarketPriceService marketPriceService,
-                                   PriceLimits priceLimits,
                                    CreateOfferMarketUseCase marketUseCase,
                                    CreateOfferDraftCookieStore cookieStore) {
         this.marketPriceService = marketPriceService;
-        this.priceLimits = priceLimits;
         this.marketUseCase = marketUseCase;
         this.cookieStore = cookieStore;
+
+        priceLimits = new PriceLimits(marketPriceService, marketUseCase);
         this.model = new CreateOfferPriceModel();
     }
 
+    @Override
     public void initialize() {
-        update(marketUseCase.getMarket(), false);
+        priceLimits.initialize();
 
-        pin(marketUseCase.addMarketListener(market -> {
-            if (market != null) {
-                update(market, true);
-            }
-        }));
+        Market market = marketUseCase.getMarket();
+        if (market != null) {
+            updateUseFixPrice(market, false);
+
+            double pricePercentage = getDefaultPricePercentageForMarket(market);
+            updatePriceQuote(pricePercentage, false);
+        }
+
+        // Sync pricePercentage with priceQuote from defaultPriceQuoteForMarket
+        PriceQuote priceQuote = getPriceQuote();
+        if (priceQuote != null) {
+            updatePricePercentage(priceQuote, false);
+        }
+
+        pin(marketUseCase.addMarketListener(this::updateAll));
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        priceLimits.dispose();
     }
 
 
@@ -91,20 +109,38 @@ public class CreateOfferPriceUseCase extends UseCase {
     // Update
     /* --------------------------------------------------------------------- */
 
-    private void update(Market market, boolean notifyListeners) {
-        checkNotNull(market, "market must not be null");
+    private void updateAll(Market market) {
+        if (market == null) {
+            return;
+        }
 
-        boolean useFixPrice = cookieStore.getUseFixPrice(market);
-        applyUseFixPrice(useFixPrice, notifyListeners);
+        // Market changes have their own state-transition path. Publishing the intermediate
+        // price change here would try to recompute the previous market's amounts against the
+        // new market before the draft state engine resets them.
+        updateUseFixPrice(market, false);
 
         double pricePercentage = getDefaultPricePercentageForMarket(market);
-        PriceQuote priceQuote = percentageToPriceQuote(pricePercentage);
-        applyPriceQuote(priceQuote, notifyListeners);
+        updatePriceQuote(pricePercentage, false);
 
         // Sync pricePercentage with priceQuote from defaultPriceQuoteForMarket
-        pricePercentage = priceQuoteToPercentage(getPriceQuote());
+        updatePricePercentage(getPriceQuote(), false);
+    }
+
+    private void updateUseFixPrice(Market market, boolean notifyListeners) {
+        boolean useFixPrice = cookieStore.getUseFixPrice(market);
+        applyUseFixPrice(useFixPrice, notifyListeners);
+    }
+
+    private void updatePriceQuote(double pricePercentage, boolean notifyListeners) {
+        PriceQuote priceQuote = percentageToPriceQuote(pricePercentage);
+        applyPriceQuote(priceQuote, notifyListeners);
+    }
+
+    private void updatePricePercentage(PriceQuote priceQuote, boolean notifyListeners) {
+        double pricePercentage = priceQuoteToPercentage(priceQuote);
         applyPricePercentage(pricePercentage, notifyListeners);
     }
+
 
 
     /* --------------------------------------------------------------------- */
@@ -138,8 +174,6 @@ public class CreateOfferPriceUseCase extends UseCase {
 
             Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
             cookieStore.persistPricePercentage(market, pricePercentage);
-
-            log.error("applyPricePercentage {}", pricePercentage);
         }
     }
 
@@ -158,7 +192,6 @@ public class CreateOfferPriceUseCase extends UseCase {
             if (notifyListeners) {
                 listeners.forEach(listener -> listener.accept(clampPriceQuote));
             }
-            log.error("applyPriceQuote {}", priceQuote);
         }
     }
 
@@ -202,5 +235,35 @@ public class CreateOfferPriceUseCase extends UseCase {
 
     static double priceQuoteToPercentage(PriceQuote marketPriceQuote, PriceQuote priceQuote) {
         return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
+    }
+
+    @Override
+    public ReadOnlyObservable<PriceQuote> priceQuoteObservable() {
+        return model.priceQuoteObservable();
+    }
+
+    @Override
+    public PriceQuote getPriceQuote() {
+        return model.getPriceQuote();
+    }
+
+    @Override
+    public ReadOnlyObservable<Boolean> useFixPriceObservable() {
+        return model.useFixPriceObservable();
+    }
+
+    @Override
+    public boolean getUseFixPrice() {
+        return model.getUseFixPrice();
+    }
+
+    @Override
+    public ReadOnlyObservable<Double> pricePercentageObservable() {
+        return model.pricePercentageObservable();
+    }
+
+    @Override
+    public double getPricePercentage() {
+        return model.getPricePercentage();
     }
 }

@@ -25,7 +25,7 @@ import bisq.common.observable.ReadOnlyObservable;
 
 import java.util.Optional;
 
-public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
+public class CreateOfferAmountModel {
     protected final Observable<Boolean> useBaseCurrencyForAmountInput = new Observable<>(false);
     protected final Observable<Boolean> useRangeAmount = new Observable<>(false);
     protected final Observable<TradeAmount> fixTradeAmount = new Observable<>();
@@ -50,12 +50,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         useBaseCurrencyForAmountInput.set(value);
     }
 
-    @Override
     public ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable() {
         return useBaseCurrencyForAmountInput;
     }
 
-    @Override
     public boolean getUseBaseCurrencyForAmountInput() {
         return useBaseCurrencyForAmountInput.get();
     }
@@ -69,12 +67,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.useRangeAmount.set(useRangeAmount);
     }
 
-    @Override
     public ReadOnlyObservable<Boolean> useRangeAmountObservable() {
         return useRangeAmount;
     }
 
-    @Override
     public boolean getUseRangeAmount() {
         return useRangeAmount.get();
     }
@@ -88,12 +84,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.fixTradeAmount.set(fixTradeAmount);
     }
 
-    @Override
     public ReadOnlyObservable<TradeAmount> fixTradeAmountObservable() {
         return fixTradeAmount;
     }
 
-    @Override
     public TradeAmount getFixTradeAmount() {
         return fixTradeAmount.get();
     }
@@ -107,12 +101,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.minTradeAmount.set(minTradeAmount);
     }
 
-    @Override
     public ReadOnlyObservable<TradeAmount> minTradeAmountObservable() {
         return minTradeAmount;
     }
 
-    @Override
     public TradeAmount getMinTradeAmount() {
         return minTradeAmount.get();
     }
@@ -126,12 +118,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.maxTradeAmount.set(maxTradeAmount);
     }
 
-    @Override
     public ReadOnlyObservable<TradeAmount> maxTradeAmountObservable() {
         return maxTradeAmount;
     }
 
-    @Override
     public TradeAmount getMaxTradeAmount() {
         return maxTradeAmount.get();
     }
@@ -145,12 +135,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.tradeAmountLimits.set(tradeAmountLimits);
     }
 
-    @Override
     public TradeAmountRange getTradeAmountLimits() {
         return tradeAmountLimits.get();
     }
 
-    @Override
     public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
         return tradeAmountLimits;
     }
@@ -164,12 +152,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.userSpecificTradeAmountLimit.set(userSpecificTradeAmountLimit);
     }
 
-    @Override
     public ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable() {
         return userSpecificTradeAmountLimit;
     }
 
-    @Override
     public Optional<TradeAmount> getUserSpecificTradeAmountLimit() {
         return userSpecificTradeAmountLimit.get();
     }
@@ -183,12 +169,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         userSpecificTradeAmountLimitAsSliderValue.set(sliderValue);
     }
 
-    @Override
     public ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable() {
         return userSpecificTradeAmountLimitAsSliderValue;
     }
 
-    @Override
     public Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue() {
         return userSpecificTradeAmountLimitAsSliderValue.get();
     }
@@ -202,12 +186,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         this.inputAmountLimits.set(inputAmountLimits);
     }
 
-    @Override
     public ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable() {
         return inputAmountLimits;
     }
 
-    @Override
     public MonetaryRange getInputAmountLimits() {
         return inputAmountLimits.get();
     }
@@ -221,12 +203,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         fixAmountSliderValue.set(sliderValue);
     }
 
-    @Override
     public ReadOnlyObservable<Double> fixAmountSliderValueObservable() {
         return fixAmountSliderValue;
     }
 
-    @Override
     public Double getFixAmountSliderValue() {
         return fixAmountSliderValue.get();
     }
@@ -240,12 +220,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         minAmountSliderValue.set(sliderValue);
     }
 
-    @Override
     public ReadOnlyObservable<Double> minAmountSliderValueObservable() {
         return minAmountSliderValue;
     }
 
-    @Override
     public Double getMinAmountSliderValue() {
         return minAmountSliderValue.get();
     }
@@ -259,12 +237,10 @@ public class CreateOfferAmountModel implements CreateOfferAmountReadOnlyModel {
         maxAmountSliderValue.set(sliderValue);
     }
 
-    @Override
     public ReadOnlyObservable<Double> maxAmountSliderValueObservable() {
         return maxAmountSliderValue;
     }
 
-    @Override
     public Double getMaxAmountSliderValue() {
         return maxAmountSliderValue.get();
     }

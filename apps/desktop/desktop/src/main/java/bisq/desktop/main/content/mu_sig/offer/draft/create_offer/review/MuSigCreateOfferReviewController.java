@@ -103,7 +103,7 @@ public class MuSigCreateOfferReviewController implements Controller {
                                             Consumer<Boolean> mainButtonsVisibleHandler,
                                             Consumer<NavigationTarget> closeAndNavigateToHandler) {
         this.createOfferUseCase = createOfferUseCase;
-        marketUseCase = createOfferUseCase.getMarketService();
+        marketUseCase = createOfferUseCase.getMarketUseCase();
         directionUseCase = createOfferUseCase.getDirectionService();
         paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
         priceUseCase = createOfferUseCase.getPriceService();

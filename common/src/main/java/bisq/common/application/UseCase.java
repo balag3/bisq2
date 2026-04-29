@@ -29,6 +29,8 @@ public abstract class UseCase {
     public UseCase() {
     }
 
+    abstract public void initialize();
+
     public void dispose() {
         if (pins != null) {
             pins.forEach(Pin::unbind);

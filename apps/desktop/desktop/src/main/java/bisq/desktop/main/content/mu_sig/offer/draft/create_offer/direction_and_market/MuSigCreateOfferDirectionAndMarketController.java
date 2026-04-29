@@ -66,7 +66,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                                                         CreateOfferUseCase createOfferUseCase,
                                                         Runnable onNextHandler) {
         this.createOfferUseCase = createOfferUseCase;
-        marketUseCase = createOfferUseCase.getMarketService();
+        marketUseCase = createOfferUseCase.getMarketUseCase();
         directionUseCase = createOfferUseCase.getDirectionService();
 
         this.onNextHandler = onNextHandler;

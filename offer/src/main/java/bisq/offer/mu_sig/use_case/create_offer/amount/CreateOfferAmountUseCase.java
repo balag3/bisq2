@@ -22,6 +22,7 @@ import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.MonetaryRange;
+import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.amount.spec.AmountSpec;
@@ -30,7 +31,10 @@ import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.AmountUtils;
 import bisq.offer.mu_sig.use_case.TradeAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
+import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,44 +45,125 @@ import java.util.Optional;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferAmountUseCase extends UseCase {
+public class CreateOfferAmountUseCase extends UseCase   {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
+
     @Getter(AccessLevel.PACKAGE)
+
     @Delegate
     private final CreateOfferAmountModel model;
+
     private final MarketPriceService marketPriceService;
     private final CreateOfferMarketUseCase marketService;
+    private final CreateOfferDirectionUseCase directionService;
+    private final CreateOfferPaymentMethodUseCase paymentMethodService;
+    private final CreateOfferPriceUseCase priceService;
     private final CreateOfferDraftCookieStore cookieStore;
+    @Getter
     private final AmountLimits amountLimits;
+    @Getter
     private final AmountMappingService amountMappingService;
 
     public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
                                     CreateOfferMarketUseCase marketService,
-                                    CreateOfferDraftCookieStore cookieStore,
-                                    AmountLimits amountLimits,
-                                    AmountMappingService amountMappingService) {
+                                    CreateOfferDirectionUseCase directionService,
+                                    CreateOfferPaymentMethodUseCase paymentMethodService,
+                                    CreateOfferPriceUseCase priceService,
+                                    CreateOfferDraftCookieStore cookieStore) {
         this.marketPriceService = marketPriceService;
         this.marketService = marketService;
+        this.directionService = directionService;
+        this.paymentMethodService = paymentMethodService;
+        this.priceService = priceService;
         this.cookieStore = cookieStore;
-        this.amountLimits = amountLimits;
-        this.amountMappingService = amountMappingService;
+
+        this.amountMappingService = new AmountMappingService();
         this.model = new CreateOfferAmountModel();
+
+        amountLimits = new AmountLimits(marketPriceService,
+                marketService,
+                directionService,
+                paymentMethodService,
+                priceService);
     }
 
+    @Override
     public void initialize() {
-        Market market = checkNotNull(marketService.getMarket(), "market must not be null");
-        boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
-        setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+        amountLimits.initialize();
 
         boolean useRangeAmount = cookieStore.getUseRangeAmount();
         setUseRangeAmount(useRangeAmount);
 
-        // Not clamped yet as we do not have established the trade amount limits
-        TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
-        setFixTradeAmount(defaultTradeAmount);
-        setMinTradeAmount(defaultTradeAmount);
-        setMaxTradeAmount(defaultTradeAmount);
+        Market market = marketService.getMarket();
+        if (market != null) {
+            boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
+            setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
+
+            // Not clamped yet as we do not have established the trade amount limits
+            TradeAmount defaultTradeAmount = AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
+            setFixTradeAmount(defaultTradeAmount);
+            setMinTradeAmount(defaultTradeAmount);
+            setMaxTradeAmount(defaultTradeAmount);
+        }
+
+        pin(amountLimits.amountLimitsObservable().addObserver(amountLimits ->
+                update(marketService.getMarket(),
+                        priceService.getPriceQuote(),
+                        amountLimits)));
+        pin(marketService.addMarketListener(_market ->
+                update(_market,
+                        priceService.getPriceQuote(),
+                        amountLimits.getAmountLimits())));
+        pin(priceService.addPriceQuoteListener(priceQuote ->
+                update(marketService.getMarket(),
+                        priceQuote,
+                        amountLimits.getAmountLimits())));
     }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        amountLimits.dispose();
+    }
+
+    /* --------------------------------------------------------------------- */
+    // Update
+    /* --------------------------------------------------------------------- */
+
+    public void update(Market market, PriceQuote priceQuote, TradeAmountRange tradeAmountLimits) {
+        if (dependenciesValid(market, priceQuote, tradeAmountLimits)) {
+
+        }
+    }
+
+
+    private static boolean dependenciesValid(Market market,
+                                             PriceQuote priceQuote,
+                                             TradeAmountRange tradeAmountLimits) {
+        if (market == null ||
+                priceQuote == null ||
+                !market.equals(priceQuote.getMarket())) {
+            return false;
+        }
+
+        if (tradeAmountLimits == null) {
+            return true;
+        }
+
+        TradeAmount min = tradeAmountLimits.getMin();
+        TradeAmount max = tradeAmountLimits.getMax();
+        return min != null &&
+                max != null &&
+                matchingMarket(market, min) &&
+                matchingMarket(market, max);
+    }
+
+    private static boolean matchingMarket(Market market, TradeAmount tradeAmount) {
+        return market.getBaseCurrencyCode().equals(tradeAmount.getBaseSideAmount().getCode()) &&
+                market.getQuoteCurrencyCode().equals(tradeAmount.getQuoteSideAmount().getCode());
+    }
+
+
 
     public TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
         checkNotNull(tradeAmount, "tradeAmount must not be null");
@@ -224,4 +309,124 @@ public class CreateOfferAmountUseCase extends UseCase {
                 inputAmountLimits,
                 getUseBaseCurrencyForAmountInput());
     }
+/*
+    @Override
+    public ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable() {
+        return model.useBaseCurrencyForAmountInputObservable();
+    }
+
+    @Override
+    public boolean getUseBaseCurrencyForAmountInput() {
+        return model.getUseBaseCurrencyForAmountInput();
+    }
+
+    @Override
+    public ReadOnlyObservable<Boolean> useRangeAmountObservable() {
+        return model.useRangeAmountObservable();
+    }
+
+    @Override
+    public boolean getUseRangeAmount() {
+        return model.getUseRangeAmount();
+    }
+
+    @Override
+    public ReadOnlyObservable<TradeAmount> fixTradeAmountObservable() {
+        return model.fixTradeAmountObservable();
+    }
+
+    @Override
+    public TradeAmount getFixTradeAmount() {
+        return model.getFixTradeAmount();
+    }
+
+    @Override
+    public ReadOnlyObservable<TradeAmount> minTradeAmountObservable() {
+        return model.minTradeAmountObservable();
+    }
+
+    @Override
+    public TradeAmount getMinTradeAmount() {
+        return model.getMinTradeAmount();
+    }
+
+    @Override
+    public ReadOnlyObservable<TradeAmount> maxTradeAmountObservable() {
+        return model.maxTradeAmountObservable();
+    }
+
+    @Override
+    public TradeAmount getMaxTradeAmount() {
+        return model.getMaxTradeAmount();
+    }
+
+    @Override
+    public TradeAmountRange getTradeAmountLimits() {
+        return model.getTradeAmountLimits();
+    }
+
+    @Override
+    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
+        return model.tradeAmountLimitsObservable();
+    }
+
+    @Override
+    public ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable() {
+        return model.userSpecificTradeAmountLimitObservable();
+    }
+
+    @Override
+    public Optional<TradeAmount> getUserSpecificTradeAmountLimit() {
+        return model.getUserSpecificTradeAmountLimit();
+    }
+
+    @Override
+    public ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable() {
+        return model.userSpecificTradeAmountLimitAsSliderValueObservable();
+    }
+
+    @Override
+    public Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue() {
+        return model.getUserSpecificTradeAmountLimitAsSliderValue();
+    }
+
+    @Override
+    public ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable() {
+        return model.inputAmountLimitsObservable();
+    }
+
+    @Override
+    public MonetaryRange getInputAmountLimits() {
+        return model.getInputAmountLimits();
+    }
+
+    @Override
+    public ReadOnlyObservable<Double> fixAmountSliderValueObservable() {
+        return model.fixAmountSliderValueObservable();
+    }
+
+    @Override
+    public Double getFixAmountSliderValue() {
+        return model.getFixAmountSliderValue();
+    }
+
+    @Override
+    public ReadOnlyObservable<Double> minAmountSliderValueObservable() {
+        return model.minAmountSliderValueObservable();
+    }
+
+    @Override
+    public Double getMinAmountSliderValue() {
+        return model.getMinAmountSliderValue();
+    }
+
+    @Override
+    public ReadOnlyObservable<Double> maxAmountSliderValueObservable() {
+        return model.maxAmountSliderValueObservable();
+    }
+
+    @Override
+    public Double getMaxAmountSliderValue() {
+        return model.getMaxAmountSliderValue();
+    }*/
 }

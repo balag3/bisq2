@@ -298,9 +298,9 @@ public class MuSigCreateOfferPaymentView extends View<StackPane, MuSigCreateOffe
         PaymentMethod<?> paymentMethod = model.getPaymentMethodRequiringAccountSelection().get();
         Account<?, ?> account = accountSelection.getSelectionModel().getSelectedItem();
         if (paymentMethod != null && account != null) {
-            findChipButton(paymentMethod)
-                    .ifPresent(button -> button.setAccountName(account.getAccountName()));
-            controller.onSelectAccount(account, paymentMethod);
+            controller.onSelectAccount(account, paymentMethod)
+                    .ifPresent(selectedAccount -> findChipButton(paymentMethod)
+                            .ifPresent(button -> button.setAccountName(selectedAccount.getAccountName())));
             UIThread.runOnNextRenderFrame(() -> accountSelection.getSelectionModel().clearSelection());
         }
     }

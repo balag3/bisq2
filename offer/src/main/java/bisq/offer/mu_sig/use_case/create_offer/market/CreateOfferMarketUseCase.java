@@ -19,6 +19,7 @@ package bisq.offer.mu_sig.use_case.create_offer.market;
 
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
+import bisq.common.market.MarketRepository;
 import bisq.common.observable.Pin;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -40,9 +41,12 @@ public class CreateOfferMarketUseCase extends UseCase {
         this.model = new CreateOfferMarketModel();
     }
 
-    public void initialize(Market market) {
-        model.setMarket(market);
-        applyMarket(market, false);
+    @Override
+    public void initialize() {
+        if (getMarket() == null) {
+            Market market = MarketRepository.getDefaultBtcFiatMarket();
+            applyMarket(market, false);
+        }
     }
 
 

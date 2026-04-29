@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
@@ -25,52 +26,66 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
-public class AbsoluteAmountLimits {
+public class AbsoluteAmountLimits extends UseCase {
     public static final Fiat MIN_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10, "USD");
     public static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
 
-    protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
-
+    private final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
     private final MarketPriceService marketPriceService;
+    private final CreateOfferMarketUseCase marketService;
+    private final CreateOfferPriceUseCase priceService;
 
-    public AbsoluteAmountLimits(MarketPriceService marketPriceService) {
-        checkNotNull(marketPriceService, "marketPriceService must not be null");
+    public AbsoluteAmountLimits(MarketPriceService marketPriceService,
+                                CreateOfferMarketUseCase marketService,
+                                CreateOfferPriceUseCase priceService) {
+        this.marketService = marketService;
+        this.priceService = priceService;
         this.marketPriceService = marketPriceService;
     }
 
+    @Override
+    public void initialize() {
+        pin(marketService.addMarketListener(market -> update(market, priceService.getPriceQuote())));
+        pin(priceService.addPriceQuoteListener(priceQuote -> update(marketService.getMarket(), priceQuote)));
+    }
+    
 
     /* --------------------------------------------------------------------- */
     // Update
     /* --------------------------------------------------------------------- */
 
-    public void update(Market market,
-                       PriceQuote priceQuote) {
-        checkNotNull(market, "market must not be null");
-        checkNotNull(priceQuote, "priceQuote must not be null");
+    public void update(Market market, PriceQuote priceQuote) {
+        if (dependenciesValid(market, priceQuote)) {
+            TradeAmount minTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
+                    market,
+                    priceQuote,
+                    MIN_TRADE_AMOUNT_IN_USD);
+            TradeAmount maxTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
+                    market,
+                    priceQuote,
+                    MAX_TRADE_AMOUNT_IN_USD);
+            tradeAmountLimits.set(new TradeAmountRange(minTradeAmount, maxTradeAmount));
+        }
+    }
 
-        TradeAmount minTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
-                market,
-                priceQuote,
-                MIN_TRADE_AMOUNT_IN_USD);
-        TradeAmount maxTradeAmount = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService,
-                market,
-                priceQuote,
-                MAX_TRADE_AMOUNT_IN_USD);
-        tradeAmountLimits.set(new TradeAmountRange(minTradeAmount, maxTradeAmount));
+    private static boolean dependenciesValid(Market market, PriceQuote priceQuote) {
+        return market != null &&
+                priceQuote != null &&
+                market.equals(priceQuote.getMarket());
     }
 
     /* --------------------------------------------------------------------- */
     // Getters
     /* --------------------------------------------------------------------- */
 
-    public ReadOnlyObservable<TradeAmountRange> amountLimitsObservable() {
+    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
         return tradeAmountLimits;
     }
 
-    public TradeAmountRange getAmountLimits() {
+    public TradeAmountRange getTradeAmountLimits() {
         return tradeAmountLimits.get();
     }
 }

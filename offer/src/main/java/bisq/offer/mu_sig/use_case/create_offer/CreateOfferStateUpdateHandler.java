@@ -81,6 +81,14 @@ public class CreateOfferStateUpdateHandler {
             }
         });
 
+        pins.add(paymentMethodService.accountByPaymentMethodObservable().addObserver(() -> {
+            if (marketService.getMarket() != null && priceService.getPriceQuote() != null) {
+                paymentMethodSpecificAmountLimits.update(marketService.getMarket(),
+                        priceService.getPriceQuote(),
+                        paymentMethodService.getAccountByPaymentMethod());
+            }
+        }));
+
         pins.add(paymentMethodSpecificAmountLimits.amountLimitInUsdObservable().addObserver(paymentRailBasedTradeLimitInUsd -> {
             if (!paymentRailObserverInitialized) {
                 paymentRailObserverInitialized = true;

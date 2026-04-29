@@ -46,6 +46,7 @@ public class PriceLimits extends UseCase {
         this.marketPriceService = marketPriceService;
     }
 
+    @Override
     public void initialize() {
         pin(marketService.marketObservable().addObserver(market -> {
             if (market != null) {

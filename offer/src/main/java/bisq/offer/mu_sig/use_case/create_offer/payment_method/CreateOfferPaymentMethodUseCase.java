@@ -21,6 +21,7 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
@@ -38,21 +39,69 @@ import java.util.stream.Collectors;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+/**
+ * Maintains payment-method and account selection state for the create-offer draft.
+ * <p>
+ * The create-offer specification allows selecting up to {@value #MAX_NUM_PAYMENT_METHODS}
+ * payment methods. A method can only be selected with an account that is currently eligible for
+ * the active market, and if the market leaves exactly one eligible account in total it is
+ * auto-selected. The selected accounts also drive payment-rail based trade amount limits.
+ */
 public class CreateOfferPaymentMethodUseCase extends UseCase {
     public static final int MAX_NUM_PAYMENT_METHODS = 4;
+    public static final String MAX_PAYMENT_METHODS_REACHED = "maxPaymentMethodsReached";
+    public static final String ACCOUNT_NOT_ELIGIBLE_FOR_MARKET = "accountNotEligibleForMarket";
 
     @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferPaymentMethodModel model;
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();
+    private final CreateOfferMarketUseCase marketUseCase;
     private final AccountsProvider accountsProvider;
 
-    public CreateOfferPaymentMethodUseCase(AccountsProvider accountsProvider) {
+    public CreateOfferPaymentMethodUseCase(CreateOfferMarketUseCase marketUseCase, AccountsProvider accountsProvider) {
+        this.marketUseCase = marketUseCase;
         this.accountsProvider = accountsProvider;
         this.model = new CreateOfferPaymentMethodModel();
     }
 
+    @Override
     public void initialize() {
+        pin(marketUseCase.marketObservable().addObserver(this::update));
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // Update
+    /* --------------------------------------------------------------------- */
+
+    // If market changes we update the accounts by paymentMethod map, maybe remove the selected accountByPaymentMethodEntry
+    // and maybe pre-select the accountByPaymentMethodEntry if only one account is present.
+    private void update(Market market) {
+        if (market == null) {
+            return;
+        }
+        MarketAccounts marketAccounts = loadAccountsForMarket(market, accountsProvider);
+        List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
+        Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
+        if (!getAccountsByPaymentMethod().equals(map)) {
+            model.clearAccountsByPaymentMethod();
+            model.putAllAccountsByPaymentMethod(map);
+        }
+
+        // Remove payment methods which are not present in the eligible accounts
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = getAccountByPaymentMethod();
+        findSelectedPaymentMethodsToRemove(selectedAccountByPaymentMethod, accountsForMarket)
+                .forEach(model::removeAccountByPaymentMethod);
+
+        // If we have only one, we pre-select
+        selectedAccountByPaymentMethod = getAccountByPaymentMethod(); // read it again as it might have changed from remove call
+        findAccountToAutoSelect(accountsForMarket, selectedAccountByPaymentMethod)
+                .ifPresent(account -> {
+                    PaymentMethod<?> paymentMethod = account.getPaymentMethod();
+                    Map.Entry<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodEntry = Map.entry(paymentMethod, account);
+                    model.addAccountByPaymentMethodEntry(accountByPaymentMethodEntry);
+                });
     }
 
 
@@ -83,8 +132,12 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
 
     public void onAddAccountByPaymentMethodEntry(Map.Entry<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodEntry) {
         checkNotNull(accountByPaymentMethodEntry, "accountByPaymentMethodEntry must not be null");
-        checkArgument(accountByPaymentMethodEntry.getValue().getPaymentMethod().equals(accountByPaymentMethodEntry.getKey()),
+        PaymentMethod<?> paymentMethod = checkNotNull(accountByPaymentMethodEntry.getKey(), "paymentMethod must not be null");
+        Account<?, ?> account = checkNotNull(accountByPaymentMethodEntry.getValue(), "account must not be null");
+        checkArgument(account.getPaymentMethod().equals(paymentMethod),
                 "PaymentMethod must be the same as in account");
+        validateSelectedPaymentMethodLimit(paymentMethod);
+        validateAccountEligibility(paymentMethod, account);
         model.addAccountByPaymentMethodEntry(accountByPaymentMethodEntry);
         methodAccountEntryListeners.forEach(listener -> listener.accept(accountByPaymentMethodEntry));
     }
@@ -93,37 +146,6 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
         model.removeAccountByPaymentMethod(paymentMethod);
     }
 
-
-    /* --------------------------------------------------------------------- */
-    // Handle changes from dependencies
-    /* --------------------------------------------------------------------- */
-
-    // If market changes we update the accounts by paymentMethod map, maybe remove the selected accountByPaymentMethodEntry 
-    // and maybe pre-select the accountByPaymentMethodEntry if only one account is present.
-    public void handleMarketChanged(Market market) {
-        checkNotNull(market, "market must not be null");
-        MarketAccounts marketAccounts = loadAccountsForMarket(market, accountsProvider);
-        List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
-        Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
-        if (!getAccountsByPaymentMethod().equals(map)) {
-            model.clearAccountsByPaymentMethod();
-            model.putAllAccountsByPaymentMethod(map);
-        }
-
-        // Remove payment methods which are not present in the eligible accounts
-        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = getAccountByPaymentMethod();
-        findSelectedPaymentMethodsToRemove(selectedAccountByPaymentMethod, accountsForMarket)
-                .forEach(model::removeAccountByPaymentMethod);
-
-        // If we have only one, we pre-select
-        selectedAccountByPaymentMethod = getAccountByPaymentMethod(); // read it again as it might have changed from remove call
-        findAccountToAutoSelect(accountsForMarket, selectedAccountByPaymentMethod)
-                .ifPresent(account -> {
-                    PaymentMethod<?> paymentMethod = account.getPaymentMethod();
-                    Map.Entry<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodEntry = Map.entry(paymentMethod, account);
-                    model.addAccountByPaymentMethodEntry(accountByPaymentMethodEntry);
-                });
-    }
 
     public void addMethodAccountEntryListener(Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>> listener) {
         methodAccountEntryListeners.add(listener);
@@ -187,5 +209,18 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
                 .filter(entry -> !accountsForMarket.contains(entry.getValue()))
                 .map(Map.Entry::getKey)
                 .toList();
+    }
+
+    private void validateSelectedPaymentMethodLimit(PaymentMethod<?> paymentMethod) {
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = getAccountByPaymentMethod();
+        boolean isExistingPaymentMethod = selectedAccountByPaymentMethod.containsKey(paymentMethod);
+        checkArgument(isExistingPaymentMethod || selectedAccountByPaymentMethod.size() < MAX_NUM_PAYMENT_METHODS,
+                MAX_PAYMENT_METHODS_REACHED);
+    }
+
+    private void validateAccountEligibility(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
+        List<Account<?, ?>> accountsForPaymentMethod = getAccountsByPaymentMethod().get(paymentMethod);
+        checkArgument(accountsForPaymentMethod != null && accountsForPaymentMethod.contains(account),
+                ACCOUNT_NOT_ELIGIBLE_FOR_MARKET);
     }
 }

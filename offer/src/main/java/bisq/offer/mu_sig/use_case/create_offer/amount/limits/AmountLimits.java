@@ -17,56 +17,76 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
+import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.application.UseCase;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
+import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import lombok.Getter;
 
 import java.util.Optional;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
 public class AmountLimits extends UseCase {
+    @Getter
     private final AbsoluteAmountLimits absoluteAmountLimits;
+    @Getter
     private final PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits;
+    @Getter
     private final UserSpecificAmountLimits userSpecificAmountLimits;
-    protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
-    protected final Observable<Optional<TradeAmount>> userSpecificAmountLimit = new Observable<>(Optional.empty());
 
-    public AmountLimits(AbsoluteAmountLimits absoluteAmountLimits,
-                        PaymentMethodBasedAmountLimits paymentMethodSpecificAmountLimits,
-                        UserSpecificAmountLimits userSpecificAmountLimits) {
-        this.absoluteAmountLimits = checkNotNull(absoluteAmountLimits, "absoluteAmountLimits must not be null");
-        this.paymentMethodSpecificAmountLimits = checkNotNull(paymentMethodSpecificAmountLimits, "paymentMethodSpecificAmountLimits must not be null");
-        this.userSpecificAmountLimits = checkNotNull(userSpecificAmountLimits, "userSpecificAmountLimits must not be null");
+    private final Observable<Optional<TradeAmount>> userSpecificAmountLimit = new Observable<>(Optional.empty());
+    private final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
+
+    public AmountLimits(MarketPriceService marketPriceService,
+                        CreateOfferMarketUseCase marketService,
+                        CreateOfferDirectionUseCase directionService,
+                        CreateOfferPaymentMethodUseCase paymentMethodService,
+                        CreateOfferPriceUseCase priceService) {
+        absoluteAmountLimits = new AbsoluteAmountLimits(marketPriceService, marketService, priceService);
+        paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits(marketPriceService, marketService, paymentMethodService, priceService);
+        userSpecificAmountLimits = new UserSpecificAmountLimits(marketPriceService, marketService, directionService, priceService);
     }
 
+    @Override
     public void initialize() {
-        pin(absoluteAmountLimits.tradeAmountLimits.addObserver(tradeAmountLimits -> {
+        absoluteAmountLimits.initialize();
+        paymentMethodSpecificAmountLimits.initialize();
+        userSpecificAmountLimits.initialize();
+
+        pin(absoluteAmountLimits.tradeAmountLimitsObservable().addObserver(tradeAmountLimits -> {
             update(tradeAmountLimits,
                     paymentMethodSpecificAmountLimits.getTradeAmountLimit(),
                     userSpecificAmountLimits.getTradeAmountLimit());
         }));
-        pin(paymentMethodSpecificAmountLimits.tradeAmountLimit.addObserver(tradeAmountLimit -> {
-            update(absoluteAmountLimits.getAmountLimits(),
+        pin(paymentMethodSpecificAmountLimits.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
+            update(absoluteAmountLimits.getTradeAmountLimits(),
                     tradeAmountLimit,
                     userSpecificAmountLimits.getTradeAmountLimit());
         }));
-        pin(userSpecificAmountLimits.tradeAmountLimit.addObserver(tradeAmountLimit -> {
-            update(absoluteAmountLimits.getAmountLimits(),
+        pin(userSpecificAmountLimits.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
+            update(absoluteAmountLimits.getTradeAmountLimits(),
                     paymentMethodSpecificAmountLimits.getTradeAmountLimit(),
                     tradeAmountLimit);
         }));
     }
 
+    @Override
+    public void dispose() {
+        super.dispose();
+        absoluteAmountLimits.dispose();
+        paymentMethodSpecificAmountLimits.dispose();
+        userSpecificAmountLimits.dispose();
+    }
+
     private void update(TradeAmountRange absoluteTradeAmountLimits,
                         TradeAmount paymentMethodSpecificAmountLimit,
                         Optional<TradeAmount> userSpecificAmountLimit) {
-        if (absoluteTradeAmountLimits != null &&
-                paymentMethodSpecificAmountLimit != null &&
-                userSpecificAmountLimit != null) {
-
+        if (dependenciesValid(absoluteTradeAmountLimits, paymentMethodSpecificAmountLimit, userSpecificAmountLimit)) {
             TradeAmount min = absoluteTradeAmountLimits.getMin();
             TradeAmount max = paymentMethodSpecificAmountLimit.clamp(absoluteTradeAmountLimits);
             TradeAmountRange paymentMethodSpecificAmountLimits = new TradeAmountRange(min, max);
@@ -79,6 +99,36 @@ public class AmountLimits extends UseCase {
             }
             tradeAmountLimits.set(new TradeAmountRange(min, max));
         }
+    }
+
+    private static boolean dependenciesValid(TradeAmountRange absoluteTradeAmountLimits,
+                                             TradeAmount paymentMethodSpecificAmountLimit,
+                                             Optional<TradeAmount> userSpecificAmountLimit) {
+        if (absoluteTradeAmountLimits == null ||
+                paymentMethodSpecificAmountLimit == null ||
+                userSpecificAmountLimit == null) {
+            return false;
+        }
+
+        TradeAmount absoluteMin = absoluteTradeAmountLimits.getMin();
+        TradeAmount absoluteMax = absoluteTradeAmountLimits.getMax();
+        if (absoluteMin == null || absoluteMax == null) {
+            return false;
+        }
+
+        if (!matchingMarket(absoluteMin, paymentMethodSpecificAmountLimit) ||
+                !matchingMarket(absoluteMax, paymentMethodSpecificAmountLimit)) {
+            return false;
+        }
+
+        return userSpecificAmountLimit.isEmpty() ||
+                (matchingMarket(absoluteMin, userSpecificAmountLimit.get()) &&
+                        matchingMarket(absoluteMax, userSpecificAmountLimit.get()));
+    }
+
+    private static boolean matchingMarket(TradeAmount left, TradeAmount right) {
+        return left.getBaseSideAmount().getCode().equals(right.getBaseSideAmount().getCode()) &&
+                left.getQuoteSideAmount().getCode().equals(right.getQuoteSideAmount().getCode());
     }
 
 

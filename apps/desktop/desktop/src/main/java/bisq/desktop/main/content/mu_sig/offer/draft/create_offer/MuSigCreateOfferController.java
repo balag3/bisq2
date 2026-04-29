@@ -64,8 +64,8 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferUseCase createOfferUseCase;
-    private final CreateOfferMarketUseCase marketService;
-    private final CreateOfferPaymentMethodUseCase paymentMethodService;
+    private final CreateOfferMarketUseCase marketUseCase;
+    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -86,8 +86,9 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        paymentMethodService = createOfferUseCase.getPaymentMethodService();
-        marketService = createOfferUseCase.getMarketService();
+        marketUseCase = createOfferUseCase.getMarketUseCase();
+        paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
+
         overlayController = OverlayController.getInstance();
 
         List<NavigationTarget> targets = new ArrayList<>(List.of(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET));
@@ -110,7 +111,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
                 createOfferUseCase,
-                paymentMethodService,
+                paymentMethodUseCase,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
     }
@@ -124,7 +125,8 @@ public class MuSigCreateOfferController extends NavigationController implements 
     public void initWithData(InitData data) {
         Market market = data.getMarket();
 
-        createOfferUseCase.initialize(market);
+        marketUseCase.onSetMarket(market);
+        createOfferUseCase.initialize();
     }
 
     @Override
@@ -137,7 +139,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
-        pins.add(marketService.marketObservable().addObserver(market -> {
+        pins.add(marketUseCase.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
                 updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();

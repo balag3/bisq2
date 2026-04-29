@@ -126,6 +126,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     // Lifecycle
     /* --------------------------------------------------------------------- */
 
+    @Override
+    public void initialize() {
+        throw new UnsupportedOperationException("Use initialize(MuSigOffer)");
+    }
+
     public void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
 

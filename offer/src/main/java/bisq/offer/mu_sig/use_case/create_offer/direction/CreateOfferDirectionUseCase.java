@@ -19,11 +19,11 @@ package bisq.offer.mu_sig.use_case.create_offer.direction;
 
 import bisq.common.application.UseCase;
 import bisq.common.observable.Pin;
+import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.experimental.Delegate;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -31,9 +31,8 @@ import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferDirectionUseCase extends UseCase {
+public class CreateOfferDirectionUseCase extends UseCase implements CreateOfferDirectionReadOnlyModel {
     @Getter(AccessLevel.PACKAGE)
-    @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
     private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
@@ -43,9 +42,12 @@ public class CreateOfferDirectionUseCase extends UseCase {
         this.model = new CreateOfferDirectionModel();
     }
 
+    @Override
     public void initialize() {
-        Direction displayDirection = cookieStore.getDisplayDirection();
-        applyDisplayDirection(displayDirection, false);
+        if (getDisplayDirection() == null) {
+            Direction displayDirection = cookieStore.getDisplayDirection();
+            applyDisplayDirection(displayDirection, false);
+        }
     }
 
 
@@ -72,5 +74,15 @@ public class CreateOfferDirectionUseCase extends UseCase {
     public Pin addDisplayDirectionListener(Consumer<Direction> listener) {
         listeners.add(listener);
         return () -> listeners.remove(listener);
+    }
+
+    @Override
+    public ReadOnlyObservable<Direction> displayDirectionObservable() {
+        return model.displayDirectionObservable();
+    }
+
+    @Override
+    public Direction getDisplayDirection() {
+        return model.getDisplayDirection();
     }
 }

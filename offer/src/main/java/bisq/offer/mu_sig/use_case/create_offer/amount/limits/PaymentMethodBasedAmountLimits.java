@@ -22,12 +22,16 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
+import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Comparator;
@@ -36,15 +40,42 @@ import java.util.Map;
 import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PaymentMethodBasedAmountLimits {
-    protected final Observable<Fiat> amountLimitInUsd = new Observable<>(AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD); //todo remove
-    protected final Observable<TradeAmount> tradeAmountLimit = new Observable<>();
+public class PaymentMethodBasedAmountLimits extends UseCase {
+    private final Observable<Fiat> amountLimitInUsd = new Observable<>(AbsoluteAmountLimits.MAX_TRADE_AMOUNT_IN_USD); //todo remove
+    private final Observable<TradeAmount> tradeAmountLimit = new Observable<>();
 
     private final MarketPriceService marketPriceService;
+    private final CreateOfferMarketUseCase marketService;
+    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
+    private final CreateOfferPriceUseCase priceService;
 
-    public PaymentMethodBasedAmountLimits(MarketPriceService marketPriceService) {
+    public PaymentMethodBasedAmountLimits(MarketPriceService marketPriceService,
+                                          CreateOfferMarketUseCase marketService,
+                                          CreateOfferPaymentMethodUseCase paymentMethodUseCase,
+                                          CreateOfferPriceUseCase priceService) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
+        this.marketService = marketService;
+        this.paymentMethodUseCase = paymentMethodUseCase;
+        this.priceService = priceService;
     }
+
+    @Override
+    public void initialize() {
+        pin(marketService.addMarketListener(market ->
+                update(market,
+                        priceService.getPriceQuote(),
+                        paymentMethodUseCase.getAccountByPaymentMethod())));
+        pin(paymentMethodUseCase.accountByPaymentMethodObservable().addObserver(() ->
+                update(marketService.getMarket(),
+                        priceService.getPriceQuote(),
+                        paymentMethodUseCase.getAccountByPaymentMethod())));
+        pin(priceService.addPriceQuoteListener(priceQuote ->
+                update(marketService.getMarket(),
+                        priceQuote,
+                        paymentMethodUseCase.getAccountByPaymentMethod())));
+    }
+
+
     /* --------------------------------------------------------------------- */
     // Update
     /* --------------------------------------------------------------------- */
@@ -52,14 +83,13 @@ public class PaymentMethodBasedAmountLimits {
     public void update(Market market,
                        PriceQuote priceQuote,
                        ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
-        checkNotNull(market, "market must not be null");
-        checkNotNull(priceQuote, "offerPriceQuote must not be null");
-        checkNotNull(accountByPaymentMethod, "accountByPaymentMethod must not be null");
-        Fiat limitInUsd = evaluateLimitInUsd(accountByPaymentMethod);
-        amountLimitInUsd.set(limitInUsd);
+        if (dependenciesValid(market, priceQuote, accountByPaymentMethod)) {
+            Fiat limitInUsd = evaluateLimitInUsd(accountByPaymentMethod);
+            amountLimitInUsd.set(limitInUsd);
 
-        TradeAmount limit = toTradeAmountLimit(marketPriceService, market, priceQuote, limitInUsd);
-        tradeAmountLimit.set(limit);
+            TradeAmount limit = toTradeAmountLimit(marketPriceService, market, priceQuote, limitInUsd);
+            tradeAmountLimit.set(limit);
+        }
     }
 
 
@@ -85,6 +115,14 @@ public class PaymentMethodBasedAmountLimits {
         return amountLimitInUsd.get();
     }
 
+    private static boolean dependenciesValid(Market market,
+                                             PriceQuote priceQuote,
+                                             ImmutableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod) {
+        return market != null &&
+                accountByPaymentMethod != null &&
+                priceQuote != null &&
+                market.equals(priceQuote.getMarket());
+    }
 
     /* --------------------------------------------------------------------- */
     // Static

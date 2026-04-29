@@ -20,15 +20,10 @@ import bisq.common.observable.map.ReadOnlyObservableMap;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimits;
-import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimits;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,15 +45,17 @@ public class CreateOfferDraftStateEngineTest {
     private Market usdBtcMarket;
     private PriceQuote usdBtcPriceQuote;
     private TradeAmount usdBtcDefaultTradeAmount;
-    private CreateOfferMarketUseCase marketService;
-    private CreateOfferDirectionUseCase directionService;
-    private CreateOfferPaymentMethodUseCase paymentMethodService;
-    private CreateOfferPriceUseCase priceService;
-    private CreateOfferAmountUseCase amountService;
+    private CreateOfferMarketUseCase marketUseCase;
+    private CreateOfferDirectionUseCase directionUseCase;
+    private CreateOfferPaymentMethodUseCase paymentMethodUseCase;
+    private CreateOfferPriceUseCase priceUseCase;
+    private CreateOfferAmountUseCase amountUseCase;
     private MockMarketPriceService marketPriceService;
     private CreateOfferDraftCookieStore cookieStore;
     private CreateOfferDraftStateEngine stateEngine;
+    private CreateOfferStateUpdateHandler stateUpdateHandler;
     private CreateOfferTradeAmountConstraintsService tradeAmountConstraintsService;
+    private Map<Market, List<Account<?, ?>>> accountsByMarket;
 
     @BeforeEach
     public void setUp() {
@@ -78,31 +75,39 @@ public class CreateOfferDraftStateEngineTest {
         when(cookieStore.getUseFixPrice(any())).thenReturn(false);
         when(cookieStore.getPricePercentage(any())).thenReturn(0d);
 
-        AmountMappingService amountMappingService = new AmountMappingService();
-
-        AbsoluteAmountLimits absoluteAmountLimits = new AbsoluteAmountLimits(marketPriceService);
-        PaymentMethodBasedAmountLimits  paymentMethodSpecificAmountLimits = new PaymentMethodBasedAmountLimits(marketPriceService);
-        UserSpecificAmountLimits  userSpecificAmountLimits = new UserSpecificAmountLimits(marketPriceService);
-        AmountLimits amountLimits = new AmountLimits(absoluteAmountLimits, paymentMethodSpecificAmountLimits, userSpecificAmountLimits);
-
-        marketService = new CreateOfferMarketUseCase();
-        PriceLimits priceLimits = new PriceLimits(marketPriceService, marketService);
-        priceLimits.initialize();
-        directionService = new CreateOfferDirectionUseCase(cookieStore);
-        priceService = new CreateOfferPriceUseCase(marketPriceService, priceLimits, marketService, cookieStore);
-        amountService = new CreateOfferAmountUseCase(marketPriceService, marketService, cookieStore, amountLimits, amountMappingService);
-        paymentMethodService = new CreateOfferPaymentMethodUseCase(market -> List.of());
+        accountsByMarket = new HashMap<>();
+        marketUseCase = new CreateOfferMarketUseCase();
+        directionUseCase = new CreateOfferDirectionUseCase(cookieStore);
+        paymentMethodUseCase = new CreateOfferPaymentMethodUseCase(marketUseCase, market -> accountsByMarket.getOrDefault(market, List.of()));
+        priceUseCase = new CreateOfferPriceUseCase(marketPriceService, marketUseCase, cookieStore);
+        amountUseCase = new CreateOfferAmountUseCase(marketPriceService,
+                marketUseCase,
+                directionUseCase,
+                paymentMethodUseCase,
+                priceUseCase,
+                cookieStore);
+        AmountMappingService amountMappingService = amountUseCase.getAmountMappingService();
         tradeAmountConstraintsService = new CreateOfferTradeAmountConstraintsService(marketPriceService);
 
-        stateEngine = new CreateOfferDraftStateEngine(marketService,
-                directionService,
-                paymentMethodService,
-                priceService,
-                amountService,
+        stateEngine = new CreateOfferDraftStateEngine(marketUseCase,
+                directionUseCase,
+                paymentMethodUseCase,
+                priceUseCase,
+                amountUseCase,
                 marketPriceService,
                 amountMappingService,
-                paymentMethodSpecificAmountLimits, tradeAmountConstraintsService,
+                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
+                tradeAmountConstraintsService,
                 CreateOfferUseCase.DEFAULT_TRADE_AMOUNT_IN_USD);
+        stateUpdateHandler = new CreateOfferStateUpdateHandler(marketUseCase,
+                directionUseCase,
+                paymentMethodUseCase,
+                priceUseCase,
+                amountUseCase,
+                marketPriceService,
+                amountUseCase.getAmountLimits().getPaymentMethodSpecificAmountLimits(),
+                tradeAmountConstraintsService,
+                stateEngine);
     }
 
     @Test
@@ -110,20 +115,20 @@ public class CreateOfferDraftStateEngineTest {
         initializeStateForMarket(usdBtcMarket);
         stateEngine.initialize();
 
-        assertEquals(usdBtcMarket, marketService.getMarket());
-        assertEquals(Direction.SELL, directionService.getDisplayDirection());
-        assertEquals(usdBtcPriceQuote, priceService.getPriceQuote());
-        assertEquals(usdBtcDefaultTradeAmount, amountService.getFixTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, amountService.getMinTradeAmount());
-        assertEquals(usdBtcDefaultTradeAmount, amountService.getMaxTradeAmount());
-        assertNotNull(amountService.getTradeAmountLimits());
-        assertNotNull(amountService.getInputAmountLimits());
+        assertEquals(usdBtcMarket, marketUseCase.getMarket());
+        assertEquals(Direction.SELL, directionUseCase.getDisplayDirection());
+        assertEquals(usdBtcPriceQuote, priceUseCase.getPriceQuote());
+        assertEquals(usdBtcDefaultTradeAmount, amountUseCase.getFixTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, amountUseCase.getMinTradeAmount());
+        assertEquals(usdBtcDefaultTradeAmount, amountUseCase.getMaxTradeAmount());
+        assertNotNull(amountUseCase.getTradeAmountLimits());
+        assertNotNull(amountUseCase.getInputAmountLimits());
     }
 
     @Test
     public void onDirectionChangedReturnsFalseWithoutPricingContext() {
-        directionService.onSetDisplayDirection(Direction.BUY);
-        assertEquals(Direction.BUY, directionService.getDisplayDirection());
+        directionUseCase.onSetDisplayDirection(Direction.BUY);
+        assertEquals(Direction.BUY, directionUseCase.getDisplayDirection());
     }
 
     @Test
@@ -134,7 +139,7 @@ public class CreateOfferDraftStateEngineTest {
         boolean recalculated = stateEngine.onDirectionChanged(Direction.BUY);
 
         assertTrue(recalculated);
-        Optional<TradeAmount> userSpecificTradeAmountLimit = amountService.getUserSpecificTradeAmountLimit();
+        Optional<TradeAmount> userSpecificTradeAmountLimit = amountUseCase.getUserSpecificTradeAmountLimit();
         assertTrue(userSpecificTradeAmountLimit.isPresent());
     }
 
@@ -146,35 +151,39 @@ public class CreateOfferDraftStateEngineTest {
         stateEngine.initialize();
 
         assertTrue(stateEngine.applyUseBaseCurrencyForAmountInputChanged(true));
-        assertTrue(amountService.getUseBaseCurrencyForAmountInput());
+        assertTrue(amountUseCase.getUseBaseCurrencyForAmountInput());
     }
 
     @Test
     public void recalculateTradeAmountConstraintsForSelectedPaymentRailClampsExistingAmounts() {
+        PaymentMethod<?> paymentMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        Account<?, ?> account = createAccount(paymentMethod);
+        Account<?, ?> anotherEligibleAccount = createAccount(paymentMethod);
+        accountsByMarket.put(usdBtcMarket, List.of(account, anotherEligibleAccount));
         initializeStateForMarket(usdBtcMarket);
         stateEngine.initialize();
 
         TradeAmount nineThousandUsd = TradeAmountConversion.toTradeAmount(usdBtcMarket,
                 usdBtcPriceQuote,
                 Fiat.fromFaceValue(9000, "USD"));
-        amountService.setFixTradeAmount(nineThousandUsd);
-        assertEquals(Fiat.fromFaceValue(9000, "USD"), amountService.getFixTradeAmount().getQuoteSideAmount());
+        amountUseCase.setFixTradeAmount(nineThousandUsd);
+        assertEquals(Fiat.fromFaceValue(9000, "USD"), amountUseCase.getFixTradeAmount().getQuoteSideAmount());
 
-        PaymentMethod<?> paymentMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
-        Account<?, ?> account = createAccount(paymentMethod);
-        paymentMethodService.onAddAccountByPaymentMethodEntry(Map.entry(paymentMethod, account));
+        paymentMethodUseCase.onAddAccountByPaymentMethodEntry(Map.entry(paymentMethod, account));
 
         stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
 
-        assertEquals(Fiat.fromFaceValue(5000, "USD"), amountService.getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(Fiat.fromFaceValue(5000, "USD"), amountUseCase.getFixTradeAmount().getQuoteSideAmount());
     }
 
     private void initializeStateForMarket(Market market) {
-        marketService.initialize(market);
-        directionService.initialize();
-        paymentMethodService.initialize();
-        priceService.initialize();
-        amountService.initialize();
+        marketUseCase.onSetMarket(market);
+        marketUseCase.initialize();
+        directionUseCase.initialize();
+        paymentMethodUseCase.initialize();
+        priceUseCase.initialize();
+        amountUseCase.initialize();
+        stateUpdateHandler.initialize();
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

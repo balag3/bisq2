@@ -51,6 +51,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -194,38 +195,46 @@ public class MuSigCreateOfferPaymentController implements Controller {
             }
 
             PaymentMethodSelectionResult selectionResult = paymentMethodUseCase.evaluatePaymentMethodSelectionResult(paymentMethod);
-
-
-            switch (selectionResult.status()) {
-                case ACCOUNT_SELECTION_REQUIRED -> {
-                    model.getAccountsForSelectedPaymentMethod().clear();
-                    for (Account<?, ?> account : selectionResult.accountsRequiringSelection()) {
-                        model.getAccountsForSelectedPaymentMethod().add(account);
-                    }
-                    model.getPaymentMethodRequiringAccountSelection().set(paymentMethod);
-                    deSelectHandler.run();
-                }
-                case NO_ACCOUNT_AVAILABLE -> {
-                    model.getPaymentMethodWithoutAccount().set(paymentMethod);
-                    deSelectHandler.run();
-                }
-                case SINGLE_ACCOUNT_SELECTED -> {
-                    paymentMethodUseCase.onAddAccountByPaymentMethodEntry(selectionResult.methodAccountEntry().orElseThrow());
-                }
-            }
+            handlePaymentMethodSelectionResult(paymentMethod, selectionResult, deSelectHandler);
         } else {
             paymentMethodUseCase.onDeselectPaymentMethod(paymentMethod);
             selectedPaymentMethods.remove(paymentMethod);
-            model.getPaymentMethodRequiringAccountSelection().set(null);
+            clearMultipleAccountsOverlaySelection();
         }
     }
 
-    void onSelectAccount(Account<? extends PaymentMethod<?>, ?> account, PaymentMethod<?> paymentMethod) {
-        if (account != null && paymentMethod != null) {
-            paymentMethodUseCase.onAddAccountByPaymentMethodEntry(Map.entry(paymentMethod, account));
-            model.getPaymentMethodRequiringAccountSelection().set(null);
-            updateShouldShowMultipleAccountsOverlay(false);
+    Optional<Account<?, ?>> onSelectAccount(Account<? extends PaymentMethod<?>, ?> account, PaymentMethod<?> paymentMethod) {
+        if (account == null || paymentMethod == null) {
+            return Optional.empty();
         }
+
+        PaymentMethodSelectionResult selectionResult = paymentMethodUseCase.evaluatePaymentMethodSelectionResult(paymentMethod);
+        return switch (selectionResult.status()) {
+            case NO_ACCOUNT_AVAILABLE -> {
+                clearMultipleAccountsOverlaySelection();
+                model.getPaymentMethodWithoutAccount().set(paymentMethod);
+                yield Optional.empty();
+            }
+            case SINGLE_ACCOUNT_SELECTED -> {
+                Optional<Account<?, ?>> selectedAccount = tryAddAccountByPaymentMethodEntry(
+                        selectionResult.methodAccountEntry().orElseThrow(),
+                        this::clearMultipleAccountsOverlaySelection);
+                selectedAccount.ifPresent(ignored -> clearMultipleAccountsOverlaySelection());
+                yield selectedAccount;
+            }
+            case ACCOUNT_SELECTION_REQUIRED -> {
+                updateAccountsForSelectedPaymentMethod(selectionResult.accountsRequiringSelection());
+                if (!selectionResult.accountsRequiringSelection().contains(account)) {
+                    showAccountUnavailablePopup();
+                    yield Optional.empty();
+                }
+                Optional<Account<?, ?>> selectedAccount = tryAddAccountByPaymentMethodEntry(
+                        Map.entry(paymentMethod, account),
+                        this::clearMultipleAccountsOverlaySelection);
+                selectedAccount.ifPresent(ignored -> clearMultipleAccountsOverlaySelection());
+                yield selectedAccount;
+            }
+        };
     }
 
     void onNavigateToAccounts() {
@@ -252,8 +261,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
         if (paymentMethod != null) {
             model.getSelectedPaymentMethods().remove(paymentMethod);
         }
-        model.getPaymentMethodRequiringAccountSelection().set(null);
-        updateShouldShowMultipleAccountsOverlay(false);
+        clearMultipleAccountsOverlaySelection();
     }
 
     void onKeyPressedWhileShowingMultipleAccountsOverlay(KeyEvent keyEvent) {
@@ -291,6 +299,71 @@ public class MuSigCreateOfferPaymentController implements Controller {
                             }
                         },
                         () -> model.getTradeLimitInfo().set(""));
+    }
+
+    private void handlePaymentMethodSelectionResult(PaymentMethod<?> paymentMethod,
+                                                    PaymentMethodSelectionResult selectionResult,
+                                                    Runnable deSelectHandler) {
+        switch (selectionResult.status()) {
+            case ACCOUNT_SELECTION_REQUIRED -> {
+                updateAccountsForSelectedPaymentMethod(selectionResult.accountsRequiringSelection());
+                model.getPaymentMethodRequiringAccountSelection().set(paymentMethod);
+                updateShouldShowMultipleAccountsOverlay(true);
+                deSelectHandler.run();
+            }
+            case NO_ACCOUNT_AVAILABLE -> {
+                clearMultipleAccountsOverlaySelection();
+                model.getPaymentMethodWithoutAccount().set(paymentMethod);
+                deSelectHandler.run();
+            }
+            case SINGLE_ACCOUNT_SELECTED ->
+                    tryAddAccountByPaymentMethodEntry(selectionResult.methodAccountEntry().orElseThrow(), deSelectHandler);
+        }
+    }
+
+    private Optional<Account<?, ?>> tryAddAccountByPaymentMethodEntry(Map.Entry<PaymentMethod<?>, Account<?, ?>> entry,
+                                                                      Runnable rejectHandler) {
+        try {
+            paymentMethodUseCase.onAddAccountByPaymentMethodEntry(entry);
+            return Optional.of(entry.getValue());
+        } catch (IllegalArgumentException exception) {
+            rejectHandler.run();
+            handlePaymentMethodSelectionError(exception);
+            return Optional.empty();
+        }
+    }
+
+    private void handlePaymentMethodSelectionError(IllegalArgumentException exception) {
+        switch (exception.getMessage()) {
+            case CreateOfferPaymentMethodUseCase.MAX_PAYMENT_METHODS_REACHED ->
+                    showMaxMethodsReachedPopup();
+            case CreateOfferPaymentMethodUseCase.ACCOUNT_NOT_ELIGIBLE_FOR_MARKET ->
+                    showAccountUnavailablePopup();
+            default -> throw exception;
+        }
+    }
+
+    private void updateAccountsForSelectedPaymentMethod(List<Account<?, ?>> accounts) {
+        model.getAccountsForSelectedPaymentMethod().clear();
+        model.getAccountsForSelectedPaymentMethod().addAll(accounts);
+    }
+
+    private void clearMultipleAccountsOverlaySelection() {
+        model.getAccountsForSelectedPaymentMethod().clear();
+        model.getPaymentMethodRequiringAccountSelection().set(null);
+        updateShouldShowMultipleAccountsOverlay(false);
+    }
+
+    private void showMaxMethodsReachedPopup() {
+        new Popup().invalid(Res.get("muSig.offer.create.paymentMethods.warn.maxMethodsReached", MAX_NUM_PAYMENT_METHODS))
+                .owner(owner)
+                .show();
+    }
+
+    private void showAccountUnavailablePopup() {
+        new Popup().invalid(Res.get("muSig.offer.create.paymentMethods.warn.accountUnavailable"))
+                .owner(owner)
+                .show();
     }
 
     private void updateShouldShowNoAccountOverlay(boolean shouldShow) {
