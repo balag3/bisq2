@@ -21,7 +21,7 @@ import bisq.common.monetary.PriceQuote;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
 
-public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
+public class CreateOfferPriceModel {
     protected final Observable<PriceQuote> priceQuote = new Observable<>();
     protected final Observable<Boolean> useFixPrice = new Observable<>(false);
     protected final Observable<Double> pricePercentage = new Observable<>(0d);
@@ -37,16 +37,14 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
         this.priceQuote.set(priceQuote);
     }
 
-    @Override
     public ReadOnlyObservable<PriceQuote> priceQuoteObservable() {
         return priceQuote;
     }
 
-    @Override
     public PriceQuote getPriceQuote() {
         return priceQuote.get();
     }
-    
+
 
     /* --------------------------------------------------------------------- */
     // useFixPrice
@@ -56,12 +54,10 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
         this.useFixPrice.set(useFixPrice);
     }
 
-    @Override
     public ReadOnlyObservable<Boolean> useFixPriceObservable() {
         return useFixPrice;
     }
 
-    @Override
     public boolean getUseFixPrice() {
         return useFixPrice.get();
     }
@@ -74,12 +70,10 @@ public class CreateOfferPriceModel implements CreateOfferPriceReadOnlyModel {
         this.pricePercentage.set(pricePercentage);
     }
 
-    @Override
     public ReadOnlyObservable<Double> pricePercentageObservable() {
         return pricePercentage;
     }
 
-    @Override
     public double getPricePercentage() {
         return pricePercentage.get();
     }

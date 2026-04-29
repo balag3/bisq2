@@ -19,9 +19,6 @@ package bisq.offer.mu_sig.use_case.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.common.monetary.Fiat;
-import bisq.common.observable.Observable;
-import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import com.google.common.collect.ImmutableMap;
@@ -29,7 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
 
-public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodReadOnlyModel {
+public class CreateOfferPaymentMethodModel {
     private final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
     private final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethod = new ObservableHashMap<>();
 
@@ -60,12 +57,10 @@ public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodRe
         this.accountsByPaymentMethod.putAll(accountsByPaymentMethod);
     }
 
-    @Override
     public ReadOnlyObservableMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethodObservable() {
         return accountsByPaymentMethod;
     }
 
-    @Override
     public ImmutableMap<PaymentMethod<?>, List<Account<?, ?>>> getAccountsByPaymentMethod() {
         return ImmutableMap.copyOf(accountsByPaymentMethod);
     }
@@ -98,12 +93,10 @@ public class CreateOfferPaymentMethodModel implements CreateOfferPaymentMethodRe
         this.accountByPaymentMethod.putAll(map);
     }
 
-    @Override
     public ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> accountByPaymentMethodObservable() {
         return accountByPaymentMethod;
     }
 
-    @Override
     public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getAccountByPaymentMethod() {
         return ImmutableMap.copyOf(accountByPaymentMethod);
     }

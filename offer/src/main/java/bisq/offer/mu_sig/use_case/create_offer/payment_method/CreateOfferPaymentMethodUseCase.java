@@ -24,9 +24,8 @@ import bisq.common.market.Market;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -47,12 +46,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * the active market, and if the market leaves exactly one eligible account in total it is
  * auto-selected. The selected accounts also drive payment-rail based trade amount limits.
  */
+@Slf4j
 public class CreateOfferPaymentMethodUseCase extends UseCase {
     public static final int MAX_NUM_PAYMENT_METHODS = 4;
     public static final String MAX_PAYMENT_METHODS_REACHED = "maxPaymentMethodsReached";
     public static final String ACCOUNT_NOT_ELIGIBLE_FOR_MARKET = "accountNotEligibleForMarket";
 
-    @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferPaymentMethodModel model;
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();

@@ -31,10 +31,8 @@ import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
-import lombok.AccessLevel;
-import lombok.Getter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -55,10 +53,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * floating offset becomes {@link MarketPriceSpec}, and non-zero offsets become
  * {@link FloatPriceSpec}.
  */
-public class CreateOfferPriceUseCase extends UseCase implements CreateOfferPriceReadOnlyModel {
-    private static final Logger log = LoggerFactory.getLogger(CreateOfferPriceUseCase.class);
+@Slf4j
+public class CreateOfferPriceUseCase extends UseCase {
 
-    @Getter(AccessLevel.PACKAGE)
+    @Delegate
     private final CreateOfferPriceModel model;
     private final MarketPriceService marketPriceService;
     private final PriceLimits priceLimits;
@@ -237,32 +235,26 @@ public class CreateOfferPriceUseCase extends UseCase implements CreateOfferPrice
         return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
     }
 
-    @Override
     public ReadOnlyObservable<PriceQuote> priceQuoteObservable() {
         return model.priceQuoteObservable();
     }
 
-    @Override
     public PriceQuote getPriceQuote() {
         return model.getPriceQuote();
     }
 
-    @Override
     public ReadOnlyObservable<Boolean> useFixPriceObservable() {
         return model.useFixPriceObservable();
     }
 
-    @Override
     public boolean getUseFixPrice() {
         return model.getUseFixPrice();
     }
 
-    @Override
     public ReadOnlyObservable<Double> pricePercentageObservable() {
         return model.pricePercentageObservable();
     }
 
-    @Override
     public double getPricePercentage() {
         return model.getPricePercentage();
     }

@@ -21,18 +21,16 @@ import bisq.common.application.UseCase;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.observable.Pin;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-
+@Slf4j
 public class CreateOfferMarketUseCase extends UseCase {
-    @Getter(AccessLevel.PACKAGE)
     @Delegate
     private final CreateOfferMarketModel model;
     private final Set<Consumer<Market>> listeners = new CopyOnWriteArraySet<>();

@@ -36,19 +36,18 @@ import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferAmountUseCase extends UseCase   {
+@Slf4j
+public class CreateOfferAmountUseCase extends UseCase {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
-
-    @Getter(AccessLevel.PACKAGE)
 
     @Delegate
     private final CreateOfferAmountModel model;
@@ -162,7 +161,6 @@ public class CreateOfferAmountUseCase extends UseCase   {
         return market.getBaseCurrencyCode().equals(tradeAmount.getBaseSideAmount().getCode()) &&
                 market.getQuoteCurrencyCode().equals(tradeAmount.getQuoteSideAmount().getCode());
     }
-
 
 
     public TradeAmount clampTradeAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
@@ -309,124 +307,4 @@ public class CreateOfferAmountUseCase extends UseCase   {
                 inputAmountLimits,
                 getUseBaseCurrencyForAmountInput());
     }
-/*
-    @Override
-    public ReadOnlyObservable<Boolean> useBaseCurrencyForAmountInputObservable() {
-        return model.useBaseCurrencyForAmountInputObservable();
-    }
-
-    @Override
-    public boolean getUseBaseCurrencyForAmountInput() {
-        return model.getUseBaseCurrencyForAmountInput();
-    }
-
-    @Override
-    public ReadOnlyObservable<Boolean> useRangeAmountObservable() {
-        return model.useRangeAmountObservable();
-    }
-
-    @Override
-    public boolean getUseRangeAmount() {
-        return model.getUseRangeAmount();
-    }
-
-    @Override
-    public ReadOnlyObservable<TradeAmount> fixTradeAmountObservable() {
-        return model.fixTradeAmountObservable();
-    }
-
-    @Override
-    public TradeAmount getFixTradeAmount() {
-        return model.getFixTradeAmount();
-    }
-
-    @Override
-    public ReadOnlyObservable<TradeAmount> minTradeAmountObservable() {
-        return model.minTradeAmountObservable();
-    }
-
-    @Override
-    public TradeAmount getMinTradeAmount() {
-        return model.getMinTradeAmount();
-    }
-
-    @Override
-    public ReadOnlyObservable<TradeAmount> maxTradeAmountObservable() {
-        return model.maxTradeAmountObservable();
-    }
-
-    @Override
-    public TradeAmount getMaxTradeAmount() {
-        return model.getMaxTradeAmount();
-    }
-
-    @Override
-    public TradeAmountRange getTradeAmountLimits() {
-        return model.getTradeAmountLimits();
-    }
-
-    @Override
-    public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
-        return model.tradeAmountLimitsObservable();
-    }
-
-    @Override
-    public ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable() {
-        return model.userSpecificTradeAmountLimitObservable();
-    }
-
-    @Override
-    public Optional<TradeAmount> getUserSpecificTradeAmountLimit() {
-        return model.getUserSpecificTradeAmountLimit();
-    }
-
-    @Override
-    public ReadOnlyObservable<Optional<Double>> userSpecificTradeAmountLimitAsSliderValueObservable() {
-        return model.userSpecificTradeAmountLimitAsSliderValueObservable();
-    }
-
-    @Override
-    public Optional<Double> getUserSpecificTradeAmountLimitAsSliderValue() {
-        return model.getUserSpecificTradeAmountLimitAsSliderValue();
-    }
-
-    @Override
-    public ReadOnlyObservable<MonetaryRange> inputAmountLimitsObservable() {
-        return model.inputAmountLimitsObservable();
-    }
-
-    @Override
-    public MonetaryRange getInputAmountLimits() {
-        return model.getInputAmountLimits();
-    }
-
-    @Override
-    public ReadOnlyObservable<Double> fixAmountSliderValueObservable() {
-        return model.fixAmountSliderValueObservable();
-    }
-
-    @Override
-    public Double getFixAmountSliderValue() {
-        return model.getFixAmountSliderValue();
-    }
-
-    @Override
-    public ReadOnlyObservable<Double> minAmountSliderValueObservable() {
-        return model.minAmountSliderValueObservable();
-    }
-
-    @Override
-    public Double getMinAmountSliderValue() {
-        return model.getMinAmountSliderValue();
-    }
-
-    @Override
-    public ReadOnlyObservable<Double> maxAmountSliderValueObservable() {
-        return model.maxAmountSliderValueObservable();
-    }
-
-    @Override
-    public Double getMaxAmountSliderValue() {
-        return model.getMaxAmountSliderValue();
-    }*/
 }
