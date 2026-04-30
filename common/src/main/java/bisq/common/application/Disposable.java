@@ -15,14 +15,8 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.common.observable;
+package bisq.common.application;
 
-import bisq.common.application.Disposable;
-
-public interface Pin extends Disposable {
-    void unbind();
-
-    default void dispose() {
-        unbind();
-    }
+public interface Disposable {
+    void dispose();
 }

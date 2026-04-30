@@ -24,8 +24,8 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
 import bisq.offer.price.spec.PriceSpec;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.layout.Region;
@@ -41,16 +41,16 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     private final MuSigCreateOfferAmountAndPriceView view;
     private final MuSigCreateOfferAmountController muSigCreateOfferAmountController;
     private final MuSigCreateOfferPriceController muSigCreateOfferPriceController;
-    private final CreateOfferDirectionUseCase directionUseCase;
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final DirectionSelection directionSelection;
+    private final MarketSelection marketSelection;
 
     public MuSigCreateOfferAmountAndPriceController(ServiceProvider serviceProvider,
                                                     CreateOfferUseCase createOfferUseCase,
                                                     Region owner,
                                                     Consumer<Boolean> navigationButtonsVisibleHandler,
                                                     Consumer<NavigationTarget> closeAndNavigateToHandler) {
-        directionUseCase = createOfferUseCase.getDirectionService();
-        marketUseCase = createOfferUseCase.getMarketUseCase();
+        directionSelection = createOfferUseCase.getDirectionSelection();
+        marketSelection = createOfferUseCase.getMarketSelection();
         muSigCreateOfferAmountController = new MuSigCreateOfferAmountController(createOfferUseCase,
                 owner,
                 navigationButtonsVisibleHandler,
@@ -104,8 +104,8 @@ public class MuSigCreateOfferAmountAndPriceController implements Controller {
     }
 
     private String getHeadline() {
-        String baseCurrencyCode = marketUseCase.getMarket().getBaseCurrencyCode();
-        return directionUseCase.getDisplayDirection().isBuy()
+        String baseCurrencyCode = marketSelection.getMarket().getBaseCurrencyCode();
+        return directionSelection.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.wizard.amountAtPrice.buy.headline", baseCurrencyCode)
                 : Res.get("muSig.offer.wizard.amountAtPrice.sell.headline", baseCurrencyCode);
     }

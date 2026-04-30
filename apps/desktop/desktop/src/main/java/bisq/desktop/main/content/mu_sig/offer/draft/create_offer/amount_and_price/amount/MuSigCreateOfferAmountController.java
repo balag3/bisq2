@@ -27,7 +27,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_pric
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
 import bisq.offer.price.spec.MarketPriceSpec;
 import bisq.offer.price.spec.PriceSpec;
 import bisq.presentation.formatters.AmountFormatter;
@@ -52,7 +52,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final AmountSelection amountSelection;
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigCreateOfferAmountController(CreateOfferUseCase createOfferUseCase,
@@ -62,7 +62,7 @@ public class MuSigCreateOfferAmountController implements Controller {
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
-        amountUseCase = createOfferUseCase.getAmountUseCase();
+        amountSelection = createOfferUseCase.getAmountSelection();
         model = new MuSigCreateOfferAmountModel();
 
         MuSigAmountContainerController muSigAmountComponentsController = new MuSigAmountContainerController(createOfferUseCase);
@@ -76,19 +76,19 @@ public class MuSigCreateOfferAmountController implements Controller {
 
     @Override
     public void onActivate() {
-        pins.add(amountUseCase.useRangeAmountObservable().addObserver(useRangeAmount -> {
+        pins.add(amountSelection.useRangeAmountObservable().addObserver(useRangeAmount -> {
             UIThread.run(() -> {
                 model.getUseRangeAmount().set(useRangeAmount);
             });
         }));
 
-        pins.add(amountUseCase.userSpecificTradeAmountLimitObservable().addObserver(value -> {
+        pins.add(amountSelection.userSpecificTradeAmountLimitObservable().addObserver(value -> {
             if (value != null) {
                 UIThread.run(() -> applyUserSpecificTradeAmountLimitInfo(value));
             }
         }));
-        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
-            Optional<TradeAmount> userSpecificTradeAmountLimit = amountUseCase.getUserSpecificTradeAmountLimit();
+        pins.add(amountSelection.useBaseCurrencyForAmountInputObservable().addObserver(value -> {
+            Optional<TradeAmount> userSpecificTradeAmountLimit = amountSelection.getUserSpecificTradeAmountLimit();
             if (value != null && userSpecificTradeAmountLimit != null) {
                 UIThread.run(() -> applyUserSpecificTradeAmountLimitInfo(userSpecificTradeAmountLimit));
             }
@@ -118,7 +118,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onSetUseRangeAmount(boolean value) {
-        amountUseCase.onSetUseRangeAmount(value);
+        amountSelection.onSetUseRangeAmount(value);
     }
 
     void onKeyPressedWhileShowingOverlay(KeyEvent keyEvent) {
@@ -152,7 +152,7 @@ public class MuSigCreateOfferAmountController implements Controller {
     private void applyUserSpecificTradeAmountLimitInfo(Optional<TradeAmount> userSpecificTradeAmountLimit) {
         model.getShouldShowAmountLimitInfo().set(userSpecificTradeAmountLimit.isPresent());
         model.getAmountLimitInfo().set(userSpecificTradeAmountLimit
-                .map(amountUseCase::toInputAmount)
+                .map(amountSelection::toInputAmount)
                 .map(monetary -> AmountFormatter.formatAmountWithCode(monetary, true))
                 .map(formatted -> Res.get("muSig.offer.create.amount.limitInfo.buyer", formatted))
                 .orElse(""));

@@ -25,7 +25,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.Mu
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.fix.slider.MuSigFixAmountSliderController;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -42,12 +42,12 @@ public class MuSigFixAmountController implements Controller {
     private final MuSigFixAmountView view;
     private final MuSigAmountTextInputController amountTextInputController;
     private final MuSigPassiveAmountController passiveAmountController;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final AmountSelection amountSelection;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigFixAmountController(CreateOfferUseCase createOfferUseCase) {
-        amountUseCase = createOfferUseCase.getAmountUseCase();
+        amountSelection = createOfferUseCase.getAmountSelection();
         model = new MuSigFixAmountModel();
 
         amountTextInputController = new MuSigAmountTextInputController(true, false);
@@ -69,17 +69,17 @@ public class MuSigFixAmountController implements Controller {
     @Override
     public void onActivate() {
         // Domain specific
-        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(amountSelection.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
-        pins.add(amountUseCase.fixTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(amountSelection.fixTradeAmountObservable().addObserver(tradeAmount -> {
             UIThread.run(this::applyAllAmounts);
         }));
 
         subscriptions.add(EasyBind.subscribe(amountTextInputController.amountProperty(),
                 amount -> {
-                    amountUseCase.onSetFixTradeAmountFromInputAmount(amount);
+                    amountSelection.onSetFixTradeAmountFromInputAmount(amount);
                     applyInputAmount();
                 }));
 
@@ -123,8 +123,8 @@ public class MuSigFixAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onToggleInputMode() {
-        boolean value = !amountUseCase.getUseBaseCurrencyForAmountInput();
-        amountUseCase.onSetUseBaseCurrencyForAmountInput(value);
+        boolean value = !amountSelection.getUseBaseCurrencyForAmountInput();
+        amountSelection.onSetUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -138,12 +138,12 @@ public class MuSigFixAmountController implements Controller {
     }
 
     private void applyInputAmount() {
-        Monetary inputAmount = amountUseCase.getFixInputAmount();
+        Monetary inputAmount = amountSelection.getFixInputAmount();
         amountTextInputController.setAmount(inputAmount);
     }
 
     private void applyPassiveAmount() {
-        Monetary passiveAmount = amountUseCase.getFixPassiveAmount();
+        Monetary passiveAmount = amountSelection.getFixPassiveAmount();
         passiveAmountController.setAmount(passiveAmount);
     }
 

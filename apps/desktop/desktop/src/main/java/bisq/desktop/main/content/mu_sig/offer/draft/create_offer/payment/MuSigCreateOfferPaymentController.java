@@ -35,8 +35,8 @@ import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelectionResult;
 import bisq.presentation.formatters.AmountFormatter;
 import javafx.collections.ListChangeListener;
@@ -56,27 +56,27 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase.MAX_NUM_PAYMENT_METHODS;
+import static bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection.MAX_NUM_PAYMENT_METHODS;
 
 @Slf4j
 public class MuSigCreateOfferPaymentController implements Controller {
     private final MuSigCreateOfferPaymentModel model;
     @Getter
     private final MuSigCreateOfferPaymentView view;
-    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
+    private final PaymentMethodSelection paymentMethodSelection;
     private final Region owner;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private final ListChangeListener<PaymentMethod<?>> selectedPaymentMethodsListener;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final MarketSelection marketSelection;
 
     public MuSigCreateOfferPaymentController(ServiceProvider serviceProvider,
                                              CreateOfferUseCase createOfferUseCase,
                                              Region owner,
                                              Consumer<Boolean> navigationButtonsVisibleHandler) {
-        paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
-        marketUseCase = createOfferUseCase.getMarketUseCase();
+        paymentMethodSelection = createOfferUseCase.getPaymentMethodSelection();
+        marketSelection = createOfferUseCase.getMarketSelection();
 
         this.owner = owner;
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
@@ -88,11 +88,11 @@ public class MuSigCreateOfferPaymentController implements Controller {
     }
 
     public boolean validate() {
-        if (paymentMethodUseCase.getAccountByPaymentMethod().isEmpty()) {
+        if (paymentMethodSelection.getAccountByPaymentMethod().isEmpty()) {
             navigationButtonsVisibleHandler.accept(false);
             model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
             model.getNoPaymentMethodSelectedOverlayText().set(
-                    marketUseCase.getMarket().isCrypto()
+                    marketSelection.getMarket().isCrypto()
                             ? Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.crypto")
                             : Res.get("muSig.offer.create.paymentMethods.noPaymentMethodSelectedOverlay.subTitle.fiat"));
             return false;
@@ -111,8 +111,8 @@ public class MuSigCreateOfferPaymentController implements Controller {
         updateShouldShowMultipleAccountsOverlay(false);
         model.getPaymentMethodWithoutAccount().set(null);
 
-        Market market = marketUseCase.getMarket();
-        pins.add(paymentMethodUseCase.accountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
+        Market market = marketSelection.getMarket();
+        pins.add(paymentMethodSelection.accountByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, Account<?, ?> account) {
                 UIThread.run(() -> {
@@ -130,7 +130,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
             }
         }));
 
-        pins.add(paymentMethodUseCase.accountsByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
+        pins.add(paymentMethodSelection.accountsByPaymentMethodObservable().addObserver(new HashMapObserver<>() {
             @Override
             public void put(PaymentMethod<?> paymentMethod, List<Account<?, ?>> accounts) {
                 UIThread.run(() -> {
@@ -195,10 +195,10 @@ public class MuSigCreateOfferPaymentController implements Controller {
                 return;
             }
 
-            PaymentMethodSelectionResult selectionResult = paymentMethodUseCase.evaluatePaymentMethodSelectionResult(paymentMethod);
+            PaymentMethodSelectionResult selectionResult = paymentMethodSelection.evaluatePaymentMethodSelectionResult(paymentMethod);
             handlePaymentMethodSelectionResult(paymentMethod, selectionResult, deSelectHandler);
         } else {
-            paymentMethodUseCase.onDeselectPaymentMethod(paymentMethod);
+            paymentMethodSelection.onDeselectPaymentMethod(paymentMethod);
             selectedPaymentMethods.remove(paymentMethod);
             clearMultipleAccountsOverlaySelection();
         }
@@ -209,7 +209,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
             return Optional.empty();
         }
 
-        PaymentMethodSelectionResult selectionResult = paymentMethodUseCase.evaluatePaymentMethodSelectionResult(paymentMethod);
+        PaymentMethodSelectionResult selectionResult = paymentMethodSelection.evaluatePaymentMethodSelectionResult(paymentMethod);
         return switch (selectionResult.status()) {
             case NO_ACCOUNT_AVAILABLE -> {
                 clearMultipleAccountsOverlaySelection();
@@ -325,7 +325,7 @@ public class MuSigCreateOfferPaymentController implements Controller {
     private Optional<Account<?, ?>> tryAddAccountByPaymentMethodEntry(Map.Entry<PaymentMethod<?>, Account<?, ?>> entry,
                                                                       Runnable rejectHandler) {
         try {
-            paymentMethodUseCase.onAddAccountByPaymentMethodEntry(entry);
+            paymentMethodSelection.onAddAccountByPaymentMethodEntry(entry);
             return Optional.of(entry.getValue());
         } catch (IllegalArgumentException exception) {
             rejectHandler.run();
@@ -336,9 +336,9 @@ public class MuSigCreateOfferPaymentController implements Controller {
 
     private void handlePaymentMethodSelectionError(IllegalArgumentException exception) {
         switch (exception.getMessage()) {
-            case CreateOfferPaymentMethodUseCase.MAX_PAYMENT_METHODS_REACHED ->
+            case PaymentMethodSelection.MAX_PAYMENT_METHODS_REACHED ->
                     showMaxMethodsReachedPopup();
-            case CreateOfferPaymentMethodUseCase.ACCOUNT_NOT_ELIGIBLE_FOR_MARKET ->
+            case PaymentMethodSelection.ACCOUNT_NOT_ELIGIBLE_FOR_MARKET ->
                     showAccountUnavailablePopup();
             default -> throw exception;
         }

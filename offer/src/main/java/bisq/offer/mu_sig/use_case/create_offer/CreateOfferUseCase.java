@@ -23,11 +23,11 @@ import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.observable.Observable;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultAccountsProvider;
@@ -43,11 +43,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class CreateOfferUseCase extends DraftOfferUseCase {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
 
-    private final CreateOfferMarketUseCase marketUseCase;
-    private final CreateOfferDirectionUseCase directionService;
-    private final CreateOfferPaymentMethodUseCase paymentMethodService;
-    private final CreateOfferPriceUseCase priceService;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final MarketSelection marketSelection;
+    private final DirectionSelection directionSelection;
+    private final PaymentMethodSelection paymentMethodSelection;
+    private final PriceSelection priceSelection;
+    private final AmountSelection amountSelection;
+
     private final Observable<Boolean> initialized = new Observable<>(false);
 
 
@@ -67,15 +68,15 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
                        CreateOfferDraftCookieStore cookieStore,
                        AccountsProvider accountsProvider) {
 
-        marketUseCase = new CreateOfferMarketUseCase();
-        directionService = new CreateOfferDirectionUseCase(cookieStore);
-        paymentMethodService = new CreateOfferPaymentMethodUseCase(marketUseCase, accountsProvider);
-        priceService = new CreateOfferPriceUseCase(marketPriceService, marketUseCase, cookieStore);
-        amountUseCase = new CreateOfferAmountUseCase(marketPriceService,
-                marketUseCase,
-                directionService,
-                paymentMethodService,
-                priceService,
+        marketSelection = new MarketSelection();
+        directionSelection = new DirectionSelection(cookieStore);
+        paymentMethodSelection = new PaymentMethodSelection(marketSelection, accountsProvider);
+        priceSelection = new PriceSelection(marketPriceService, marketSelection, cookieStore);
+        amountSelection = new AmountSelection(marketPriceService,
+                marketSelection,
+                directionSelection,
+                paymentMethodSelection,
+                priceSelection,
                 cookieStore);
     }
 
@@ -86,13 +87,13 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
 
     @Override
     public void initialize() {
-        marketUseCase.initialize();
-        directionService.initialize();
-        paymentMethodService.initialize();
-        priceService.initialize();
-        amountUseCase.initialize();
+        marketSelection.initialize();
+        directionSelection.initialize();
+        paymentMethodSelection.initialize();
+        priceSelection.initialize();
+        amountSelection.initialize();
 
-        pin(amountUseCase.initializedObservable().addObserver(initialized -> {
+        addDisposable(amountSelection.initializedObservable().addObserver(initialized -> {
             if (initialized != null) {
                 extracted();
             }
@@ -100,7 +101,7 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     }
 
     private void extracted() {
-        if (amountUseCase.isInitialized()) {
+        if (amountSelection.isInitialized()) {
             setInitialized(true);
         }
     }
@@ -109,11 +110,11 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     public void dispose() {
         super.dispose();
 
-        marketUseCase.dispose();
-        directionService.dispose();
-        paymentMethodService.dispose();
-        priceService.dispose();
-        amountUseCase.dispose();
+        marketSelection.dispose();
+        directionSelection.dispose();
+        paymentMethodSelection.dispose();
+        priceSelection.dispose();
+        amountSelection.dispose();
     }
 
 
@@ -142,6 +143,6 @@ public class CreateOfferUseCase extends DraftOfferUseCase {
     @Override
     // not used anymore
     public Market getMarket() {
-        return marketUseCase.getMarket();
+        return marketSelection.getMarket();
     }
 }

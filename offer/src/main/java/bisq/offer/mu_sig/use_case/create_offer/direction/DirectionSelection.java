@@ -17,7 +17,7 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.direction;
 
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.observable.Pin;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
@@ -29,13 +29,13 @@ import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class CreateOfferDirectionUseCase extends UseCase {
+public class DirectionSelection extends LifecycleScope {
     @Delegate
     private final CreateOfferDirectionModel model;
     private final CreateOfferDraftCookieStore cookieStore;
     private final Set<Consumer<Direction>> listeners = new CopyOnWriteArraySet<>();
 
-    public CreateOfferDirectionUseCase(CreateOfferDraftCookieStore cookieStore) {
+    public DirectionSelection(CreateOfferDraftCookieStore cookieStore) {
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         this.model = new CreateOfferDirectionModel();
     }

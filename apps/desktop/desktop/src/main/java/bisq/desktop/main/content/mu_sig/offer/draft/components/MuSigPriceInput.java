@@ -27,7 +27,7 @@ import bisq.desktop.components.controls.validator.NumberValidator;
 import bisq.desktop.main.content.bisq_easy.BisqEasyViewUtils;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
 import bisq.presentation.formatters.PriceFormatter;
 import bisq.presentation.parser.PriceParser;
@@ -130,7 +130,7 @@ public class MuSigPriceInput {
         private final View view;
         private final DraftOfferUseCase draftOfferUseCase;
         private final Optional<CreateOfferUseCase> createOfferUseCase;
-        private final Optional<CreateOfferPriceUseCase> priceUseCase;
+        private final Optional<PriceSelection> priceUseCase;
         private final MarketPriceService marketPriceService;
         private final NumberValidator validator = new NumberValidator(Res.get("muSig.offer.create.price.warn.invalidPrice.numberFormatException"));
         private Pin marketPricePin;
@@ -142,7 +142,7 @@ public class MuSigPriceInput {
             this.draftOfferUseCase = draftOfferUseCase;
             if (draftOfferUseCase instanceof CreateOfferUseCase useCase) {
                 this.createOfferUseCase = Optional.of(useCase);
-                priceUseCase = Optional.of(useCase.getPriceService());
+                priceUseCase = Optional.of(useCase.getPriceSelection());
             } else {
                 createOfferUseCase = Optional.empty();
                 priceUseCase = Optional.empty();
@@ -222,7 +222,7 @@ public class MuSigPriceInput {
                 // model.priceQuote.set(priceQuote);
                 priceUseCase.ifPresent(priceUseCase -> priceUseCase.onSetPriceQuote(priceQuote));
             } catch (Throwable ignore) {
-                priceUseCase.map(CreateOfferPriceUseCase::getPriceQuote)
+                priceUseCase.map(PriceSelection::getPriceQuote)
                         .ifPresent(this::onPriceQuoteChanged);
                 // onQuoteChanged(model.priceQuote.get());
             }

@@ -18,22 +18,22 @@
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 
 import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class AmountLimitsProvider extends UseCase {
+public class AmountLimitsProvider extends LifecycleScope {
     private final AbsoluteAmountLimitsProvider absoluteAmountLimitsProvider;
     private final PaymentMethodBasedAmountLimitsProvider paymentMethodSpecificAmountLimitsProvider;
     private final UserSpecificAmountLimitsProvider userSpecificAmountLimitsProvider;
@@ -47,10 +47,10 @@ public class AmountLimitsProvider extends UseCase {
     private final Observable<Boolean> initialized = new Observable<>(false);
 
     public AmountLimitsProvider(MarketPriceService marketPriceService,
-                                CreateOfferMarketUseCase marketService,
-                                CreateOfferDirectionUseCase directionService,
-                                CreateOfferPaymentMethodUseCase paymentMethodService,
-                                CreateOfferPriceUseCase priceService) {
+                                MarketSelection marketService,
+                                DirectionSelection directionService,
+                                PaymentMethodSelection paymentMethodService,
+                                PriceSelection priceService) {
         checkNotNull(marketPriceService, "marketPriceService must not be null");
         checkNotNull(marketService, "marketService must not be null");
         checkNotNull(directionService, "directionService must not be null");
@@ -68,17 +68,17 @@ public class AmountLimitsProvider extends UseCase {
         paymentMethodSpecificAmountLimitsProvider.initialize();
         userSpecificAmountLimitsProvider.initialize();
 
-        pin(absoluteAmountLimitsProvider.tradeAmountLimitsObservable().addObserver(tradeAmountLimits -> {
+        addDisposable(absoluteAmountLimitsProvider.tradeAmountLimitsObservable().addObserver(tradeAmountLimits -> {
             update(tradeAmountLimits,
                     paymentMethodSpecificAmountLimitsProvider.getTradeAmountLimit(),
                     userSpecificAmountLimitsProvider.getTradeAmountLimit());
         }));
-        pin(paymentMethodSpecificAmountLimitsProvider.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
+        addDisposable(paymentMethodSpecificAmountLimitsProvider.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
             update(absoluteAmountLimitsProvider.getTradeAmountLimits(),
                     tradeAmountLimit,
                     userSpecificAmountLimitsProvider.getTradeAmountLimit());
         }));
-        pin(userSpecificAmountLimitsProvider.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
+        addDisposable(userSpecificAmountLimitsProvider.tradeAmountLimitObservable().addObserver(tradeAmountLimit -> {
             update(absoluteAmountLimitsProvider.getTradeAmountLimits(),
                     paymentMethodSpecificAmountLimitsProvider.getTradeAmountLimit(),
                     tradeAmountLimit);

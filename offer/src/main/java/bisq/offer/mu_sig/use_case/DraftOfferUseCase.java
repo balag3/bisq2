@@ -17,9 +17,9 @@
 
 package bisq.offer.mu_sig.use_case;
 
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 
-public abstract class DraftOfferUseCase extends UseCase {
+public abstract class DraftOfferUseCase extends LifecycleScope {
     public abstract Market getMarket();
 }

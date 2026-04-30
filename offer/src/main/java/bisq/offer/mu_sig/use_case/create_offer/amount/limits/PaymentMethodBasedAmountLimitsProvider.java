@@ -22,16 +22,16 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Comparator;
@@ -40,39 +40,39 @@ import java.util.Map;
 import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PaymentMethodBasedAmountLimitsProvider extends UseCase {
+public class PaymentMethodBasedAmountLimitsProvider extends LifecycleScope {
     private final Observable<Fiat> amountLimitInUsd = new Observable<>(AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD); //todo remove
     private final Observable<TradeAmount> tradeAmountLimit = new Observable<>();
 
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketService;
-    private final CreateOfferPaymentMethodUseCase paymentMethodUseCase;
-    private final CreateOfferPriceUseCase priceService;
+    private final MarketSelection marketSelection;
+    private final PaymentMethodSelection paymentMethodSelection;
+    private final PriceSelection priceSelection;
 
     PaymentMethodBasedAmountLimitsProvider(MarketPriceService marketPriceService,
-                                           CreateOfferMarketUseCase marketService,
-                                           CreateOfferPaymentMethodUseCase paymentMethodUseCase,
-                                           CreateOfferPriceUseCase priceService) {
+                                           MarketSelection marketSelection,
+                                           PaymentMethodSelection paymentMethodSelection,
+                                           PriceSelection priceSelection) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
-        this.marketService = marketService;
-        this.paymentMethodUseCase = paymentMethodUseCase;
-        this.priceService = priceService;
+        this.marketSelection = marketSelection;
+        this.paymentMethodSelection = paymentMethodSelection;
+        this.priceSelection = priceSelection;
     }
 
     @Override
     public void initialize() {
-        pin(marketService.addMarketListener(market ->
+        addDisposable(marketSelection.addMarketListener(market ->
                 update(market,
-                        priceService.getPriceQuote(),
-                        paymentMethodUseCase.getAccountByPaymentMethod())));
-        pin(paymentMethodUseCase.accountByPaymentMethodObservable().addObserver(() ->
-                update(marketService.getMarket(),
-                        priceService.getPriceQuote(),
-                        paymentMethodUseCase.getAccountByPaymentMethod())));
-        pin(priceService.addPriceQuoteListener(priceQuote ->
-                update(marketService.getMarket(),
+                        priceSelection.getPriceQuote(),
+                        paymentMethodSelection.getAccountByPaymentMethod())));
+        addDisposable(paymentMethodSelection.accountByPaymentMethodObservable().addObserver(() ->
+                update(marketSelection.getMarket(),
+                        priceSelection.getPriceQuote(),
+                        paymentMethodSelection.getAccountByPaymentMethod())));
+        addDisposable(priceSelection.addPriceQuoteListener(priceQuote ->
+                update(marketSelection.getMarket(),
                         priceQuote,
-                        paymentMethodUseCase.getAccountByPaymentMethod())));
+                        paymentMethodSelection.getAccountByPaymentMethod())));
     }
 
 

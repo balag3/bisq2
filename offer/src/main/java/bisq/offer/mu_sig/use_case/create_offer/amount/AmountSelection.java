@@ -19,7 +19,7 @@ package bisq.offer.mu_sig.use_case.create_offer.amount;
 
 import bisq.bonded_roles.market_price.MarketBasedAmountConversion;
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
@@ -33,10 +33,10 @@ import bisq.common.util.MathUtils;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimitsProvider;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -48,41 +48,37 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 @Slf4j
-public class CreateOfferAmountUseCase extends UseCase {
+public class AmountSelection extends LifecycleScope {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
 
     @Delegate
     private final CreateOfferAmountModel model;
 
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketUseCase;
-    private final CreateOfferDirectionUseCase directionService;
-    private final CreateOfferPaymentMethodUseCase paymentMethodService;
-    private final CreateOfferPriceUseCase priceUseCase;
+    private final MarketSelection marketSelection;
+    private final PriceSelection priceSelection;
     private final CreateOfferDraftCookieStore cookieStore;
     @Getter
     private final AmountLimitsProvider amountLimits;
 
-    public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
-                                    CreateOfferMarketUseCase marketUseCase,
-                                    CreateOfferDirectionUseCase directionService,
-                                    CreateOfferPaymentMethodUseCase paymentMethodService,
-                                    CreateOfferPriceUseCase priceUseCase,
-                                    CreateOfferDraftCookieStore cookieStore) {
+    public AmountSelection(MarketPriceService marketPriceService,
+                           MarketSelection marketSelection,
+                           DirectionSelection directionSelection,
+                           PaymentMethodSelection paymentMethodService,
+                           PriceSelection priceSelection,
+                           CreateOfferDraftCookieStore cookieStore) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
-        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
-        this.directionService = checkNotNull(directionService, "directionService must not be null");
-        this.paymentMethodService = checkNotNull(paymentMethodService, "paymentMethodService must not be null");
-        this.priceUseCase = checkNotNull(priceUseCase, "priceUseCase must not be null");
+        this.marketSelection = checkNotNull(marketSelection, "marketUseCase must not be null");
+        this.priceSelection = checkNotNull(priceSelection, "priceUseCase must not be null");
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
         this.model = new CreateOfferAmountModel();
 
         amountLimits = new AmountLimitsProvider(marketPriceService,
-                marketUseCase,
-                directionService,
+                marketSelection,
+                directionSelection,
                 paymentMethodService,
-                priceUseCase);
+                priceSelection);
     }
 
     @Override
@@ -92,7 +88,7 @@ public class CreateOfferAmountUseCase extends UseCase {
         boolean useRangeAmount = cookieStore.getUseRangeAmount();
         model.setUseRangeAmount(useRangeAmount);
 
-        Market market = marketUseCase.getMarket();
+        Market market = marketSelection.getMarket();
         if (market != null) {
             boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
             model.setUseBaseCurrencyForAmountInput(useBaseCurrencyForAmountInput);
@@ -102,14 +98,14 @@ public class CreateOfferAmountUseCase extends UseCase {
             applyDefaultAmountAndSliderValue(defaultTradeAmount);
         }
 
-        pin(amountLimits.initializedObservable().addObserver(initialized -> {
+        addDisposable(amountLimits.initializedObservable().addObserver(initialized -> {
             if (initialized) {
-                pin(amountLimits.effectiveTradeAmountLimitsObservable().addObserver(this::handleEffectiveTradeAmountLimitsChange));
-                pin(amountLimits.potentialTradeAmountLimitsObservable().addObserver(this::handlePotentialTradeAmountLimitsChange));
-                pin(amountLimits.userSpecificAmountLimitObservable().addObserver(this::handleUserSpecificAmountLimitChange));
+                addDisposable(amountLimits.effectiveTradeAmountLimitsObservable().addObserver(this::handleEffectiveTradeAmountLimitsChange));
+                addDisposable(amountLimits.potentialTradeAmountLimitsObservable().addObserver(this::handlePotentialTradeAmountLimitsChange));
+                addDisposable(amountLimits.userSpecificAmountLimitObservable().addObserver(this::handleUserSpecificAmountLimitChange));
 
-                pin(marketUseCase.addMarketListener(this::handleMarketChange));
-                pin(priceUseCase.addPriceQuoteListener(this::handlePriceQuoteChange));
+                addDisposable(marketSelection.addMarketListener(this::handleMarketChange));
+                addDisposable(priceSelection.addPriceQuoteListener(this::handlePriceQuoteChange));
                 model.setInitialized(true);
             }
         }));
@@ -202,7 +198,7 @@ public class CreateOfferAmountUseCase extends UseCase {
 
     public void onSetUseBaseCurrencyForAmountInput(boolean value) {
         model.setUseBaseCurrencyForAmountInput(value);
-        Market market = marketUseCase.getMarket();
+        Market market = marketSelection.getMarket();
         if (market != null) {
             cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
         }
@@ -220,8 +216,8 @@ public class CreateOfferAmountUseCase extends UseCase {
 
     public void onSetFixTradeAmountFromInputAmount(Monetary inputAmount) {
         checkNotNull(inputAmount, "inputAmount must not be null");
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && market != null && priceQuote != null) {
             TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
             applyFixAmountAndSliderValue(tradeAmount);
@@ -230,8 +226,8 @@ public class CreateOfferAmountUseCase extends UseCase {
 
     public void onSetMinTradeAmountFromInputAmount(Monetary inputAmount) {
         checkNotNull(inputAmount, "inputAmount must not be null");
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && market != null && priceQuote != null) {
             TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
             applyMinAmountAndSliderValue(tradeAmount);
@@ -240,8 +236,8 @@ public class CreateOfferAmountUseCase extends UseCase {
 
     public void onSetMaxTradeAmountFromInputAmount(Monetary inputAmount) {
         checkNotNull(inputAmount, "inputAmount must not be null");
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && market != null && priceQuote != null) {
             TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(market, priceQuote, inputAmount);
             applyMaxAmountAndSliderValue(tradeAmount);
@@ -257,8 +253,8 @@ public class CreateOfferAmountUseCase extends UseCase {
     public void onSetFixTradeAmountFromSliderValue(double sliderValue) {
         checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
         TradeAmount fixTradeAmount = model.getFixTradeAmount();
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && fixTradeAmount != null && market != null && priceQuote != null) {
             TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, fixTradeAmount, sliderValue);
             model.setFixTradeAmount(newTradeAmount);
@@ -272,8 +268,8 @@ public class CreateOfferAmountUseCase extends UseCase {
         checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
 
         TradeAmount minTradeAmount = model.getMinTradeAmount();
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && minTradeAmount != null && market != null && priceQuote != null) {
             TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, minTradeAmount, sliderValue);
             model.setMinTradeAmount(newTradeAmount);
@@ -287,8 +283,8 @@ public class CreateOfferAmountUseCase extends UseCase {
         checkArgument(sliderValue >= 0 && sliderValue <= 1, "sliderValue must be between 0 and 1");
 
         TradeAmount maxTradeAmount = model.getMaxTradeAmount();
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         if (amountLimits.isInitialized() && maxTradeAmount != null && market != null && priceQuote != null) {
             TradeAmount newTradeAmount = toTradeAmountFromSliderValue(market, priceQuote, maxTradeAmount, sliderValue);
             model.setMaxTradeAmount(newTradeAmount);
@@ -555,8 +551,8 @@ public class CreateOfferAmountUseCase extends UseCase {
 
 
     private boolean dependenciesValid() {
-        Market market = marketUseCase.getMarket();
-        PriceQuote priceQuote = priceUseCase.getPriceQuote();
+        Market market = marketSelection.getMarket();
+        PriceQuote priceQuote = priceSelection.getPriceQuote();
         TradeAmountRange effectiveAmountLimits = amountLimits.getEffectiveAmountLimits();
 
         return dependenciesValid(market, priceQuote, effectiveAmountLimits);

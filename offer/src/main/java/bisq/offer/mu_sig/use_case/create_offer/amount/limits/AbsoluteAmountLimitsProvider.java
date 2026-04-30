@@ -18,7 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
@@ -26,30 +26,30 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 
-public class AbsoluteAmountLimitsProvider extends UseCase {
+public class AbsoluteAmountLimitsProvider extends LifecycleScope {
     public static final Fiat MIN_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10, "USD");
     public static final Fiat MAX_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(10000, "USD");
 
     private final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketService;
-    private final CreateOfferPriceUseCase priceService;
+    private final MarketSelection marketSelection;
+    private final PriceSelection priceSelection;
 
     AbsoluteAmountLimitsProvider(MarketPriceService marketPriceService,
-                                        CreateOfferMarketUseCase marketService,
-                                        CreateOfferPriceUseCase priceService) {
-        this.marketService = marketService;
-        this.priceService = priceService;
+                                 MarketSelection marketSelection,
+                                 PriceSelection priceSelection) {
+        this.marketSelection = marketSelection;
+        this.priceSelection = priceSelection;
         this.marketPriceService = marketPriceService;
     }
 
     @Override
     public void initialize() {
-        pin(marketService.addMarketListener(market -> update(market, priceService.getPriceQuote())));
-        pin(priceService.addPriceQuoteListener(priceQuote -> update(marketService.getMarket(), priceQuote)));
+        addDisposable(marketSelection.addMarketListener(market -> update(market, priceSelection.getPriceQuote())));
+        addDisposable(priceSelection.addPriceQuoteListener(priceQuote -> update(marketSelection.getMarket(), priceQuote)));
     }
 
 

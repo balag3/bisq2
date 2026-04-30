@@ -18,12 +18,12 @@
 package bisq.offer.mu_sig.use_case.create_offer.price;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.observable.Pin;
 import bisq.common.observable.ReadOnlyObservable;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
 import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.dependencies.CreateOfferDraftCookieStore;
 import bisq.offer.price.PriceUtil;
@@ -54,24 +54,24 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * {@link FloatPriceSpec}.
  */
 @Slf4j
-public class CreateOfferPriceUseCase extends UseCase {
+public class PriceSelection extends LifecycleScope {
 
     @Delegate
     private final CreateOfferPriceModel model;
     private final MarketPriceService marketPriceService;
     private final PriceLimits priceLimits;
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final MarketSelection marketSelection;
     private final CreateOfferDraftCookieStore cookieStore;
     private final Set<Consumer<PriceQuote>> listeners = new CopyOnWriteArraySet<>();
 
-    public CreateOfferPriceUseCase(MarketPriceService marketPriceService,
-                                   CreateOfferMarketUseCase marketUseCase,
-                                   CreateOfferDraftCookieStore cookieStore) {
+    public PriceSelection(MarketPriceService marketPriceService,
+                          MarketSelection marketSelection,
+                          CreateOfferDraftCookieStore cookieStore) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
-        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
+        this.marketSelection = checkNotNull(marketSelection, "marketUseCase must not be null");
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
-        priceLimits = new PriceLimits(marketPriceService, marketUseCase);
+        priceLimits = new PriceLimits(marketPriceService, marketSelection);
         this.model = new CreateOfferPriceModel();
     }
 
@@ -79,7 +79,7 @@ public class CreateOfferPriceUseCase extends UseCase {
     public void initialize() {
         priceLimits.initialize();
 
-        Market market = marketUseCase.getMarket();
+        Market market = marketSelection.getMarket();
         if (market != null) {
             updateUseFixPrice(market, false);
 
@@ -93,7 +93,7 @@ public class CreateOfferPriceUseCase extends UseCase {
             updatePricePercentage(priceQuote, false);
         }
 
-        pin(marketUseCase.addMarketListener(this::updateAll));
+        addDisposable(marketSelection.addMarketListener(this::updateAll));
     }
 
     @Override
@@ -153,7 +153,7 @@ public class CreateOfferPriceUseCase extends UseCase {
         if (useFixPrice != model.getUseFixPrice()) {
             model.setUseFixPrice(useFixPrice);
 
-            Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
+            Market market = checkNotNull(marketSelection.getMarket(), "market must not be null");
             cookieStore.persistUseFixPrice(market, useFixPrice);
         }
     }
@@ -170,7 +170,7 @@ public class CreateOfferPriceUseCase extends UseCase {
             pricePercentage = priceLimits.clamp(pricePercentage);
             model.setPricePercentage(pricePercentage);
 
-            Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
+            Market market = checkNotNull(marketSelection.getMarket(), "market must not be null");
             cookieStore.persistPricePercentage(market, pricePercentage);
         }
     }
@@ -217,13 +217,13 @@ public class CreateOfferPriceUseCase extends UseCase {
     }
 
     private PriceQuote percentageToPriceQuote(double pricePercentage) {
-        Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
+        Market market = checkNotNull(marketSelection.getMarket(), "market must not be null");
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         return PriceUtil.fromMarketPriceMarkup(marketPriceQuote, pricePercentage);
     }
 
     private double priceQuoteToPercentage(PriceQuote priceQuote) {
-        Market market = checkNotNull(marketUseCase.getMarket(), "market must not be null");
+        Market market = checkNotNull(marketSelection.getMarket(), "market must not be null");
         PriceQuote marketPriceQuote = marketPriceService.getMarketPriceQuoteOrThrow(market);
         return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
     }

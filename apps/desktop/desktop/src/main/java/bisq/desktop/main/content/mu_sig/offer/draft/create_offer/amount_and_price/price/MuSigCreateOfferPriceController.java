@@ -30,9 +30,9 @@ import bisq.desktop.components.overlay.Popup;
 import bisq.desktop.main.content.mu_sig.offer.draft.components.MuSigPriceInput;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 import bisq.offer.price.PriceUtil;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
@@ -70,9 +70,9 @@ public class MuSigCreateOfferPriceController implements Controller {
     private final SettingsService settingsService;
     private final Set<Pin> pins = new HashSet<>();
     private final Set<Subscription> subscriptions = new HashSet<>();
-    private final CreateOfferDirectionUseCase directionUseCase;
-    private final CreateOfferPriceUseCase priceUseCase;
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final DirectionSelection directionSelection;
+    private final PriceSelection priceSelection;
+    private final MarketSelection marketSelection;
 
     public MuSigCreateOfferPriceController(ServiceProvider serviceProvider,
                                            CreateOfferUseCase createOfferUseCase,
@@ -80,9 +80,9 @@ public class MuSigCreateOfferPriceController implements Controller {
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         settingsService = serviceProvider.getSettingsService();
-        marketUseCase = createOfferUseCase.getMarketUseCase();
-        directionUseCase = createOfferUseCase.getDirectionService();
-        priceUseCase = createOfferUseCase.getPriceService();
+        marketSelection = createOfferUseCase.getMarketSelection();
+        directionSelection = createOfferUseCase.getDirectionSelection();
+        priceSelection = createOfferUseCase.getPriceSelection();
 
         priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), createOfferUseCase);
         this.owner = owner;
@@ -117,11 +117,11 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     @Override
     public void onActivate() {
-        Market market = marketUseCase.getMarket();
+        Market market = marketSelection.getMarket();
         String marketCodes = market.getMarketCodes();
         model.getMarketCodes().set(marketCodes);
 
-        model.getUseFixPrice().set(priceUseCase.getUseFixPrice());
+        model.getUseFixPrice().set(priceSelection.getUseFixPrice());
 
         //todo
         applyPriceSliderValue(0d);
@@ -136,20 +136,20 @@ public class MuSigCreateOfferPriceController implements Controller {
             model.getPriceSpec().set(new MarketPriceSpec());
         }
 
-        pins.add(priceUseCase.useFixPriceObservable().addObserver(useFixPrice -> {
+        pins.add(priceSelection.useFixPriceObservable().addObserver(useFixPrice -> {
             UIThread.run(() -> {
                 // In case of in invalid inputs we apply the value from the flip side before switching,
                 // so that the then inactive field has a valid value again.
                 if (!useFixPrice && !priceInput.isPriceValid().get()) {
                     applyPercentageString(model.getPercentageInput().get());
                 } else if (useFixPrice && model.getErrorMessage().get() != null) {
-                    onQuoteInput(priceUseCase.getPriceQuote());
+                    onQuoteInput(priceSelection.getPriceQuote());
                 }
                 model.getUseFixPrice().set(useFixPrice);
                 applyPriceSpec();
             });
         }));
-        pins.add(priceUseCase.pricePercentageObservable().addObserver(pricePercentage -> {
+        pins.add(priceSelection.pricePercentageObservable().addObserver(pricePercentage -> {
             UIThread.run(() -> {
                 if (pricePercentage != null) {
                     model.getPercentage().set(pricePercentage);
@@ -159,7 +159,7 @@ public class MuSigCreateOfferPriceController implements Controller {
         }));
 
 
-        pins.add(priceUseCase.priceQuoteObservable().addObserver(priceQuote ->
+        pins.add(priceSelection.priceQuoteObservable().addObserver(priceQuote ->
                 UIThread.run(() -> onQuoteInput(priceQuote))));
 
         subscriptions.add(EasyBind.subscribe(priceInput.isPriceValid(), isPriceValid -> {
@@ -282,7 +282,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     void onToggleUseFixPrice() {
         boolean useFixPrice = !model.getUseFixPrice().get();
-        priceUseCase.onSetUseFixPrice(useFixPrice);
+        priceSelection.onSetUseFixPrice(useFixPrice);
     }
 
     void useFixedPrice() {
@@ -319,7 +319,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     private void applyPriceSpec() {
         if (model.getUseFixPrice().get()) {
-            model.getPriceSpec().set(new FixPriceSpec(priceUseCase.getPriceQuote()));
+            model.getPriceSpec().set(new FixPriceSpec(priceSelection.getPriceQuote()));
             // settingsService.setCookie(CookieKey.CREATE_OFFER_PRICE, priceInput.getPriceString().get());
         } else {
             double percentage = model.getPercentage().get();
@@ -348,7 +348,7 @@ public class MuSigCreateOfferPriceController implements Controller {
 
     private void applyPercentageFromQuote(PriceQuote priceQuote) {
         double pricePercentage = getPercentageFromPriceQuote(priceQuote);
-        priceUseCase.onSetPricePercentage(pricePercentage);
+        priceSelection.onSetPricePercentage(pricePercentage);
     }
 
     private void applyPriceSliderValue(double percentage) {
@@ -387,11 +387,11 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private Optional<PriceQuote> findMarketPriceQuote() {
-        return marketPriceService.findMarketPriceQuote(marketUseCase.getMarket());
+        return marketPriceService.findMarketPriceQuote(marketSelection.getMarket());
     }
 
     private String getCookieSubKey() {
-        return marketUseCase.getMarket().getMarketCodes();
+        return marketSelection.getMarket().getMarketCodes();
     }
 
     private void updateFeedback(PriceSpec priceSpec) {
@@ -399,7 +399,7 @@ public class MuSigCreateOfferPriceController implements Controller {
         // amount range                     recommended price
         // 0.0001 BTC - 0.001 BTC           10-15%
         // 0.001 BTC - 0.01 BTC             2-10%
-        Optional<Double> percentage = PriceUtil.findPercentFromMarketPrice(marketPriceService, priceSpec, marketUseCase.getMarket());
+        Optional<Double> percentage = PriceUtil.findPercentFromMarketPrice(marketPriceService, priceSpec, marketSelection.getMarket());
         if (percentage.isPresent()) {
             double percentageValue = percentage.get();
             String feedbackSentence;
@@ -423,7 +423,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     }
 
     private String getFeedbackSentence(String adjective) {
-        return directionUseCase.getDisplayDirection().isBuy()
+        return directionSelection.getDisplayDirection().isBuy()
                 ? Res.get("muSig.offer.create.price.feedback.buyOffer.sentence", adjective)
                 : Res.get("muSig.offer.create.price.feedback.sellOffer.sentence", adjective);
     }
@@ -432,7 +432,7 @@ public class MuSigCreateOfferPriceController implements Controller {
     private void applyPriceFromCookie(String price) {
         if (model.getUseFixPrice().get()) {
             priceInput.setPriceString(price);
-            applyPercentageFromQuote(priceUseCase.getPriceQuote());
+            applyPercentageFromQuote(priceSelection.getPriceQuote());
             applyPriceSliderValue(model.getPercentage().get());
         } else {
             try {

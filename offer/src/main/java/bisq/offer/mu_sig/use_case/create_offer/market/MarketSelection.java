@@ -17,7 +17,7 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.market;
 
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.observable.Pin;
@@ -30,12 +30,12 @@ import java.util.function.Consumer;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 @Slf4j
-public class CreateOfferMarketUseCase extends UseCase {
+public class MarketSelection extends LifecycleScope {
     @Delegate
     private final CreateOfferMarketModel model;
     private final Set<Consumer<Market>> listeners = new CopyOnWriteArraySet<>();
 
-    public CreateOfferMarketUseCase() {
+    public MarketSelection() {
         this.model = new CreateOfferMarketModel();
     }
 

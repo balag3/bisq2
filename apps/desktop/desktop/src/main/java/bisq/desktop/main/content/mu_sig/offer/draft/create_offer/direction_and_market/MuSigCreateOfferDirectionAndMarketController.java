@@ -32,8 +32,8 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOfferbookService;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
 import javafx.scene.layout.StackPane;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -58,14 +58,14 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     private final MuSigOfferbookService muSigOfferbookService;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
-    private final CreateOfferDirectionUseCase directionUseCase;
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final DirectionSelection directionSelection;
+    private final MarketSelection marketSelection;
 
     public MuSigCreateOfferDirectionAndMarketController(ServiceProvider serviceProvider,
                                                         CreateOfferUseCase createOfferUseCase,
                                                         Runnable onNextHandler) {
-        marketUseCase = createOfferUseCase.getMarketUseCase();
-        directionUseCase = createOfferUseCase.getDirectionService();
+        marketSelection = createOfferUseCase.getMarketSelection();
+        directionSelection = createOfferUseCase.getDirectionSelection();
 
         this.onNextHandler = onNextHandler;
         marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
@@ -83,9 +83,9 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     public void onActivate() {
         model.getPaymentCurrencySearchText().set("");
 
-        pins.add(FxBindings.bind(model.getDisplayDirection()).to(directionUseCase.displayDirectionObservable()));
+        pins.add(FxBindings.bind(model.getDisplayDirection()).to(directionSelection.displayDirectionObservable()));
 
-        pins.add(marketUseCase.marketObservable().addObserver(market
+        pins.add(marketSelection.marketObservable().addObserver(market
                 -> UIThread.run(() -> {
             String baseCurrencyName = market.getBaseCurrencyName();
             String quoteCurrencyName = market.getQuoteCurrencyName();
@@ -104,7 +104,7 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
                 return;
             }
 
-            Market selectedMarket = marketUseCase.getMarket();
+            Market selectedMarket = marketSelection.getMarket();
             List<Market> markets;
             if (selectedMarketTypeListItem.getMarketType() == MarketType.FIAT) {
                 markets = MarketRepository.getAllFiatMarkets();
@@ -148,13 +148,13 @@ public class MuSigCreateOfferDirectionAndMarketController implements Controller 
     }
 
     void onSelectDisplayDirection(Direction displayDirection) {
-        directionUseCase.onSetDisplayDirection(displayDirection);
+        directionSelection.onSetDisplayDirection(displayDirection);
         onNextHandler.run();
     }
 
     void onSelectMarketListItem(MarketListItem item) {
         if (item != null) {
-            marketUseCase.onSetMarket(item.getMarket());
+            marketSelection.onSetMarket(item.getMarket());
         }
     }
 

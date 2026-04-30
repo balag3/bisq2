@@ -17,35 +17,12 @@
 
 package bisq.common.application;
 
-import bisq.common.observable.Pin;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-
-public abstract class UseCase {
-    private Set<Pin> pins;
-
-    public UseCase() {
+@Slf4j
+public abstract class LifecycleScope extends DisposableScope {
+    public LifecycleScope() {
     }
 
-    abstract public void initialize();
-
-    public void dispose() {
-        if (pins != null) {
-            pins.forEach(Pin::unbind);
-            pins.clear();
-        }
-    }
-
-    protected void pin(Pin pin) {
-        getPins().add(pin);
-    }
-
-    private Collection<Pin> getPins() {
-        if (pins == null) {
-            pins = new HashSet<>();
-        }
-        return pins;
-    }
+    public abstract void initialize();
 }

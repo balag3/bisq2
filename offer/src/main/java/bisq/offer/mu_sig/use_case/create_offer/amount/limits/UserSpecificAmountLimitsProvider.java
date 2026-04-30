@@ -18,7 +18,7 @@
 package bisq.offer.mu_sig.use_case.create_offer.amount.limits;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.PriceQuote;
@@ -26,47 +26,47 @@ import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.offer.Direction;
-import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.price.CreateOfferPriceUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.direction.DirectionSelection;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.price.PriceSelection;
 
 import java.util.Optional;
 
 import static bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils.toTradeAmountLimit;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class UserSpecificAmountLimitsProvider extends UseCase {
+public class UserSpecificAmountLimitsProvider extends LifecycleScope {
     private static final long USER_SPECIFIC_LIMIT_IN_USD = 4000;
 
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketService;
-    private final CreateOfferDirectionUseCase directionService;
-    private final CreateOfferPriceUseCase priceService;
+    private final MarketSelection marketSelection;
+    private final DirectionSelection directionSelection;
+    private final PriceSelection priceSelection;
     private final Observable<Optional<TradeAmount>> tradeAmountLimit = new Observable<>(Optional.empty());
 
     UserSpecificAmountLimitsProvider(MarketPriceService marketPriceService,
-                                     CreateOfferMarketUseCase marketService,
-                                     CreateOfferDirectionUseCase directionService,
-                                     CreateOfferPriceUseCase priceService) {
+                                     MarketSelection marketSelection,
+                                     DirectionSelection directionSelection,
+                                     PriceSelection priceSelection) {
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
-        this.marketService = marketService;
-        this.directionService = directionService;
-        this.priceService = priceService;
+        this.marketSelection = marketSelection;
+        this.directionSelection = directionSelection;
+        this.priceSelection = priceSelection;
     }
 
     @Override
     public void initialize() {
-        pin(marketService.addMarketListener(market ->
+        addDisposable(marketSelection.addMarketListener(market ->
                 update(market,
-                        directionService.getDisplayDirection(),
-                        priceService.getPriceQuote())));
-        pin(directionService.addDisplayDirectionListener(direction ->
-                update(marketService.getMarket(),
+                        directionSelection.getDisplayDirection(),
+                        priceSelection.getPriceQuote())));
+        addDisposable(directionSelection.addDisplayDirectionListener(direction ->
+                update(marketSelection.getMarket(),
                         direction,
-                        priceService.getPriceQuote())));
-        pin(priceService.addPriceQuoteListener(priceQuote ->
-                update(marketService.getMarket(),
-                        directionService.getDisplayDirection(),
+                        priceSelection.getPriceQuote())));
+        addDisposable(priceSelection.addPriceQuoteListener(priceQuote ->
+                update(marketSelection.getMarket(),
+                        directionSelection.getDisplayDirection(),
                         priceQuote)));
     }
 

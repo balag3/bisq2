@@ -34,8 +34,8 @@ import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.i18n.Res;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.CreateOfferPaymentMethodUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
+import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
 import javafx.event.EventHandler;
 import javafx.scene.input.KeyEvent;
 import lombok.EqualsAndHashCode;
@@ -64,7 +64,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     private final ServiceProvider serviceProvider;
     private final CreateOfferUseCase createOfferUseCase;
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final MarketSelection marketSelection;
     private final OverlayController overlayController;
     @Getter
     private final MuSigCreateOfferModel model;
@@ -85,8 +85,8 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 serviceProvider.getBondedRolesService().getMarketPriceService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
-        marketUseCase = createOfferUseCase.getMarketUseCase();
-        CreateOfferPaymentMethodUseCase paymentMethodUseCase = createOfferUseCase.getPaymentMethodService();
+        marketSelection = createOfferUseCase.getMarketSelection();
+        PaymentMethodSelection paymentMethodSelection = createOfferUseCase.getPaymentMethodSelection();
 
         overlayController = OverlayController.getInstance();
 
@@ -110,7 +110,6 @@ public class MuSigCreateOfferController extends NavigationController implements 
                 this::closeAndNavigateTo);
         muSigCreateOfferReviewController = new MuSigCreateOfferReviewController(serviceProvider,
                 createOfferUseCase,
-                paymentMethodUseCase,
                 this::setMainButtonsVisibleState,
                 this::closeAndNavigateTo);
     }
@@ -122,7 +121,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
     @Override
     public void initWithData(InitData data) {
-        marketUseCase.onSetMarket(data.getMarket());
+        marketSelection.onSetMarket(data.getMarket());
     }
 
     @Override
@@ -137,7 +136,7 @@ public class MuSigCreateOfferController extends NavigationController implements 
 
         model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_CREATE_OFFER_DIRECTION_AND_MARKET);
 
-        pins.add(marketUseCase.marketObservable().addObserver(market -> {
+        pins.add(marketSelection.marketObservable().addObserver(market -> {
             UIThread.run(() -> {
                 updatePaymentMethodProgressLabel(market);
                 updateNextButtonDisabledState();

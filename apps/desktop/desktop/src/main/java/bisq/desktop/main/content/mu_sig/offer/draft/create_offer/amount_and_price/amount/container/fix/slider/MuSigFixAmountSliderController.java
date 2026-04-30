@@ -22,7 +22,7 @@ import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,12 +36,12 @@ public class MuSigFixAmountSliderController implements Controller {
     private final MuSigFixAmountSliderModel model;
     @Getter
     private final MuSigFixAmountSliderView view;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final AmountSelection amountSelection;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigFixAmountSliderController(CreateOfferUseCase createOfferUseCase) {
-        amountUseCase = createOfferUseCase.getAmountUseCase();
+        amountSelection = createOfferUseCase.getAmountSelection();
         model = new MuSigFixAmountSliderModel();
         view = new MuSigFixAmountSliderView(model, this);
     }
@@ -51,18 +51,18 @@ public class MuSigFixAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
                 value -> {
                     if (value != null) {
-                        amountUseCase.onSetFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountSelection.onSetFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 
-        pins.add(amountUseCase.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(amountSelection.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getGetSliderValue())
-                .to(amountUseCase.fixAmountSliderValueObservable()));
+                .to(amountSelection.fixAmountSliderValueObservable()));
     }
 
     @Override

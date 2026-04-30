@@ -18,38 +18,38 @@
 package bisq.offer.mu_sig.use_case.create_offer.price.limits;
 
 import bisq.bonded_roles.market_price.MarketPriceService;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.monetary.PriceQuoteRange;
 import bisq.common.observable.Observable;
 import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.util.MathUtils;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
 import bisq.offer.price.PriceUtil;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-public class PriceLimits extends UseCase {
+public class PriceLimits extends LifecycleScope {
     public static final double MIN_PERCENTAGE_FROM_MARKET_PRICE = -0.1;
     public static final double MAX_PERCENTAGE_FROM_MARKET_PRICE = 0.5;
 
     protected final Observable<PriceQuoteRange> tradeAmountLimits = new Observable<>();
 
     private final MarketPriceService marketPriceService;
-    private final CreateOfferMarketUseCase marketService;
+    private final MarketSelection marketSelection;
 
-    public PriceLimits(MarketPriceService marketPriceService, CreateOfferMarketUseCase marketService) {
+    public PriceLimits(MarketPriceService marketPriceService, MarketSelection marketSelection) {
         checkNotNull(marketPriceService, "marketPriceService must not be null");
-        checkNotNull(marketService, "marketService must not be null");
-        this.marketService = marketService;
+        checkNotNull(marketSelection, "marketService must not be null");
+        this.marketSelection = marketSelection;
         this.marketPriceService = marketPriceService;
     }
 
     @Override
     public void initialize() {
-        pin(marketService.marketObservable().addObserver(market -> {
+        addDisposable(marketSelection.marketObservable().addObserver(market -> {
             if (market != null) {
                 PriceQuote minTradeAmount = percentageToPriceQuote(marketPriceService,
                         market,

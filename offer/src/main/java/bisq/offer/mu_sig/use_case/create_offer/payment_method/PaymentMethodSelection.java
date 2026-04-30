@@ -19,9 +19,9 @@ package bisq.offer.mu_sig.use_case.create_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
-import bisq.common.application.UseCase;
+import bisq.common.application.LifecycleScope;
 import bisq.common.market.Market;
-import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.market.MarketSelection;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 import lombok.experimental.Delegate;
@@ -47,7 +47,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * auto-selected. The selected accounts also drive payment-rail based trade amount limits.
  */
 @Slf4j
-public class CreateOfferPaymentMethodUseCase extends UseCase {
+public class PaymentMethodSelection extends LifecycleScope {
     public static final int MAX_NUM_PAYMENT_METHODS = 4;
     public static final String MAX_PAYMENT_METHODS_REACHED = "maxPaymentMethodsReached";
     public static final String ACCOUNT_NOT_ELIGIBLE_FOR_MARKET = "accountNotEligibleForMarket";
@@ -55,18 +55,18 @@ public class CreateOfferPaymentMethodUseCase extends UseCase {
     @Delegate
     private final CreateOfferPaymentMethodModel model;
     private final Set<Consumer<Map.Entry<PaymentMethod<?>, Account<?, ?>>>> methodAccountEntryListeners = new CopyOnWriteArraySet<>();
-    private final CreateOfferMarketUseCase marketUseCase;
+    private final MarketSelection marketSelection;
     private final AccountsProvider accountsProvider;
 
-    public CreateOfferPaymentMethodUseCase(CreateOfferMarketUseCase marketUseCase, AccountsProvider accountsProvider) {
-        this.marketUseCase = checkNotNull(marketUseCase, "marketUseCase must not be null");
+    public PaymentMethodSelection(MarketSelection marketSelection, AccountsProvider accountsProvider) {
+        this.marketSelection = checkNotNull(marketSelection, "marketUseCase must not be null");
         this.accountsProvider = checkNotNull(accountsProvider, "accountsProvider must not be null");
         this.model = new CreateOfferPaymentMethodModel();
     }
 
     @Override
     public void initialize() {
-        pin(marketUseCase.marketObservable().addObserver(this::update));
+        addDisposable(marketSelection.marketObservable().addObserver(this::update));
     }
 
 

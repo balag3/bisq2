@@ -22,7 +22,7 @@ import bisq.desktop.common.observable.FxBindings;
 import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.fxmisc.easybind.EasyBind;
@@ -36,12 +36,12 @@ public class MuSigRangeAmountSliderController implements Controller {
     private final MuSigRangeAmountSliderModel model;
     @Getter
     private final MuSigRangeAmountSliderView view;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final AmountSelection amountSelection;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountSliderController(CreateOfferUseCase createOfferUseCase) {
-        amountUseCase = createOfferUseCase.getAmountUseCase();
+        amountSelection = createOfferUseCase.getAmountSelection();
         model = new MuSigRangeAmountSliderModel();
         view = new MuSigRangeAmountSliderView(model, this);
     }
@@ -51,26 +51,26 @@ public class MuSigRangeAmountSliderController implements Controller {
         subscriptions.add(EasyBind.subscribe(model.getLowValue(),
                 value -> {
                     if (value != null) {
-                        amountUseCase.onSetMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountSelection.onSetMinTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
         subscriptions.add(EasyBind.subscribe(model.getHighValue(),
                 value -> {
                     if (value != null) {
-                        amountUseCase.onSetMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
+                        amountSelection.onSetMaxTradeAmountFromSliderValue(clamp(value.doubleValue()));
                     }
                 }));
 
-        pins.add(amountUseCase.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
+        pins.add(amountSelection.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
         pins.add(FxBindings.bind(model.getLowValue())
-                .to(amountUseCase.minAmountSliderValueObservable()));
+                .to(amountSelection.minAmountSliderValueObservable()));
         pins.add(FxBindings.bind(model.getHighValue())
-                .to(amountUseCase.maxAmountSliderValueObservable()));
+                .to(amountSelection.maxAmountSliderValueObservable()));
     }
 
     @Override

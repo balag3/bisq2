@@ -25,7 +25,7 @@ import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.passive.Mu
 import bisq.desktop.main.content.mu_sig.offer.draft.amount_components.text_input.MuSigAmountTextInputController;
 import bisq.desktop.main.content.mu_sig.offer.draft.create_offer.amount_and_price.amount.container.range.slider.MuSigRangeAmountSliderController;
 import bisq.offer.mu_sig.use_case.create_offer.CreateOfferUseCase;
-import bisq.offer.mu_sig.use_case.create_offer.amount.CreateOfferAmountUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -44,12 +44,12 @@ public class MuSigRangeAmountController implements Controller {
     private final MuSigPassiveAmountController minPassiveAmountController;
     private final MuSigAmountTextInputController maxAmountInputController;
     private final MuSigPassiveAmountController maxPassiveAmountController;
-    private final CreateOfferAmountUseCase amountUseCase;
+    private final AmountSelection amountSelection;
     private final Set<Subscription> subscriptions = new HashSet<>();
     private final Set<Pin> pins = new HashSet<>();
 
     public MuSigRangeAmountController(CreateOfferUseCase createOfferUseCase) {
-        amountUseCase = createOfferUseCase.getAmountUseCase();
+        amountSelection = createOfferUseCase.getAmountSelection();
         model = new MuSigRangeAmountModel();
 
         minAmountInputController = new MuSigAmountTextInputController(false, true);
@@ -75,18 +75,18 @@ public class MuSigRangeAmountController implements Controller {
     @Override
     public void onActivate() {
         // Domain specific
-        pins.add(amountUseCase.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
+        pins.add(amountSelection.useBaseCurrencyForAmountInputObservable().addObserver(useBaseCurrencyForAmountInput -> {
             if (useBaseCurrencyForAmountInput != null) {
                 UIThread.run(this::applyAllAmounts);
             }
         }));
 
-        pins.add(amountUseCase.minTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(amountSelection.minTradeAmountObservable().addObserver(tradeAmount -> {
             if (tradeAmount != null) {
                 UIThread.run(this::applyAllAmounts);
             }
         }));
-        pins.add(amountUseCase.maxTradeAmountObservable().addObserver(tradeAmount -> {
+        pins.add(amountSelection.maxTradeAmountObservable().addObserver(tradeAmount -> {
             if (tradeAmount != null) {
                 UIThread.run(this::applyAllAmounts);
             }
@@ -95,7 +95,7 @@ public class MuSigRangeAmountController implements Controller {
         subscriptions.add(EasyBind.subscribe(minAmountInputController.amountProperty(),
                 amount -> {
                     if (amount != null) {
-                        amountUseCase.onSetMinTradeAmountFromInputAmount(amount);
+                        amountSelection.onSetMinTradeAmountFromInputAmount(amount);
                         applyMinInputAmount();
                     }
                 }));
@@ -104,7 +104,7 @@ public class MuSigRangeAmountController implements Controller {
         subscriptions.add(EasyBind.subscribe(maxAmountInputController.amountProperty(),
                 amount -> {
                     if (amount != null) {
-                        amountUseCase.onSetMaxTradeAmountFromInputAmount(amount);
+                        amountSelection.onSetMaxTradeAmountFromInputAmount(amount);
                         applyMaxInputAmount();
                     }
                 }));
@@ -180,8 +180,8 @@ public class MuSigRangeAmountController implements Controller {
     /* --------------------------------------------------------------------- */
 
     void onToggleInputMode() {
-        boolean value = !amountUseCase.getUseBaseCurrencyForAmountInput();
-        amountUseCase.onSetUseBaseCurrencyForAmountInput(value);
+        boolean value = !amountSelection.getUseBaseCurrencyForAmountInput();
+        amountSelection.onSetUseBaseCurrencyForAmountInput(value);
     }
 
 
@@ -197,22 +197,22 @@ public class MuSigRangeAmountController implements Controller {
     }
 
     private void applyMinInputAmount() {
-        Monetary inputAmount = amountUseCase.getMinInputAmount();
+        Monetary inputAmount = amountSelection.getMinInputAmount();
         minAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMaxInputAmount() {
-        Monetary inputAmount = amountUseCase.getMaxInputAmount();
+        Monetary inputAmount = amountSelection.getMaxInputAmount();
         maxAmountInputController.setAmount(inputAmount);
     }
 
     private void applyMinPassiveAmount() {
-        Monetary passiveAmount = amountUseCase.getMinPassiveAmount();
+        Monetary passiveAmount = amountSelection.getMinPassiveAmount();
         minPassiveAmountController.setAmount(passiveAmount);
     }
 
     private void applyMaxPassiveAmount() {
-        Monetary passiveAmount = amountUseCase.getMaxPassiveAmount();
+        Monetary passiveAmount = amountSelection.getMaxPassiveAmount();
         maxPassiveAmountController.setAmount(passiveAmount);
     }
 
