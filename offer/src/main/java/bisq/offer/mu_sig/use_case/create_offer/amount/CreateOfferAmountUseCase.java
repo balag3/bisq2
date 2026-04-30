@@ -17,6 +17,7 @@
 
 package bisq.offer.mu_sig.use_case.create_offer.amount;
 
+import bisq.bonded_roles.market_price.MarketBasedAmountConversion;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.application.UseCase;
 import bisq.common.market.Market;
@@ -31,8 +32,6 @@ import bisq.common.observable.ReadOnlyObservable;
 import bisq.common.util.MathUtils;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.amount.spec.AmountSpecFactory;
-import bisq.offer.mu_sig.use_case.AmountMappingService;
-import bisq.offer.mu_sig.use_case.AmountUtils;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.create_offer.direction.CreateOfferDirectionUseCase;
 import bisq.offer.mu_sig.use_case.create_offer.market.CreateOfferMarketUseCase;
@@ -63,8 +62,6 @@ public class CreateOfferAmountUseCase extends UseCase {
     private final CreateOfferDraftCookieStore cookieStore;
     @Getter
     private final AmountLimitsProvider amountLimits;
-    @Getter
-    private final AmountMappingService amountMappingService;
 
     public CreateOfferAmountUseCase(MarketPriceService marketPriceService,
                                     CreateOfferMarketUseCase marketUseCase,
@@ -79,7 +76,6 @@ public class CreateOfferAmountUseCase extends UseCase {
         this.priceUseCase = checkNotNull(priceUseCase, "priceUseCase must not be null");
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
 
-        this.amountMappingService = new AmountMappingService();
         this.model = new CreateOfferAmountModel();
 
         amountLimits = new AmountLimitsProvider(marketPriceService,
@@ -380,7 +376,13 @@ public class CreateOfferAmountUseCase extends UseCase {
     /* --------------------------------------------------------------------- */
 
     private TradeAmount getDefaultTradeAmountForMarket(Market market) {
-        return AmountUtils.getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
+        return getTradeAmountFromUsd(marketPriceService, market, DEFAULT_TRADE_AMOUNT_IN_USD);
+    }
+
+    private static TradeAmount getTradeAmountFromUsd(MarketPriceService marketPriceService,
+                                                     Market market,
+                                                     Fiat usdAmount) {
+        return MarketBasedAmountConversion.tradeAmountFromUsdAmount(marketPriceService, market, usdAmount);
     }
 
     private void applyDefaultAmountAndSliderValue(TradeAmount defaultTradeAmount) {

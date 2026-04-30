@@ -23,8 +23,6 @@ import bisq.account.payment_method.PaymentRail;
 import bisq.common.market.Market;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccountSelection;
-import bisq.offer.mu_sig.use_case.PaymentMethodSelectionService;
-import bisq.offer.mu_sig.use_case.take_offer.TakeOfferDraftStateEngine;
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,7 +39,6 @@ public class TakeOfferPaymentMethodService {
     @Delegate
     private final TakeOfferPaymentMethodModel model;
     private final PaymentMethodSelectionService paymentMethodSelectionService;
-    private final TakeOfferDraftStateEngine stateEngine;
 
     public enum PaymentMethodSelectionStatus {
         NO_ACCOUNT_AVAILABLE,
@@ -71,11 +68,9 @@ public class TakeOfferPaymentMethodService {
         }
     }
 
-    public TakeOfferPaymentMethodService(PaymentMethodSelectionService paymentMethodSelectionService,
-                                         TakeOfferDraftStateEngine stateEngine) {
+    public TakeOfferPaymentMethodService(PaymentMethodSelectionService paymentMethodSelectionService) {
         this.model = new TakeOfferPaymentMethodModel();
         this.paymentMethodSelectionService = checkNotNull(paymentMethodSelectionService, "paymentMethodSelectionService must not be null");
-        this.stateEngine = checkNotNull(stateEngine, "stateEngine must not be null");
     }
 
     public void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
@@ -167,7 +162,6 @@ public class TakeOfferPaymentMethodService {
         }
 
         if (selectedAccountsChanged) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
     }
 
@@ -184,7 +178,6 @@ public class TakeOfferPaymentMethodService {
         }
         model.putSelectedAccountByPaymentMethod(paymentMethod, account);
         if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
         return true;
     }
@@ -196,7 +189,6 @@ public class TakeOfferPaymentMethodService {
         }
         model.removeSelectedAccountByPaymentMethod(paymentMethod);
         if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
         return true;
     }
@@ -214,7 +206,6 @@ public class TakeOfferPaymentMethodService {
         }
         model.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
         if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
         return true;
     }
@@ -225,7 +216,6 @@ public class TakeOfferPaymentMethodService {
         }
         model.clearSelectedAccountByPaymentMethod();
         if (recalculateTradeAmountConstraints) {
-            stateEngine.recalculateTradeAmountConstraintsForSelectedPaymentRail();
         }
         return true;
     }

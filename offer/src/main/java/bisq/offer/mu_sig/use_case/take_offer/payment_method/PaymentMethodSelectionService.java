@@ -15,7 +15,7 @@
  * along with Bisq. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package bisq.offer.mu_sig.use_case;
+package bisq.offer.mu_sig.use_case.take_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;

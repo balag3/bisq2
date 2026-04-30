@@ -8,6 +8,7 @@ import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.PaymentMethodSelectionService;
 import com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 

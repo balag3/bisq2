@@ -24,12 +24,10 @@ import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.TradeAmount;
-import bisq.common.monetary.TradeAmountRange;
 import bisq.offer.amount.spec.AmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.use_case.AmountMappingService;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
-import bisq.offer.mu_sig.use_case.PaymentMethodSelectionService;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.PaymentMethodSelectionService;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultTakeOfferDraftCookieStore;
@@ -45,13 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-/**
- * User-facing workflow facade for creating an offer draft.
- * <p>
- * Design: exposes stable UI/API mutation methods and persistence side effects (cookies), while
- * delegating transition ordering and derived-state recalculation to {@link TakeOfferDraftStateEngine}
- * and isolated domain services.
- */
+// TODO
 @Slf4j
 public class TakeOfferUseCase extends DraftOfferUseCase {
     public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
@@ -65,10 +57,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private final TakeOfferAmountService amountService;
 
     private final TakeOfferDraftCookieStore cookieStore;
-    private final AmountMappingService amountMappingService;
     @Getter
     private final TakeOfferPaymentMethodService paymentMethodService;
-    private final TakeOfferDraftStateEngine stateEngine;
 
 
     /* --------------------------------------------------------------------- */
@@ -95,22 +85,10 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         checkNotNull(accountsProvider, "accountsProvider must not be null");
         checkNotNull(marketPriceService, "marketPriceProvider must not be null");
 
-        amountMappingService = new AmountMappingService();
-        TakeOfferTradeAmountConstraintsService tradeAmountConstraintsService = new TakeOfferTradeAmountConstraintsService(marketPriceService);
         PaymentMethodSelectionService paymentMethodSelectionService = new PaymentMethodSelectionService(accountsProvider);
 
-        stateEngine = new TakeOfferDraftStateEngine(marketService,
-                directionService,
-                priceService,
-                amountService,
-                marketPriceService,
-                tradeAmountConstraintsService,
-                amountMappingService,
-                this::getSelectedPaymentRail,
-                this::updatePaymentMethods,
-                DEFAULT_TRADE_AMOUNT_IN_USD);
 
-        paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService, stateEngine);
+        paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService);
     }
 
     private void updatePaymentMethods() {
@@ -132,12 +110,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     }
 
     public void initialize(MuSigOffer muSigOffer) {
-        checkNotNull(muSigOffer, "muSigOffer must not be null");
-
-        Market market = muSigOffer.getMarket();
-        boolean useBaseCurrencyForAmountInput = cookieStore.getUseBaseCurrencyForAmountInput(market);
-
-        stateEngine.initialize(muSigOffer, useBaseCurrencyForAmountInput);
     }
 
     /* --------------------------------------------------------------------- */
@@ -145,14 +117,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public void setFixTradeAmountFromInputAmount(Monetary amount) {
-        TradeAmount tradeAmount = stateEngine.toClampedTradeAmount(amount);
-        setFixTradeAmount(tradeAmount);
     }
 
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
-        TradeAmount fixTradeAmount = checkNotNull(amountService.getFixTradeAmount(), "fixTradeAmount must not be null");
-        TradeAmount tradeAmount = stateEngine.toTradeAmountFromSliderValue(fixTradeAmount, sliderValue);
-        setFixTradeAmount(tradeAmount);
     }
 
 
@@ -161,15 +128,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public Monetary toInputAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return amountMappingService.toInputAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
+        return null;
     }
 
     public Monetary toPassiveAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        boolean useBaseCurrencyForAmountInput = amountService.getUseBaseCurrencyForAmountInput();
-        TradeAmountRange limits = getClampLimits(includeUserSpecificTradeAmountLimit);
-        return amountMappingService.toPassiveAmount(tradeAmount, limits, useBaseCurrencyForAmountInput);
+        return null;
     }
 
 
@@ -178,23 +141,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {
-        if (value == amountService.getUseBaseCurrencyForAmountInput()) {
-            return;
-        }
-
-        Market market = getMarket();
-        if (market == null) {
-            amountService.setUseBaseCurrencyForAmountInput(value);
-            return;
-        }
-
-        if (stateEngine.applyUseBaseCurrencyForAmountInputChanged(value)) {
-            cookieStore.persistUseBaseCurrencyForAmountInput(market, value);
-        }
     }
 
     public void setFixTradeAmount(TradeAmount tradeAmount) {
-        stateEngine.setFixTradeAmount(tradeAmount);
     }
 
 
@@ -211,12 +160,4 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         return marketService.getMarket();
     }
 
-
-    /* --------------------------------------------------------------------- */
-    // Internal helpers
-    /* --------------------------------------------------------------------- */
-
-    private TradeAmountRange getClampLimits(boolean includeUserSpecificTradeAmountLimit) {
-        return stateEngine.getClampLimits(includeUserSpecificTradeAmountLimit);
-    }
 }
