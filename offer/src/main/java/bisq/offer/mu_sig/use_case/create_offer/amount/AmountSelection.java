@@ -129,7 +129,6 @@ public class AmountSelection extends LifecycleScope {
         }
     }
 
-
     private void handlePriceQuoteChange(PriceQuote priceQuote) {
         if (priceQuote != null) {
             applyPriceQuoteToFixTradeAmount(priceQuote);

@@ -39,9 +39,11 @@ public class MuSigAmountTextInputModel implements Model {
     private final boolean isLeftSideRangeAmount;
 
     private final ObjectProperty<Monetary> amount = new SimpleObjectProperty<>();
+    private final StringProperty inputText = new SimpleStringProperty();
+
     private final StringProperty code = new SimpleStringProperty();
     private final BooleanProperty focusedProperty = new SimpleBooleanProperty();
-    private final StringProperty inputText = new SimpleStringProperty();
+
     private final IntegerProperty sumOfNumChars = new SimpleIntegerProperty();
     private final DoubleProperty amountFieldWidth = new SimpleDoubleProperty();
     private final DoubleProperty dashFieldWidth = new SimpleDoubleProperty();

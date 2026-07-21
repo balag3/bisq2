@@ -57,7 +57,9 @@ public class MuSigFixAmountSliderController implements Controller {
 
         pins.add(amountSelection.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
-                model.getMaxAllowedValue().set(value.orElse(1d));
+                if (value != null) {
+                    model.getMaxAllowedValue().set(value.orElse(1d));
+                }
             });
         }));
 
