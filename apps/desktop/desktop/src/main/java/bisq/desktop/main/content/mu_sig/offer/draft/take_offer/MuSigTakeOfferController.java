@@ -32,7 +32,9 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.payment.MuSigTake
 import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.review.MuSigTakeOfferReviewController;
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
+import bisq.desktop.components.overlay.Popup;
 import bisq.i18n.Res;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import javafx.event.EventHandler;
@@ -85,6 +87,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         overlayController = OverlayController.getInstance();
 
         takeOfferService = new TakeOfferUseCase(serviceProvider.getBondedRolesService().getMarketPriceService(),
+                serviceProvider.getIdentityService(),
                 serviceProvider.getSettingsService(),
                 serviceProvider.getAccountService());
 
@@ -111,7 +114,16 @@ public class MuSigTakeOfferController extends NavigationController implements In
     public void initWithData(InitData initData) {
         MuSigOffer muSigOffer = initData.getMuSigOffer();
 
-        takeOfferService.initialize(muSigOffer);
+        try {
+            takeOfferService.initialize(muSigOffer);
+        } catch (TakeOfferValidationException e) {
+            log.warn("Offer {} failed take-offer validation: {}", muSigOffer.getId(), e.getMessage());
+            // The overlay is still being constructed at this point; the rejection is surfaced
+            // in onActivate once the view is attached.
+            model.setTakeOfferValidationFailure(e.getReason());
+            model.suppressChildNavigation();
+            return;
+        }
 
         muSigTakeOfferAmountController.init(muSigOffer);
         muSigTakeOfferPaymentController.init(muSigOffer);
@@ -172,6 +184,13 @@ public class MuSigTakeOfferController extends NavigationController implements In
         overlayController.setUseEscapeKeyHandler(false);
         overlayController.setEnterKeyHandler(null);
         overlayController.getApplicationRoot().addEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
+
+        TakeOfferValidationException.Reason validationFailure = model.getTakeOfferValidationFailure();
+        if (validationFailure != null) {
+            new Popup().warning(getValidationWarning(validationFailure)).show();
+            onClose();
+            return;
+        }
 
         NavigationTarget first = model.getChildTargets().getFirst();
         model.getSelectedChildTarget().set(first);
@@ -272,6 +291,14 @@ public class MuSigTakeOfferController extends NavigationController implements In
     void onClose() {
         Navigation.navigateTo(NavigationTarget.MAIN);
         OverlayController.hide();
+    }
+
+    private static String getValidationWarning(TakeOfferValidationException.Reason reason) {
+        return switch (reason) {
+            case OWN_OFFER -> Res.get("muSig.takeOffer.validation.ownOffer");
+            case NO_MARKET_PRICE -> Res.get("muSig.takeOffer.validation.noMarketPrice");
+            default -> Res.get("muSig.takeOffer.validation.invalidOffer");
+        };
     }
 
     void onTakeOffer() {

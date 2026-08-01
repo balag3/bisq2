@@ -27,8 +27,11 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException;
 import lombok.Getter;
 import lombok.Setter;
+
+import javax.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -37,6 +40,15 @@ import java.util.List;
 @Slf4j
 @Getter
 public class MuSigTakeOfferModel extends NavigationModel {
+    @Setter
+    @Nullable
+    private TakeOfferValidationException.Reason takeOfferValidationFailure;
+
+    // Prevents onActivateInternal from queueing the deferred default-child navigation,
+    // which could re-enter the closed wizard when a rejected offer aborts the flow.
+    void suppressChildNavigation() {
+        navigationTarget = NavigationTarget.NONE;
+    }
     @Setter
     private boolean amountVisible;
     @Setter
