@@ -18,6 +18,7 @@
 package bisq.offer.mu_sig.use_case.take_offer;
 
 import bisq.account.AccountService;
+import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentRail;
 import bisq.account.protocol_type.TradeProtocolType;
@@ -63,6 +64,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+
+import javax.annotation.Nullable;
+
+import java.util.Optional;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 // TODO
@@ -83,6 +90,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private final TakeOfferPaymentMethodService paymentMethodService;
     private final MarketPriceService marketPriceService;
     private final IdentityService identityService;
+    @Nullable
+    private MuSigOffer muSigOffer;
 
 
     /* --------------------------------------------------------------------- */
@@ -119,10 +128,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService);
     }
 
-    private void updatePaymentMethods() {
-        paymentMethodService.updatePaymentMethods(getMarket());
-    }
-
     private PaymentRail getSelectedPaymentRail() {
         return paymentMethodService.getSelectedPaymentRail();
     }
@@ -139,17 +144,61 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     public void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
-        validate(muSigOffer);
-        // Single market price lookup: the presence requirement and the quote resolution must not
-        // diverge, and no service state is touched before all checks have passed.
-        PriceQuote marketPriceQuote = PriceUtil.findMarketPriceQuote(marketPriceService, muSigOffer.getMarket())
-                .orElseThrow(() -> new TakeOfferValidationException(Reason.NO_MARKET_PRICE,
-                        "No market price available for market " + muSigOffer.getMarket().getMarketCodes()));
-        PriceQuote priceQuote = resolvePriceQuote(muSigOffer, marketPriceQuote);
+        try {
+            validate(muSigOffer);
+            // Single market price lookup: the presence requirement and the quote resolution must
+            // not diverge, and no service state is touched before all checks have passed.
+            PriceQuote marketPriceQuote = PriceUtil.findMarketPriceQuote(marketPriceService, muSigOffer.getMarket())
+                    .orElseThrow(() -> new TakeOfferValidationException(Reason.NO_MARKET_PRICE,
+                            "No market price available for market " + muSigOffer.getMarket().getMarketCodes()));
+            PriceQuote priceQuote = resolvePriceQuote(muSigOffer, marketPriceQuote);
 
-        marketService.initialize(muSigOffer);
-        directionService.initialize(muSigOffer);
-        priceService.setPriceQuote(priceQuote);
+            this.muSigOffer = muSigOffer;
+            marketService.initialize(muSigOffer);
+            directionService.initialize(muSigOffer);
+            priceService.setPriceQuote(priceQuote);
+            paymentMethodService.updatePaymentMethods(muSigOffer);
+        } catch (TakeOfferValidationException e) {
+            // A rejected initialization must not leave state behind, also when a previous
+            // initialization on this instance had succeeded.
+            this.muSigOffer = null;
+            marketService.initialize(null);
+            directionService.initialize(null);
+            priceService.setPriceQuote(null);
+            paymentMethodService.reset();
+            throw e;
+        }
+    }
+
+    /**
+     * The payment step is skipped when both side specification lists contain exactly one payment
+     * method and exactly one eligible account exists for the taker-side method; the method and
+     * account are then applied automatically (specification.md, "Payment method", step bypass).
+     */
+    public boolean shouldShowPaymentStep() {
+        checkNotNull(muSigOffer, "shouldShowPaymentStep must not be called before initialize");
+        boolean isSinglePaymentMethod = muSigOffer.getBaseSidePaymentMethodSpecs().size() == 1
+                && muSigOffer.getQuoteSidePaymentMethodSpecs().size() == 1;
+        if (!isSinglePaymentMethod) {
+            return true;
+        }
+        PaymentMethod<?> takerSideMethod = paymentMethodService.getTakerSidePaymentMethodSpecs().get(0).getPaymentMethod();
+        List<Account<?, ?>> accounts = paymentMethodService.getAccountsByPaymentMethod().get(takerSideMethod);
+        return accounts == null || accounts.size() != 1;
+    }
+
+    public Optional<Account<?, ?>> getSelectedAccount() {
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selected = paymentMethodService.getSelectedAccountByPaymentMethod();
+        return selected.size() == 1
+                ? Optional.of(selected.values().iterator().next())
+                : Optional.empty();
+    }
+
+    public Optional<PaymentMethodSpec<?>> getSelectedPaymentMethodSpec() {
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selected = paymentMethodService.getSelectedAccountByPaymentMethod();
+        return selected.size() == 1
+                ? paymentMethodService.findTakerSidePaymentMethodSpec(selected.keySet().iterator().next())
+                : Optional.empty();
     }
 
     private static PriceQuote resolvePriceQuote(MuSigOffer offer, PriceQuote marketPriceQuote) {

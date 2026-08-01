@@ -1,5 +1,6 @@
 package bisq.offer.mu_sig.use_case.take_offer;
 
+import bisq.account.accounts.Account;
 import bisq.account.payment_method.BitcoinPaymentMethod;
 import bisq.account.payment_method.BitcoinPaymentRail;
 import bisq.account.payment_method.PaymentMethod;
@@ -32,8 +33,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -241,7 +244,128 @@ public class TakeOfferUseCaseTest {
                 new byte[20]);
     }
 
+    @Test
+    public void initializeLoadsEligibleAccountsAndPreselectsTheSingleAccount() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+
+        useCase.initialize(offer);
+
+        assertEquals(List.of(wiseAccount),
+                useCase.getPaymentMethodService().getAccountsByPaymentMethod().get(wiseMethod));
+        assertEquals(wiseAccount,
+                useCase.getPaymentMethodService().getSelectedAccountByPaymentMethod().get(wiseMethod));
+    }
+
+    @Test
+    public void singleMethodWithSingleEligibleAccountSkipsPaymentStepAndAppliesSelection() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+
+        useCase.initialize(offer);
+
+        assertFalse(useCase.shouldShowPaymentStep());
+        assertEquals(wiseAccount, useCase.getSelectedAccount().orElseThrow());
+        PaymentMethodSpec<?> selectedSpec = useCase.getSelectedPaymentMethodSpec().orElseThrow();
+        assertEquals(offer.getQuoteSidePaymentMethodSpecs().get(0), selectedSpec);
+    }
+
+    @Test
+    public void singleMethodWithoutEligibleAccountShowsPaymentStep() {
+        TakeOfferUseCase useCase = createUseCase(market -> List.of());
+        MuSigOffer offer = validOffer();
+
+        useCase.initialize(offer);
+
+        assertTrue(useCase.shouldShowPaymentStep());
+        assertTrue(useCase.getSelectedAccount().isEmpty());
+    }
+
+    @Test
+    public void multipleOfferedMethodsShowPaymentStepButPreselectTheSingleEligibleAccount() {
+        PaymentMethod<?> sepaMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SEPA);
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        List<PaymentMethodSpec<?>> twoMethods = List.of(specOf(wiseMethod), specOf(sepaMethod));
+        List<OfferOption> options = List.of(new CollateralOption(0.25, 0.25),
+                accountOption(wiseMethod), accountOption(sepaMethod));
+        when(offer.getQuoteSidePaymentMethodSpecs()).thenReturn(twoMethods);
+        when(offer.getOfferOptions()).thenReturn(options);
+
+        useCase.initialize(offer);
+
+        assertTrue(useCase.shouldShowPaymentStep());
+        assertEquals(wiseAccount, useCase.getSelectedAccount().orElseThrow());
+    }
+
+    @Test
+    public void reinitializationDoesNotKeepAStalePreselection() {
+        PaymentMethod<?> sepaMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SEPA);
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> sepaAccount = accountFor(sepaMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, sepaAccount));
+        MuSigOffer offerWithOneMethod = validOffer();
+        useCase.initialize(offerWithOneMethod);
+        assertEquals(wiseAccount, useCase.getSelectedAccount().orElseThrow());
+
+        MuSigOffer offerWithTwoMethods = validOffer();
+        List<PaymentMethodSpec<?>> twoMethods = List.of(specOf(wiseMethod), specOf(sepaMethod));
+        List<OfferOption> options = List.of(new CollateralOption(0.25, 0.25),
+                accountOption(wiseMethod), accountOption(sepaMethod));
+        when(offerWithTwoMethods.getQuoteSidePaymentMethodSpecs()).thenReturn(twoMethods);
+        when(offerWithTwoMethods.getOfferOptions()).thenReturn(options);
+
+        useCase.initialize(offerWithTwoMethods);
+
+        assertTrue(useCase.getSelectedAccount().isEmpty());
+    }
+
+    @Test
+    public void rejectedReinitializationResetsPreviousState() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        useCase.initialize(validOffer());
+        assertEquals(wiseAccount, useCase.getSelectedAccount().orElseThrow());
+
+        MuSigOffer rejectedOffer = validOffer();
+        when(rejectedOffer.getProtocolTypes()).thenReturn(List.of(TradeProtocolType.BISQ_EASY));
+
+        assertRejected(useCase, rejectedOffer, Reason.PROTOCOL_TYPE_NOT_SUPPORTED);
+
+        assertTrue(useCase.getSelectedAccount().isEmpty());
+        assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
+        assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
+        assertNull(useCase.getPriceService().getPriceQuote());
+    }
+
+    @Test
+    public void rejectedInitializationLeavesNoPaymentState() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.empty());
+        MuSigOffer offer = validOffer();
+
+        assertRejected(useCase, offer, Reason.NO_MARKET_PRICE);
+
+        assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
+        assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Account<?, ?> accountFor(PaymentMethod<?> paymentMethod) {
+        Account account = mock(Account.class);
+        when(account.getPaymentMethod()).thenReturn(paymentMethod);
+        return account;
+    }
+
     private TakeOfferUseCase createUseCase() {
+        return createUseCase(market -> List.of());
+    }
+
+    private TakeOfferUseCase createUseCase(bisq.offer.mu_sig.use_case.dependencies.AccountsProvider accountsProvider) {
         MarketPrice marketPrice = mock(MarketPrice.class);
         when(marketPrice.getPriceQuote()).thenReturn(marketPriceQuote);
         when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(marketPrice));
@@ -250,7 +374,7 @@ public class TakeOfferUseCaseTest {
         return new TakeOfferUseCase(marketPriceService,
                 identityService,
                 mock(TakeOfferDraftCookieStore.class),
-                market -> List.of());
+                accountsProvider);
     }
 
     private MuSigOffer validOffer() {
@@ -280,6 +404,8 @@ public class TakeOfferUseCaseTest {
     private static OfferOption accountOption(PaymentMethod<?> paymentMethod) {
         AccountOption accountOption = mock(AccountOption.class);
         when(accountOption.getPaymentMethod()).thenAnswer(invocation -> paymentMethod);
+        when(accountOption.getAcceptedCountryCodes()).thenReturn(List.of());
+        when(accountOption.getAcceptedBanks()).thenReturn(List.of());
         return accountOption;
     }
 

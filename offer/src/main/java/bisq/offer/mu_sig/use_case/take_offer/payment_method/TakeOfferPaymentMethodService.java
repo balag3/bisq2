@@ -19,8 +19,9 @@ package bisq.offer.mu_sig.use_case.take_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
+import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.account.payment_method.PaymentRail;
-import bisq.common.market.Market;
+import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccountSelection;
 import com.google.common.collect.ImmutableMap;
@@ -102,11 +103,6 @@ public class TakeOfferPaymentMethodService {
         removeSelectedAccountByPaymentMethod(paymentMethod, true);
     }
 
-    public void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        checkNotNull(selectedAccountByPaymentMethod, "selectedAccountByPaymentMethod must not be null");
-        putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod, true);
-    }
-
     public void clearSelectedAccountByPaymentMethod() {
         clearSelectedAccountByPaymentMethod(true);
     }
@@ -133,8 +129,12 @@ public class TakeOfferPaymentMethodService {
     // Package scope helpers used by workflow/state engine callbacks
     /* --------------------------------------------------------------------- */
 
-    public void updatePaymentMethods(Market market) {
-        MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForMarket(market);
+    public void updatePaymentMethods(MuSigOffer offer) {
+        // Called once per take process at initialization; selection state from a previous
+        // offer must not survive into a new one.
+        clearSelectedAccountByPaymentMethod(false);
+        model.setTakerSidePaymentMethodSpecs(getTakerSidePaymentMethodSpecs(offer));
+        MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForOffer(offer);
         List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
         Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
         if (!getAccountsByPaymentMethod().equals(map)) {
@@ -165,6 +165,19 @@ public class TakeOfferPaymentMethodService {
         }
     }
 
+
+    private static List<PaymentMethodSpec<?>> getTakerSidePaymentMethodSpecs(MuSigOffer offer) {
+        return offer.getMarket().isBaseCurrencyBitcoin()
+                ? offer.getQuoteSidePaymentMethodSpecs()
+                : offer.getBaseSidePaymentMethodSpecs();
+    }
+
+    public void reset() {
+        model.setTakerSidePaymentMethodSpecs(List.of());
+        clearAccountsByPaymentMethod();
+        clearSelectedAccountByPaymentMethod(false);
+    }
+
     public PaymentRail getSelectedPaymentRail() {
         return paymentMethodSelectionService.findMostRestrictiveSelectedPaymentRail(getSelectedAccountByPaymentMethod());
     }
@@ -172,10 +185,12 @@ public class TakeOfferPaymentMethodService {
     private boolean putSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod,
                                                       Account<?, ?> account,
                                                       boolean recalculateTradeAmountConstraints) {
-        Account<?, ?> existing = getSelectedAccountByPaymentMethod().get(paymentMethod);
-        if (account.equals(existing)) {
+        // The take flow holds at most one selection, enforced here so every caller inherits it.
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> existing = getSelectedAccountByPaymentMethod();
+        if (existing.size() == 1 && account.equals(existing.get(paymentMethod))) {
             return false;
         }
+        model.clearSelectedAccountByPaymentMethod();
         model.putSelectedAccountByPaymentMethod(paymentMethod, account);
         if (recalculateTradeAmountConstraints) {
         }
@@ -188,23 +203,6 @@ public class TakeOfferPaymentMethodService {
             return false;
         }
         model.removeSelectedAccountByPaymentMethod(paymentMethod);
-        if (recalculateTradeAmountConstraints) {
-        }
-        return true;
-    }
-
-    private boolean putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod,
-                                                         boolean recalculateTradeAmountConstraints) {
-        if (selectedAccountByPaymentMethod.isEmpty()) {
-            return clearSelectedAccountByPaymentMethod(recalculateTradeAmountConstraints);
-        }
-        ImmutableMap<PaymentMethod<?>, Account<?, ?>> existing = getSelectedAccountByPaymentMethod();
-        boolean changed = selectedAccountByPaymentMethod.entrySet().stream()
-                .anyMatch(entry -> !entry.getValue().equals(existing.get(entry.getKey())));
-        if (!changed) {
-            return false;
-        }
-        model.putAllSelectedAccountByPaymentMethod(selectedAccountByPaymentMethod);
         if (recalculateTradeAmountConstraints) {
         }
         return true;

@@ -19,18 +19,49 @@ package bisq.offer.mu_sig.use_case.take_offer.payment_method;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
+import bisq.account.payment_method.PaymentMethodSpec;
+import bisq.common.observable.collection.ObservableArray;
+import bisq.common.observable.collection.ReadOnlyObservableArray;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.common.observable.map.ReadOnlyObservableMap;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOnlyModel {
     protected final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
     protected final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = new ObservableHashMap<>();
 
+    protected final ObservableArray<PaymentMethodSpec<?>> takerSidePaymentMethodSpecs = new ObservableArray<>();
+
     public TakeOfferPaymentMethodModel() {
+    }
+
+    /* --------------------------------------------------------------------- */
+    // takerSidePaymentMethodSpecs
+    /* --------------------------------------------------------------------- */
+
+    void setTakerSidePaymentMethodSpecs(List<PaymentMethodSpec<?>> specs) {
+        takerSidePaymentMethodSpecs.setAll(specs);
+    }
+
+    @Override
+    public ReadOnlyObservableArray<PaymentMethodSpec<?>> takerSidePaymentMethodSpecsObservable() {
+        return takerSidePaymentMethodSpecs;
+    }
+
+    @Override
+    public List<PaymentMethodSpec<?>> getTakerSidePaymentMethodSpecs() {
+        return List.copyOf(takerSidePaymentMethodSpecs);
+    }
+
+    @Override
+    public Optional<PaymentMethodSpec<?>> findTakerSidePaymentMethodSpec(PaymentMethod<?> paymentMethod) {
+        return takerSidePaymentMethodSpecs.stream()
+                .filter(spec -> spec.getPaymentMethod().equals(paymentMethod))
+                .findFirst();
     }
 
     /* --------------------------------------------------------------------- */
@@ -77,10 +108,6 @@ public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOn
 
     void removeSelectedAccountByPaymentMethod(PaymentMethod<?> paymentMethod) {
         selectedAccountByPaymentMethod.remove(paymentMethod);
-    }
-
-    void putAllSelectedAccountByPaymentMethod(Map<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod) {
-        this.selectedAccountByPaymentMethod.putAll(selectedAccountByPaymentMethod);
     }
 
     @Override

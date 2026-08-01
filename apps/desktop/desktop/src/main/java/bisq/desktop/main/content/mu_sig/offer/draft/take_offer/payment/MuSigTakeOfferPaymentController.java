@@ -17,12 +17,10 @@
 
 package bisq.desktop.main.content.mu_sig.offer.draft.take_offer.payment;
 
-import bisq.account.AccountService;
+import com.google.common.collect.ImmutableMap;
 import bisq.account.accounts.Account;
-import bisq.account.accounts.fiat.UserDefinedFiatAccount;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
-import bisq.account.payment_method.PaymentMethodSpecUtil;
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
 import bisq.desktop.ServiceProvider;
@@ -59,7 +57,6 @@ public class MuSigTakeOfferPaymentController implements Controller {
     private final MuSigTakeOfferPaymentModel model;
     @Getter
     private final MuSigTakeOfferPaymentView view;
-    private final AccountService accountService;
     private final TakeOfferPaymentMethodService takeOfferPaymentMethodService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private Subscription paymentMethodWithoutAccountPin, paymentMethodWithMultipleAccountsPin;
@@ -71,7 +68,6 @@ public class MuSigTakeOfferPaymentController implements Controller {
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
         takeOfferPaymentMethodService = takeOfferService.getPaymentMethodService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
-        accountService = serviceProvider.getAccountService();
 
         model = new MuSigTakeOfferPaymentModel();
         view = new MuSigTakeOfferPaymentView(model, this);
@@ -89,14 +85,8 @@ public class MuSigTakeOfferPaymentController implements Controller {
         Direction takersDisplayDirection = muSigOffer.getTakersDisplayDirection();
         model.setHeadline(getPaymentMethodsHeadline(takersDisplayDirection.isBuy()));
 
-        Map<? extends PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = accountService.getAccounts().stream()
-                .filter(account -> !(account instanceof UserDefinedFiatAccount))
-                .filter(account ->
-                        account.getAccountPayload().getSelectedCurrencyCodes().contains(model.getPaymentMethodCurrencyCode()))
-                .collect(Collectors.groupingBy(
-                        Account::getPaymentMethod,
-                        Collectors.toList()
-                ));
+        Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod =
+                takeOfferPaymentMethodService.getAccountsByPaymentMethod();
         model.getAccountsByPaymentMethod().putAll(accountsByPaymentMethod);
 
         List<PaymentMethodSpec<?>> offeredPaymentMethodSpecs = market.isBaseCurrencyBitcoin()
@@ -106,10 +96,9 @@ public class MuSigTakeOfferPaymentController implements Controller {
         model.setSinglePaymentMethod(isSinglePaymentMethod);
         if (isSinglePaymentMethod) {
             PaymentMethod<?> paymentMethod = offeredPaymentMethodSpecs.get(0).getPaymentMethod();
-            model.getSelectedPaymentMethodSpec().set(PaymentMethodSpecUtil.createPaymentMethodSpec(paymentMethod, model.getPaymentMethodCurrencyCode()));
+            model.getSelectedPaymentMethodSpec().set(takeOfferPaymentMethodService.findTakerSidePaymentMethodSpec(paymentMethod).orElseThrow());
 
-            List<Account<?, ?>> accountsForPaymentMethod = accountsByPaymentMethod.get(paymentMethod);
-            checkNotNull(accountsForPaymentMethod, "There must be a account list for paymentMethod " + paymentMethod);
+            List<Account<?, ?>> accountsForPaymentMethod = accountsByPaymentMethod.getOrDefault(paymentMethod, List.of());
             model.getAccountsForPaymentMethod().setAll(accountsForPaymentMethod);
 
             model.setSubtitle(Res.get("muSig.offer.taker.payment.subtitle.account", paymentMethod.getShortDisplayString()));
@@ -123,6 +112,18 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 .map(spec -> (PaymentMethod<?>) spec.getPaymentMethod())
                 .collect(Collectors.toList());
         model.getOfferedPaymentMethods().setAll(offeredPaymentMethods);
+
+        // Seed the preselection applied by the use case (exactly one eligible account in total).
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedByMethod =
+                takeOfferPaymentMethodService.getSelectedAccountByPaymentMethod();
+        if (selectedByMethod.size() == 1) {
+            PaymentMethod<?> selectedMethod = selectedByMethod.keySet().iterator().next();
+            takeOfferPaymentMethodService.findTakerSidePaymentMethodSpec(selectedMethod)
+                    .ifPresent(spec -> {
+                        model.getSelectedPaymentMethodSpec().set(spec);
+                        model.getSelectedAccount().set(selectedByMethod.get(selectedMethod));
+                    });
+        }
     }
 
     public ReadOnlyObjectProperty<Account<?, ?>> getSelectedAccount() {
@@ -136,7 +137,15 @@ public class MuSigTakeOfferPaymentController implements Controller {
     public boolean validate() {
         if (model.getSelectedAccount().get() == null) {
             navigationButtonsVisibleHandler.accept(false);
-            model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
+            if (model.isSinglePaymentMethod() && model.getAccountsForPaymentMethod().isEmpty()) {
+                // Single-method offers have no chip grid, so Next must lead back to the
+                // account-creation prompt instead of the generic no-selection overlay.
+                takeOfferPaymentMethodService.getTakerSidePaymentMethodSpecs().stream()
+                        .findFirst()
+                        .ifPresent(spec -> model.getPaymentMethodWithoutAccount().set(spec.getPaymentMethod()));
+            } else {
+                model.getShouldShowNoPaymentMethodSelectedOverlay().set(true);
+            }
             return false;
         }
 
@@ -172,11 +181,24 @@ public class MuSigTakeOfferPaymentController implements Controller {
                     }
                 });
 
+        // A single-method offer without an eligible account has no chip grid to click, so the
+        // create-account prompt must open directly (specification.md, "Payment method": the
+        // prompt applies in every path, including a single-method offer without accounts).
+        if (model.isSinglePaymentMethod() && model.getAccountsForPaymentMethod().isEmpty()) {
+            PaymentMethodSpec<?> selectedSpec = model.getSelectedPaymentMethodSpec().get();
+            if (selectedSpec != null) {
+                model.getPaymentMethodWithoutAccount().set(selectedSpec.getPaymentMethod());
+            }
+        }
+
+        // Deselection clears the service state explicitly in the handlers; a null here must not
+        // erase the preselection the use case applied before this controller activates.
         subscriptions.add(EasyBind.subscribe(model.getSelectedAccount(), selectedAccount -> {
             if (selectedAccount != null) {
-                takeOfferPaymentMethodService.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
-            } else {
+                // The take flow holds at most one selection; clear before put so switching
+                // methods cannot accumulate entries in the service state.
                 takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
+                takeOfferPaymentMethodService.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
             }
         }));
     }
@@ -200,7 +222,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
         }
         if (isSelected) {
             if (model.getAccountsByPaymentMethod().containsKey(paymentMethod)) {
-                model.getSelectedPaymentMethodSpec().set(PaymentMethodSpecUtil.createPaymentMethodSpec(paymentMethod, model.getPaymentMethodCurrencyCode()));
+                model.getSelectedPaymentMethodSpec().set(takeOfferPaymentMethodService.findTakerSidePaymentMethodSpec(paymentMethod).orElseThrow());
                 List<Account<?, ?>> accountsForPaymentMethod = model.getAccountsByPaymentMethod().get(paymentMethod);
                 checkArgument(!accountsForPaymentMethod.isEmpty());
 
@@ -211,6 +233,11 @@ public class MuSigTakeOfferPaymentController implements Controller {
                     model.getPaymentMethodWithMultipleAccounts().set(paymentMethod);
                 }
             } else {
+                // Selecting a method without an eligible account must drop any previous
+                // selection, else Next could proceed with the previously selected method.
+                model.getSelectedAccount().set(null);
+                model.getSelectedPaymentMethodSpec().set(null);
+                takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
                 model.getPaymentMethodWithoutAccount().set(paymentMethod);
             }
         } else {
@@ -218,6 +245,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
             model.getSelectedAccount().set(null);
             model.getSelectedPaymentMethodSpec().set(null);
             model.getToggleGroup().selectToggle(null);
+            takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
         }
     }
 
@@ -235,6 +263,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
         model.getSelectedPaymentMethodSpec().set(null);
         model.getSelectedAccount().set(null);
         model.getToggleGroup().selectToggle(null);
+        takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
         updateShouldShowMultipleAccountsOverlay(false);
     }
 
