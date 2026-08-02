@@ -22,7 +22,6 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.account.payment_method.PaymentRail;
 import bisq.offer.mu_sig.MuSigOffer;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccountSelection;
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
@@ -134,9 +133,12 @@ public class TakeOfferPaymentMethodService {
         // offer must not survive into a new one.
         clearSelectedAccountByPaymentMethod(false);
         model.setTakerSidePaymentMethodSpecs(getTakerSidePaymentMethodSpecs(offer));
-        MarketAccounts marketAccounts = paymentMethodSelectionService.loadAccountsForOffer(offer);
-        List<Account<?, ?>> accountsForMarket = marketAccounts.accountsForMarket();
-        Map<PaymentMethod<?>, List<Account<?, ?>>> map = marketAccounts.accountsByPaymentMethod();
+        OfferAccounts offerAccounts = paymentMethodSelectionService.loadAccountsForOffer(offer);
+        List<Account<?, ?>> accountsForMarket = offerAccounts.accountsForMarket();
+        Map<PaymentMethod<?>, List<Account<?, ?>>> map = offerAccounts.accountsByPaymentMethod();
+        // Refreshed unconditionally: two offers can both yield zero eligible accounts (equal maps)
+        // while restricting differently, so the reasons must never survive an update.
+        model.setIncompatibleAccountsByPaymentMethod(offerAccounts.incompatibleAccountsByPaymentMethod());
         if (!getAccountsByPaymentMethod().equals(map)) {
             clearAccountsByPaymentMethod();
             putAllAccountsByPaymentMethod(map);
@@ -174,6 +176,7 @@ public class TakeOfferPaymentMethodService {
 
     public void reset() {
         model.setTakerSidePaymentMethodSpecs(List.of());
+        model.setIncompatibleAccountsByPaymentMethod(Map.of());
         clearAccountsByPaymentMethod();
         clearSelectedAccountByPaymentMethod(false);
     }

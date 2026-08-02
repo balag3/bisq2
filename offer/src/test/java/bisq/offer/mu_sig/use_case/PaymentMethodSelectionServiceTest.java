@@ -6,6 +6,8 @@ import bisq.account.accounts.fiat.BankAccountPayload;
 import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.common.locale.Country;
 import bisq.offer.mu_sig.MuSigOffer;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.AccountCompatibilityMismatch;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.OfferAccounts;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.OfferOption;
 import bisq.account.payment_method.PaymentMethod;
@@ -94,7 +96,7 @@ public class PaymentMethodSelectionServiceTest {
                 List.of(accountOption(wiseMethod, List.of(), List.of()),
                         accountOption(sepaMethod, List.of("DE"), List.of())));
 
-        MarketAccounts marketAccounts = service.loadAccountsForOffer(offer);
+        OfferAccounts marketAccounts = service.loadAccountsForOffer(offer);
 
         assertEquals(List.of(wiseAccount, sepaAccountDe), marketAccounts.accountsForMarket());
         assertEquals(List.of(wiseAccount), marketAccounts.accountsByPaymentMethod().get(wiseMethod));
@@ -153,6 +155,85 @@ public class PaymentMethodSelectionServiceTest {
                         accountOption(achMethod, List.of(), List.of())));
 
         assertTrue(service.loadAccountsForOffer(offer).accountsForMarket().isEmpty());
+    }
+
+    @Test
+    public void incompatibleAccountsAreRecordedWithTheirMismatch() {
+        Market market = MarketRepository.getUSDBitcoinMarket();
+        PaymentMethod<?> sepaMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SEPA);
+        Account<?, ?> sepaAccountFr = createCountryAccount(sepaMethod, "FR");
+
+        FakeAccountsProvider accountsProvider = new FakeAccountsProvider();
+        accountsProvider.put(market, List.of(sepaAccountFr));
+        PaymentMethodSelectionService service = new PaymentMethodSelectionService(accountsProvider);
+
+        MuSigOffer offer = offerWith(market,
+                List.of(specOf(sepaMethod)),
+                List.of(accountOption(sepaMethod, List.of("DE"), List.of())));
+
+        OfferAccounts offerAccounts = service.loadAccountsForOffer(offer);
+
+        assertTrue(offerAccounts.accountsForMarket().isEmpty());
+        List<AccountCompatibilityMismatch> mismatches =
+                offerAccounts.incompatibleAccountsByPaymentMethod().get(sepaMethod);
+        assertEquals(1, mismatches.size());
+        AccountCompatibilityMismatch mismatch = mismatches.get(0);
+        assertSame(sepaAccountFr, mismatch.account());
+        assertEquals(AccountCompatibilityMismatch.Dimension.COUNTRY, mismatch.dimension());
+        assertEquals("FR", mismatch.accountValue().orElseThrow());
+        assertEquals(List.of("DE"), mismatch.acceptedValues());
+    }
+
+    @Test
+    public void bankMismatchAndMissingValueAreRecorded() {
+        Market market = MarketRepository.getUSDBitcoinMarket();
+        PaymentMethod<?> bankMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.NATIONAL_BANK);
+        Account<?, ?> raikaAccount = createBankAccount(bankMethod, "Raika");
+        Account<?, ?> accountWithoutBank = createAccount(bankMethod);
+
+        FakeAccountsProvider accountsProvider = new FakeAccountsProvider();
+        accountsProvider.put(market, List.of(raikaAccount, accountWithoutBank));
+        PaymentMethodSelectionService service = new PaymentMethodSelectionService(accountsProvider);
+
+        MuSigOffer offer = offerWith(market,
+                List.of(specOf(bankMethod)),
+                List.of(accountOption(bankMethod, List.of(), List.of("PSK"))));
+
+        List<AccountCompatibilityMismatch> mismatches =
+                service.loadAccountsForOffer(offer).incompatibleAccountsByPaymentMethod().get(bankMethod);
+        assertEquals(2, mismatches.size());
+        AccountCompatibilityMismatch raikaMismatch = mismatches.get(0);
+        assertSame(raikaAccount, raikaMismatch.account());
+        assertEquals(AccountCompatibilityMismatch.Dimension.BANK, raikaMismatch.dimension());
+        assertEquals("Raika", raikaMismatch.accountValue().orElseThrow());
+        assertEquals(List.of("PSK"), raikaMismatch.acceptedValues());
+        AccountCompatibilityMismatch missingBankMismatch = mismatches.get(1);
+        assertSame(accountWithoutBank, missingBankMismatch.account());
+        assertEquals(AccountCompatibilityMismatch.Dimension.BANK, missingBankMismatch.dimension());
+        assertTrue(missingBankMismatch.accountValue().isEmpty());
+        assertEquals(List.of("PSK"), missingBankMismatch.acceptedValues());
+    }
+
+    @Test
+    public void compatibleAndNonOfferedAccountsRecordNoMismatch() {
+        Market market = MarketRepository.getUSDBitcoinMarket();
+        PaymentMethod<?> wiseMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.WISE);
+        PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
+        Account<?, ?> wiseAccount = createAccount(wiseMethod);
+        Account<?, ?> achAccount = createAccount(achMethod);
+
+        FakeAccountsProvider accountsProvider = new FakeAccountsProvider();
+        accountsProvider.put(market, List.of(wiseAccount, achAccount));
+        PaymentMethodSelectionService service = new PaymentMethodSelectionService(accountsProvider);
+
+        MuSigOffer offer = offerWith(market,
+                List.of(specOf(wiseMethod)),
+                List.of(accountOption(wiseMethod, List.of(), List.of())));
+
+        OfferAccounts offerAccounts = service.loadAccountsForOffer(offer);
+
+        assertEquals(List.of(wiseAccount), offerAccounts.accountsForMarket());
+        assertTrue(offerAccounts.incompatibleAccountsByPaymentMethod().isEmpty());
     }
 
     private static MuSigOffer offerWith(Market market,

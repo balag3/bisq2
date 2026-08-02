@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
+import bisq.common.locale.CountryRepository;
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
 import bisq.desktop.ServiceProvider;
@@ -33,6 +34,7 @@ import bisq.i18n.Res;
 import bisq.offer.Direction;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
+import bisq.offer.mu_sig.use_case.take_offer.payment_method.AccountCompatibilityMismatch;
 import bisq.offer.mu_sig.use_case.take_offer.payment_method.TakeOfferPaymentMethodService;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.scene.input.KeyEvent;
@@ -166,9 +168,8 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 model.getNoAccountOverlayHeadlineText().set(
                         Res.get("muSig.offer.taker.payment.noAccountOverlay.title",
                                 paymentMethod.getShortDisplayString()));
+                model.getNoAccountOverlayReasonText().set(buildNoAccountReason(paymentMethod));
                 updateShouldShowNoAccountOverlay(true);
-
-
             }
         });
         paymentMethodWithMultipleAccountsPin = EasyBind.subscribe(model.getPaymentMethodWithMultipleAccounts(),
@@ -313,6 +314,42 @@ public class MuSigTakeOfferPaymentController implements Controller {
     private void updateShouldShowMultipleAccountsOverlay(boolean shouldShow) {
         navigationButtonsVisibleHandler.accept(!shouldShow);
         model.getShouldShowMultipleAccountsOverlay().set(shouldShow);
+    }
+
+    // The taker has accounts for the method but none passed the offer's AccountOption
+    // restrictions; explain the first mismatch so the prompt is actionable. Deterministic
+    // pick: alphabetically first account name, country mismatch before bank.
+    private String buildNoAccountReason(PaymentMethod<?> paymentMethod) {
+        List<AccountCompatibilityMismatch> mismatches =
+                takeOfferPaymentMethodService.getIncompatibleAccountsByPaymentMethod().get(paymentMethod);
+        if (mismatches == null || mismatches.isEmpty()) {
+            return "";
+        }
+        AccountCompatibilityMismatch mismatch = mismatches.stream()
+                .min(Comparator.<AccountCompatibilityMismatch, String>comparing(m -> m.account().getAccountName())
+                        .thenComparing(m -> m.dimension().ordinal()))
+                .orElseThrow();
+        String methodName = paymentMethod.getShortDisplayString();
+        return switch (mismatch.dimension()) {
+            case COUNTRY -> {
+                String acceptedCountries = mismatch.acceptedValues().stream()
+                        .map(CountryRepository::getNameByCode)
+                        .collect(Collectors.joining(", "));
+                yield mismatch.accountValue()
+                        .map(countryCode -> Res.get("muSig.offer.taker.payment.noAccountOverlay.reason.country",
+                                acceptedCountries, methodName, CountryRepository.getNameByCode(countryCode)))
+                        .orElseGet(() -> Res.get("muSig.offer.taker.payment.noAccountOverlay.reason.country.missing",
+                                acceptedCountries, methodName));
+            }
+            case BANK -> {
+                String acceptedBanks = String.join(", ", mismatch.acceptedValues());
+                yield mismatch.accountValue()
+                        .map(bankId -> Res.get("muSig.offer.taker.payment.noAccountOverlay.reason.bank",
+                                acceptedBanks, methodName, bankId))
+                        .orElseGet(() -> Res.get("muSig.offer.taker.payment.noAccountOverlay.reason.bank.missing",
+                                acceptedBanks, methodName));
+            }
+        };
     }
 
     private String getPaymentMethodsHeadline(boolean isBuyer) {

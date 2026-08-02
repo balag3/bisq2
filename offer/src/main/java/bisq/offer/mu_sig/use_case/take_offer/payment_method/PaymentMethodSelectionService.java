@@ -26,13 +26,14 @@ import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.OfferOptionUtil;
 import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
-import bisq.offer.mu_sig.use_case.create_offer.payment_method.MarketAccounts;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccountSelection;
 import bisq.offer.mu_sig.use_case.dependencies.AccountsProvider;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -57,7 +58,7 @@ public class PaymentMethodSelectionService {
     // Account loading and grouping
     /* --------------------------------------------------------------------- */
 
-    public MarketAccounts loadAccountsForOffer(MuSigOffer offer) {
+    public OfferAccounts loadAccountsForOffer(MuSigOffer offer) {
         checkNotNull(offer, "offer must not be null");
         List<Account<?, ?>> accountsForMarket = checkNotNull(accountsProvider.findAccountsForMarket(offer.getMarket()),
                 "accountsForMarket must not be null");
@@ -73,39 +74,56 @@ public class PaymentMethodSelectionService {
                 .collect(Collectors.toSet());
         // The trust-boundary validation rejects AccountOptions for non-offered methods; the
         // offered-method check here keeps this service safe also for unvalidated input.
-        List<Account<?, ?>> eligibleAccounts = accountsForMarket.stream()
-                .filter(account -> {
-                    if (!offeredPaymentMethods.contains(account.getPaymentMethod())) {
-                        return false;
-                    }
-                    AccountOption accountOption = accountOptionByPaymentMethod.get(account.getPaymentMethod());
-                    return accountOption != null && isCompatible(account, accountOption);
-                })
-                .toList();
+        List<Account<?, ?>> eligibleAccounts = new ArrayList<>();
+        Map<PaymentMethod<?>, List<AccountCompatibilityMismatch>> incompatibleAccountsByPaymentMethod = new HashMap<>();
+        for (Account<?, ?> account : accountsForMarket) {
+            if (!offeredPaymentMethods.contains(account.getPaymentMethod())) {
+                continue;
+            }
+            AccountOption accountOption = accountOptionByPaymentMethod.get(account.getPaymentMethod());
+            if (accountOption == null) {
+                continue;
+            }
+            List<AccountCompatibilityMismatch> mismatches = findIncompatibilities(account, accountOption);
+            if (mismatches.isEmpty()) {
+                eligibleAccounts.add(account);
+            } else {
+                incompatibleAccountsByPaymentMethod
+                        .computeIfAbsent(account.getPaymentMethod(), key -> new ArrayList<>())
+                        .addAll(mismatches);
+            }
+        }
         Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = eligibleAccounts.stream()
                 .collect(Collectors.groupingBy(Account::getPaymentMethod, Collectors.toList()));
-        return new MarketAccounts(eligibleAccounts, accountsByPaymentMethod);
+        return new OfferAccounts(List.copyOf(eligibleAccounts), accountsByPaymentMethod, incompatibleAccountsByPaymentMethod);
     }
 
     // A compatibility dimension applies only when the offer's AccountOption carries entries for
     // it; an empty list imposes no restriction (non-country and non-bank payment methods store
     // empty lists by construction).
-    static boolean isCompatible(Account<?, ?> account, AccountOption accountOption) {
+    static List<AccountCompatibilityMismatch> findIncompatibilities(Account<?, ?> account, AccountOption accountOption) {
+        List<AccountCompatibilityMismatch> mismatches = new ArrayList<>();
         List<String> acceptedCountryCodes = accountOption.getAcceptedCountryCodes();
         if (!acceptedCountryCodes.isEmpty()) {
             Optional<String> countryCode = AccountUtils.getCountryCode(account.getAccountPayload());
             if (countryCode.isEmpty() || !acceptedCountryCodes.contains(countryCode.get())) {
-                return false;
+                mismatches.add(new AccountCompatibilityMismatch(account,
+                        AccountCompatibilityMismatch.Dimension.COUNTRY,
+                        countryCode,
+                        acceptedCountryCodes));
             }
         }
         List<String> acceptedBanks = accountOption.getAcceptedBanks();
         if (!acceptedBanks.isEmpty()) {
             Optional<String> bankId = AccountUtils.getBankId(account.getAccountPayload());
             if (bankId.isEmpty() || !acceptedBanks.contains(bankId.get())) {
-                return false;
+                mismatches.add(new AccountCompatibilityMismatch(account,
+                        AccountCompatibilityMismatch.Dimension.BANK,
+                        bankId,
+                        acceptedBanks));
             }
         }
-        return true;
+        return mismatches;
     }
 
     /* --------------------------------------------------------------------- */

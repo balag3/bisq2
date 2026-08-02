@@ -34,6 +34,10 @@ public interface TakeOfferPaymentMethodReadOnlyModel {
 
     Optional<PaymentMethodSpec<?>> findTakerSidePaymentMethodSpec(PaymentMethod<?> paymentMethod);
 
+    ReadOnlyObservableMap<PaymentMethod<?>, List<AccountCompatibilityMismatch>> incompatibleAccountsByPaymentMethodObservable();
+
+    ImmutableMap<PaymentMethod<?>, List<AccountCompatibilityMismatch>> getIncompatibleAccountsByPaymentMethod();
+
 
     ReadOnlyObservableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethodObservable();
 

@@ -1,6 +1,7 @@
 package bisq.offer.mu_sig.use_case.take_offer;
 
 import bisq.account.accounts.Account;
+import bisq.account.accounts.fiat.CountryBasedAccountPayload;
 import bisq.account.payment_method.BitcoinPaymentMethod;
 import bisq.account.payment_method.BitcoinPaymentRail;
 import bisq.account.payment_method.PaymentMethod;
@@ -10,6 +11,7 @@ import bisq.account.payment_method.fiat.FiatPaymentRail;
 import bisq.account.protocol_type.TradeProtocolType;
 import bisq.bonded_roles.market_price.MarketPrice;
 import bisq.bonded_roles.market_price.MarketPriceService;
+import bisq.common.locale.Country;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.PriceQuote;
@@ -341,10 +343,20 @@ public class TakeOfferUseCaseTest {
 
     @Test
     public void rejectedReinitializationResetsPreviousState() {
+        PaymentMethod<?> sepaMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.SEPA);
         Account<?, ?> wiseAccount = accountFor(wiseMethod);
-        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
-        useCase.initialize(validOffer());
+        Account<?, ?> sepaAccountFr = countryAccountFor(sepaMethod, "FR");
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, sepaAccountFr));
+
+        MuSigOffer offer = validOffer();
+        List<PaymentMethodSpec<?>> twoMethods = List.of(specOf(wiseMethod), specOf(sepaMethod));
+        List<OfferOption> options = List.of(new CollateralOption(0.25, 0.25),
+                accountOption(wiseMethod), accountOption(sepaMethod, List.of("DE")));
+        when(offer.getQuoteSidePaymentMethodSpecs()).thenReturn(twoMethods);
+        when(offer.getOfferOptions()).thenReturn(options);
+        useCase.initialize(offer);
         assertEquals(wiseAccount, useCase.getSelectedAccount().orElseThrow());
+        assertFalse(useCase.getPaymentMethodService().getIncompatibleAccountsByPaymentMethod().isEmpty());
 
         MuSigOffer rejectedOffer = validOffer();
         when(rejectedOffer.getProtocolTypes()).thenReturn(List.of(TradeProtocolType.BISQ_EASY));
@@ -354,6 +366,7 @@ public class TakeOfferUseCaseTest {
         assertTrue(useCase.getSelectedAccount().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
+        assertTrue(useCase.getPaymentMethodService().getIncompatibleAccountsByPaymentMethod().isEmpty());
         assertNull(useCase.getPriceService().getPriceQuote());
         assertNull(useCase.getPriceService().getPriceDeviation());
 
@@ -373,6 +386,7 @@ public class TakeOfferUseCaseTest {
 
         assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
+        assertTrue(useCase.getPaymentMethodService().getIncompatibleAccountsByPaymentMethod().isEmpty());
     }
 
     @Test
@@ -481,11 +495,27 @@ public class TakeOfferUseCaseTest {
     }
 
     private static OfferOption accountOption(PaymentMethod<?> paymentMethod) {
+        return accountOption(paymentMethod, List.of());
+    }
+
+    private static OfferOption accountOption(PaymentMethod<?> paymentMethod, List<String> acceptedCountryCodes) {
         AccountOption accountOption = mock(AccountOption.class);
         when(accountOption.getPaymentMethod()).thenAnswer(invocation -> paymentMethod);
-        when(accountOption.getAcceptedCountryCodes()).thenReturn(List.of());
+        when(accountOption.getAcceptedCountryCodes()).thenReturn(acceptedCountryCodes);
         when(accountOption.getAcceptedBanks()).thenReturn(List.of());
         return accountOption;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Account<?, ?> countryAccountFor(PaymentMethod<?> paymentMethod, String countryCode) {
+        Country country = mock(Country.class);
+        when(country.getCode()).thenReturn(countryCode);
+        CountryBasedAccountPayload payload = mock(CountryBasedAccountPayload.class);
+        when(payload.getCountry()).thenReturn(country);
+        Account account = mock(Account.class);
+        when(account.getPaymentMethod()).thenReturn(paymentMethod);
+        when(account.getAccountPayload()).thenAnswer(invocation -> payload);
+        return account;
     }
 
     private static void assertRejected(TakeOfferUseCase useCase, MuSigOffer offer, Reason expectedReason) {

@@ -50,7 +50,7 @@ import java.util.Optional;
 @Slf4j
 public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPaymentModel, MuSigTakeOfferPaymentController> {
     private final GridPane gridPane;
-    private final Label headlineLabel, subtitleLabel;
+    private final Label headlineLabel, subtitleLabel, noAccountOverlayReasonLabel;
     private final VBox content;
     private final Button noAccountOverlayCloseButton, createAccountButton, multipleAccountsOverlayCloseButton,
             noPaymentMethodSelectedOverlayCloseButton;
@@ -94,9 +94,10 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
         noAccountOverlayCloseButton = new Button(Res.get("action.close"));
         createAccountButton = new Button(Res.get("muSig.offer.taker.payment.noAccountOverlay.createAccount"));
         createAccountButton.setDefaultButton(true);
+        noAccountOverlayReasonLabel = new Label();
         noAccountOverlay = new WizardOverlay(root)
                 .warning()
-                .descriptionFromI18nKey("muSig.offer.taker.payment.noAccountOverlay.subTitle")
+                .description(createAndGetNoAccountContentBox())
                 .buttons(noAccountOverlayCloseButton, createAccountButton)
                 .build();
 
@@ -126,6 +127,9 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
     @Override
     protected void onViewAttached() {
         noAccountOverlay.getHeadlineLabel().textProperty().bind(model.getNoAccountOverlayHeadlineText());
+        noAccountOverlayReasonLabel.textProperty().bind(model.getNoAccountOverlayReasonText());
+        noAccountOverlayReasonLabel.visibleProperty().bind(model.getNoAccountOverlayReasonText().isNotEmpty());
+        noAccountOverlayReasonLabel.managedProperty().bind(noAccountOverlayReasonLabel.visibleProperty());
         multipleAccountsOverlay.getHeadlineLabel().textProperty().bind(model.getMultipleAccountsOverlayHeadlineText());
 
         shouldShowNoAccountOverlayPin = EasyBind.subscribe(model.getShouldShowNoAccountOverlay(), shouldShow ->
@@ -181,6 +185,9 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
     @Override
     protected void onViewDetached() {
         noAccountOverlay.getHeadlineLabel().textProperty().unbind();
+        noAccountOverlayReasonLabel.textProperty().unbind();
+        noAccountOverlayReasonLabel.visibleProperty().unbind();
+        noAccountOverlayReasonLabel.managedProperty().unbind();
         multipleAccountsOverlay.getHeadlineLabel().textProperty().unbind();
 
         shouldShowNoAccountOverlayPin.unsubscribe();
@@ -278,6 +285,21 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             }
         });
         return comboBox;
+    }
+
+    private VBox createAndGetNoAccountContentBox() {
+        Label subtitleLabel = new Label(Res.get("muSig.offer.taker.payment.noAccountOverlay.subTitle"));
+        subtitleLabel.setMinWidth(WizardOverlay.OVERLAY_WIDTH - 100);
+        subtitleLabel.setMaxWidth(subtitleLabel.getMinWidth());
+        subtitleLabel.getStyleClass().addAll("normal-text", "wrap-text", "text-fill-grey-dimmed");
+
+        noAccountOverlayReasonLabel.setMinWidth(WizardOverlay.OVERLAY_WIDTH - 100);
+        noAccountOverlayReasonLabel.setMaxWidth(noAccountOverlayReasonLabel.getMinWidth());
+        noAccountOverlayReasonLabel.getStyleClass().addAll("normal-text", "wrap-text", "text-fill-grey-dimmed");
+
+        VBox vBox = new VBox(15, subtitleLabel, noAccountOverlayReasonLabel);
+        vBox.setPadding(WizardOverlay.TEXT_CONTENT_PADDING);
+        return vBox;
     }
 
     private VBox createAndGetContentBox() {

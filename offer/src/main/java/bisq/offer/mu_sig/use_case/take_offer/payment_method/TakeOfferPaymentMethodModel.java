@@ -33,6 +33,7 @@ import java.util.Optional;
 public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOnlyModel {
     protected final ObservableHashMap<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new ObservableHashMap<>();
     protected final ObservableHashMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = new ObservableHashMap<>();
+    protected final ObservableHashMap<PaymentMethod<?>, List<AccountCompatibilityMismatch>> incompatibleAccountsByPaymentMethod = new ObservableHashMap<>();
 
     protected final ObservableArray<PaymentMethodSpec<?>> takerSidePaymentMethodSpecs = new ObservableArray<>();
 
@@ -73,7 +74,7 @@ public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOn
     }
 
     void putAccountsByPaymentMethod(PaymentMethod<?> paymentMethod, List<Account<?, ?>> account) {
-        accountsByPaymentMethod.put(paymentMethod, account);
+        accountsByPaymentMethod.put(paymentMethod, List.copyOf(account));
     }
 
     void removeAccountsByPaymentMethod(PaymentMethod<?> paymentMethod) {
@@ -81,7 +82,7 @@ public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOn
     }
 
     void putAllAccountsByPaymentMethod(Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod) {
-        this.accountsByPaymentMethod.putAll(accountsByPaymentMethod);
+        accountsByPaymentMethod.forEach(this::putAccountsByPaymentMethod);
     }
 
     @Override
@@ -118,5 +119,27 @@ public class TakeOfferPaymentMethodModel implements TakeOfferPaymentMethodReadOn
     @Override
     public ImmutableMap<PaymentMethod<?>, Account<?, ?>> getSelectedAccountByPaymentMethod() {
         return ImmutableMap.copyOf(selectedAccountByPaymentMethod);
+    }
+
+    /* --------------------------------------------------------------------- */
+    // incompatibleAccountsByPaymentMethod
+    /* --------------------------------------------------------------------- */
+
+    // Stored list values are copied immutably so no holder of a getter result can mutate
+    // the state behind the model's back.
+    void setIncompatibleAccountsByPaymentMethod(Map<PaymentMethod<?>, List<AccountCompatibilityMismatch>> value) {
+        incompatibleAccountsByPaymentMethod.clear();
+        value.forEach((paymentMethod, mismatches) ->
+                incompatibleAccountsByPaymentMethod.put(paymentMethod, List.copyOf(mismatches)));
+    }
+
+    @Override
+    public ReadOnlyObservableMap<PaymentMethod<?>, List<AccountCompatibilityMismatch>> incompatibleAccountsByPaymentMethodObservable() {
+        return incompatibleAccountsByPaymentMethod;
+    }
+
+    @Override
+    public ImmutableMap<PaymentMethod<?>, List<AccountCompatibilityMismatch>> getIncompatibleAccountsByPaymentMethod() {
+        return ImmutableMap.copyOf(incompatibleAccountsByPaymentMethod);
     }
 }

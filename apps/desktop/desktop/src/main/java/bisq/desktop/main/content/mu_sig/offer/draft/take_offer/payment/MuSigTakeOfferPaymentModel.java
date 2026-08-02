@@ -71,6 +71,7 @@ public class MuSigTakeOfferPaymentModel implements Model {
 
     private final BooleanProperty shouldShowNoAccountOverlay = new SimpleBooleanProperty();
     private final StringProperty noAccountOverlayHeadlineText = new SimpleStringProperty();
+    private final StringProperty noAccountOverlayReasonText = new SimpleStringProperty("");
     private final BooleanProperty shouldShowMultipleAccountsOverlay = new SimpleBooleanProperty();
     private final StringProperty multipleAccountsOverlayHeadlineText = new SimpleStringProperty();
     private final BooleanProperty shouldShowNoPaymentMethodSelectedOverlay = new SimpleBooleanProperty();
@@ -97,6 +98,7 @@ public class MuSigTakeOfferPaymentModel implements Model {
         sortedAccountsForPaymentMethod.clear();
         shouldShowNoAccountOverlay.set(false);
         noAccountOverlayHeadlineText.set("");
+        noAccountOverlayReasonText.set("");
         shouldShowMultipleAccountsOverlay.set(false);
         multipleAccountsOverlayHeadlineText.set("");
         shouldShowNoPaymentMethodSelectedOverlay.set(false);
