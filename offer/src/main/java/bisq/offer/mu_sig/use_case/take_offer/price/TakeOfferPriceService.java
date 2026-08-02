@@ -34,4 +34,12 @@ public class TakeOfferPriceService {
     public void setPriceQuote(PriceQuote priceQuote) {
         model.setPriceQuote(priceQuote);
     }
+
+    public void setPriceDeviation(Double priceDeviation) {
+        model.setPriceDeviation(priceDeviation);
+    }
+
+    public void setMarketPriceQuote(PriceQuote marketPriceQuote) {
+        model.setMarketPriceQuote(marketPriceQuote);
+    }
 }

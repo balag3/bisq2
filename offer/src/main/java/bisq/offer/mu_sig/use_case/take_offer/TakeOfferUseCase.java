@@ -27,6 +27,7 @@ import bisq.common.market.Market;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
+import bisq.common.observable.Pin;
 import bisq.common.monetary.TradeAmount;
 import bisq.identity.IdentityService;
 import bisq.offer.amount.spec.AmountSpec;
@@ -92,6 +93,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private final IdentityService identityService;
     @Nullable
     private MuSigOffer muSigOffer;
+    @Nullable
+    private Pin marketPricePin;
 
 
     /* --------------------------------------------------------------------- */
@@ -156,8 +159,21 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             this.muSigOffer = muSigOffer;
             marketService.initialize(muSigOffer);
             directionService.initialize(muSigOffer);
+            // Dependencies before triggers: UI refreshes are driven by the quote and deviation
+            // observables and read the market quote, so it must be published first.
+            priceService.setMarketPriceQuote(marketPriceQuote);
+            priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
             priceService.setPriceQuote(priceQuote);
             paymentMethodService.updatePaymentMethods(muSigOffer);
+            if (marketPricePin != null) {
+                marketPricePin.unbind();
+            }
+            // The map observer fires at registration, which reconciles any market price change that
+            // happened between the initialization lookup and this registration. Quote, market price
+            // and deviation are always set together from one lookup, so every update is internally
+            // consistent; an unchanged map is a no-op through equal-value suppression.
+            marketPricePin = marketPriceService.getMarketPriceByCurrencyMap().addObserver(this::handleMarketPriceUpdate);
+            addDisposable(marketPricePin);
         } catch (TakeOfferValidationException e) {
             // A rejected initialization must not leave state behind, also when a previous
             // initialization on this instance had succeeded.
@@ -165,7 +181,13 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             marketService.initialize(null);
             directionService.initialize(null);
             priceService.setPriceQuote(null);
+            priceService.setMarketPriceQuote(null);
+            priceService.setPriceDeviation(null);
             paymentMethodService.reset();
+            if (marketPricePin != null) {
+                marketPricePin.unbind();
+                marketPricePin = null;
+            }
             throw e;
         }
     }
@@ -199,6 +221,34 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         return selected.size() == 1
                 ? paymentMethodService.findTakerSidePaymentMethodSpec(selected.keySet().iterator().next())
                 : Optional.empty();
+    }
+
+    private void handleMarketPriceUpdate() {
+        MuSigOffer offer = this.muSigOffer;
+        if (offer == null) {
+            return;
+        }
+        // Passive amount and USD limit recomputation chains on the price quote observable and is
+        // implemented with the amount concern.
+        PriceUtil.findMarketPriceQuote(marketPriceService, offer.getMarket())
+                .ifPresentOrElse(marketPriceQuote -> {
+                    PriceQuote priceQuote = resolvePriceQuote(offer, marketPriceQuote);
+                    // Same publish order as at initialization: dependencies before triggers.
+                    priceService.setMarketPriceQuote(marketPriceQuote);
+                    priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
+                    priceService.setPriceQuote(priceQuote);
+                }, () -> {
+                    // The market price disappeared while the take process is open. Keep the resolved
+                    // quote for display but mark market price and deviation unknown; blocking the
+                    // confirmation is handled with the review concern.
+                    priceService.setMarketPriceQuote(null);
+                    priceService.setPriceDeviation(null);
+                });
+    }
+
+    // Both quotes come from the same lookup, so the deviation always matches the resolved quote.
+    private static double calculateDeviation(PriceQuote priceQuote, PriceQuote marketPriceQuote) {
+        return PriceUtil.getPercentageToMarketPrice(marketPriceQuote, priceQuote);
     }
 
     private static PriceQuote resolvePriceQuote(MuSigOffer offer, PriceQuote marketPriceQuote) {

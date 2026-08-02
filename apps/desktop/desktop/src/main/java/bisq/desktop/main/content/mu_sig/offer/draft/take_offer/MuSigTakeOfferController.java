@@ -23,6 +23,7 @@ import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.desktop.ServiceProvider;
 import bisq.desktop.common.utils.KeyHandlerUtil;
+import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.common.view.InitWithDataController;
 import bisq.desktop.common.view.Navigation;
@@ -33,7 +34,10 @@ import bisq.desktop.main.content.mu_sig.offer.draft.take_offer.review.MuSigTakeO
 import bisq.desktop.navigation.NavigationTarget;
 import bisq.desktop.overlay.OverlayController;
 import bisq.desktop.components.overlay.Popup;
+import bisq.common.observable.Pin;
 import bisq.i18n.Res;
+import bisq.presentation.formatters.PercentageFormatter;
+import bisq.settings.SettingsService;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
@@ -69,6 +73,9 @@ public class MuSigTakeOfferController extends NavigationController implements In
 
     private final AccountService accountService;
     private final TakeOfferUseCase takeOfferService;
+    private final SettingsService settingsService;
+    private Pin priceDeviationPin;
+    private boolean warnedAboutPriceDeviation;
     private final OverlayController overlayController;
     @Getter
     private final MuSigTakeOfferModel model;
@@ -84,6 +91,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         super(NavigationTarget.MU_SIG_TAKE_OFFER);
 
         accountService = serviceProvider.getAccountService();
+        settingsService = serviceProvider.getSettingsService();
         overlayController = OverlayController.getInstance();
 
         takeOfferService = new TakeOfferUseCase(serviceProvider.getBondedRolesService().getMarketPriceService(),
@@ -163,6 +171,9 @@ public class MuSigTakeOfferController extends NavigationController implements In
             return;
         }
 
+        priceDeviationPin = takeOfferService.getPriceService().priceDeviationObservable().addObserver(deviation ->
+                UIThread.run(this::maybeShowPriceDeviationWarning));
+
         NavigationTarget first = model.getChildTargets().getFirst();
         model.getSelectedChildTarget().set(first);
         model.getBackButtonText().set(Res.get("action.back"));
@@ -186,6 +197,10 @@ public class MuSigTakeOfferController extends NavigationController implements In
 
     @Override
     public void onDeactivate() {
+        if (priceDeviationPin != null) {
+            priceDeviationPin.unbind();
+            priceDeviationPin = null;
+        }
         takeOfferService.dispose();
         overlayController.setUseEscapeKeyHandler(true);
         overlayController.getApplicationRoot().removeEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
@@ -262,6 +277,36 @@ public class MuSigTakeOfferController extends NavigationController implements In
     void onClose() {
         Navigation.navigateTo(NavigationTarget.MAIN);
         OverlayController.hide();
+    }
+
+    // Re-reads deviation and threshold at display time: the popup is deferred until the overlay
+    // display animation completed (else the overlay stage ends up above it), and the deviation may
+    // have changed meanwhile.
+    private void maybeShowPriceDeviationWarning() {
+        Double deviation = takeOfferService.getPriceService().getPriceDeviation();
+        if (deviation == null) {
+            return;
+        }
+        double threshold = settingsService.getPriceDeviationWarningThreshold().get();
+        if (Math.abs(deviation) > threshold) {
+            if (!warnedAboutPriceDeviation) {
+                warnedAboutPriceDeviation = true;
+                overlayController.runOnShown(() -> {
+                    Double currentDeviation = takeOfferService.getPriceService().getPriceDeviation();
+                    double currentThreshold = settingsService.getPriceDeviationWarningThreshold().get();
+                    if (currentDeviation == null || Math.abs(currentDeviation) <= currentThreshold) {
+                        warnedAboutPriceDeviation = false;
+                        return;
+                    }
+                    new Popup().warning(Res.get("muSig.takeOffer.priceDeviationWarning",
+                                    PercentageFormatter.formatToPercentWithSymbol(Math.abs(currentDeviation))))
+                            .owner(view.getRoot())
+                            .show();
+                });
+            }
+        } else {
+            warnedAboutPriceDeviation = false;
+        }
     }
 
     private static String getValidationWarning(TakeOfferValidationException.Reason reason) {

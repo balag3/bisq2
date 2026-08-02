@@ -13,6 +13,7 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.PriceQuote;
+import bisq.common.observable.map.ObservableHashMap;
 import bisq.network.identity.NetworkId;
 import bisq.identity.Identity;
 import bisq.identity.IdentityService;
@@ -49,6 +50,21 @@ public class TakeOfferUseCaseTest {
 
     private final MarketPriceService marketPriceService = mock(MarketPriceService.class);
     private final IdentityService identityService = mock(IdentityService.class);
+    private final ObservableHashMap<Market, MarketPrice> marketPriceByCurrencyMap = new ObservableHashMap<>();
+
+    private void stubMarketPrice(PriceQuote quote) {
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(marketPrice));
+        when(marketPriceService.findMarketPriceQuote(market)).thenReturn(Optional.of(quote));
+    }
+
+    private void fireMarketPriceUpdate(PriceQuote quote) {
+        stubMarketPrice(quote);
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        marketPriceByCurrencyMap.put(market, marketPrice);
+    }
 
     @Test
     public void validOfferInitializesMarketDirectionAndPrice() {
@@ -339,6 +355,11 @@ public class TakeOfferUseCaseTest {
         assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
         assertNull(useCase.getPriceService().getPriceQuote());
+        assertNull(useCase.getPriceService().getPriceDeviation());
+
+        fireMarketPriceUpdate(PriceQuote.fromFiatPrice(105_000, "USD"));
+        assertNull(useCase.getPriceService().getPriceQuote());
+        assertNull(useCase.getPriceService().getPriceDeviation());
     }
 
     @Test
@@ -354,6 +375,66 @@ public class TakeOfferUseCaseTest {
         assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
     }
 
+    @Test
+    public void deviationIsComputedForFixedPriceOffers() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validOffer();
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(PriceQuote.fromFiatPrice(110_000, "USD")));
+
+        useCase.initialize(offer);
+
+        assertEquals(0.10, useCase.getPriceService().getPriceDeviation(), 1e-9);
+    }
+
+    @Test
+    public void deviationIsZeroForMarketPriceOffers() {
+        TakeOfferUseCase useCase = createUseCase();
+
+        useCase.initialize(validOffer());
+
+        assertEquals(0.0, useCase.getPriceService().getPriceDeviation(), 1e-9);
+    }
+
+    @Test
+    public void marketPriceUpdateRefreshesQuoteForMarketPriceOffers() {
+        TakeOfferUseCase useCase = createUseCase();
+        useCase.initialize(validOffer());
+        assertEquals(marketPriceQuote, useCase.getPriceService().getPriceQuote());
+
+        PriceQuote updatedQuote = PriceQuote.fromFiatPrice(105_000, "USD");
+        fireMarketPriceUpdate(updatedQuote);
+
+        assertEquals(updatedQuote, useCase.getPriceService().getPriceQuote());
+        assertEquals(0.0, useCase.getPriceService().getPriceDeviation(), 1e-9);
+    }
+
+    @Test
+    public void marketPriceUpdateKeepsFixedQuoteButRefreshesDeviation() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validOffer();
+        PriceQuote fixedQuote = PriceQuote.fromFiatPrice(100_000, "USD");
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(fixedQuote));
+        useCase.initialize(offer);
+        assertEquals(0.0, useCase.getPriceService().getPriceDeviation(), 1e-9);
+
+        fireMarketPriceUpdate(PriceQuote.fromFiatPrice(80_000, "USD"));
+
+        assertEquals(fixedQuote, useCase.getPriceService().getPriceQuote());
+        assertEquals(0.25, useCase.getPriceService().getPriceDeviation(), 1e-9);
+    }
+
+    @Test
+    public void rejectedInitializationDoesNotReactToMarketPriceUpdates() {
+        TakeOfferUseCase useCase = createUseCase();
+        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.empty());
+        assertRejected(useCase, validOffer(), Reason.NO_MARKET_PRICE);
+
+        fireMarketPriceUpdate(PriceQuote.fromFiatPrice(105_000, "USD"));
+
+        assertNull(useCase.getPriceService().getPriceQuote());
+        assertNull(useCase.getPriceService().getPriceDeviation());
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Account<?, ?> accountFor(PaymentMethod<?> paymentMethod) {
         Account account = mock(Account.class);
@@ -366,10 +447,8 @@ public class TakeOfferUseCaseTest {
     }
 
     private TakeOfferUseCase createUseCase(bisq.offer.mu_sig.use_case.dependencies.AccountsProvider accountsProvider) {
-        MarketPrice marketPrice = mock(MarketPrice.class);
-        when(marketPrice.getPriceQuote()).thenReturn(marketPriceQuote);
-        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(marketPrice));
-        when(marketPriceService.findMarketPriceQuote(market)).thenReturn(Optional.of(marketPriceQuote));
+        stubMarketPrice(marketPriceQuote);
+        when(marketPriceService.getMarketPriceByCurrencyMap()).thenReturn(marketPriceByCurrencyMap);
         when(identityService.findActiveIdentity(any(NetworkId.class))).thenReturn(Optional.empty());
         return new TakeOfferUseCase(marketPriceService,
                 identityService,

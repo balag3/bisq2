@@ -26,6 +26,8 @@ import bisq.trade.mu_sig.MuSigTrade;
 import bisq.user.profile.UserProfile;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -56,9 +58,19 @@ class MuSigTakeOfferReviewModel implements Model {
     @Setter
     private Monetary takersQuoteSideAmount;
     @Setter
-    private String priceWithCode;
+    private final StringProperty priceWithCode = new SimpleStringProperty();
+
+    public void setPriceWithCode(String value) {
+        priceWithCode.set(value);
+    }
+
     @Setter
-    private String priceDetails;
+    private final StringProperty priceDetails = new SimpleStringProperty();
+
+    public void setPriceDetails(String value) {
+        priceDetails.set(value);
+    }
+
     @Setter
     private String price;
     @Setter
@@ -90,8 +102,8 @@ class MuSigTakeOfferReviewModel implements Model {
         takersAccount = null;
         takersBaseSideAmount = null;
         takersQuoteSideAmount = null;
-        priceWithCode = null;
-        priceDetails = null;
+        priceWithCode.set(null);
+        priceDetails.set(null);
         price = null;
         priceCode = null;
         paymentMethodDisplayString = null;

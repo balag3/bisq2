@@ -40,7 +40,9 @@ import bisq.mu_sig.MuSigService;
 import bisq.offer.Direction;
 import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
+import bisq.offer.amount.spec.BaseSideFixedAmountSpec;
 import bisq.offer.amount.spec.FixedAmountSpec;
+import bisq.offer.amount.spec.QuoteSideFixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import bisq.offer.options.OfferOptionUtil;
@@ -79,6 +81,9 @@ public class MuSigTakeOfferReviewController implements Controller {
     private final Consumer<NavigationTarget> closeAndNavigateToHandler;
     private final Consumer<Boolean> mainButtonsVisibleHandler;
     private final MuSigPriceInput priceInput;
+    private final TakeOfferUseCase takeOfferService;
+    private Pin priceQuotePin;
+    private Pin priceDeviationPin;
     private final MarketPriceService marketPriceService;
     private final UserIdentityService userIdentityService;
     private final BannedUserService bannedUserService;
@@ -99,6 +104,7 @@ public class MuSigTakeOfferReviewController implements Controller {
         muSigService = serviceProvider.getMuSigService();
         bannedUserService = serviceProvider.getUserService().getBannedUserService();
 
+        this.takeOfferService = takeOfferService;
         priceInput = new MuSigPriceInput(serviceProvider.getBondedRolesService().getMarketPriceService(), takeOfferService);
         muSigReviewDataDisplay = new MuSigReviewDataDisplay();
 
@@ -120,7 +126,7 @@ public class MuSigTakeOfferReviewController implements Controller {
                     .ifPresent(model::setTakersQuoteSideAmount);
         }
 
-        Optional<PriceQuote> priceQuote = PriceUtil.findQuote(marketPriceService, muSigOffer);
+        Optional<PriceQuote> priceQuote = Optional.ofNullable(takeOfferService.getPriceService().getPriceQuote());
         priceQuote.ifPresent(priceInput::setQuote);
 
         applyPriceQuote(priceQuote);
@@ -166,6 +172,15 @@ public class MuSigTakeOfferReviewController implements Controller {
     }
 
     public void takeOffer() {
+        // Runtime invalidation gate: without a current market price the take cannot proceed
+        // (specification.md, Price). The block lifts as soon as a price arrives again, since the
+        // guard is evaluated per attempt.
+        if (takeOfferService.getPriceService().getMarketPriceQuote() == null) {
+            new Popup().warning(Res.get("muSig.takeOffer.validation.noMarketPrice"))
+                    .owner(view.getRoot())
+                    .show();
+            return;
+        }
         MuSigOffer muSigOffer = model.getMuSigOffer();
         Monetary takersBaseSideAmount = model.getTakersBaseSideAmount();
         Monetary takersQuoteSideAmount = model.getTakersQuoteSideAmount();
@@ -343,6 +358,18 @@ public class MuSigTakeOfferReviewController implements Controller {
 
     @Override
     public void onActivate() {
+        priceQuotePin = takeOfferService.getPriceService().priceQuoteObservable().addObserver(quote ->
+                UIThread.run(this::refreshPriceDisplay));
+        // Fixed-price offers keep their quote when the market price moves, so the equal-value
+        // suppression of the quote observable would starve the detail refresh; the deviation
+        // changes on every relevant market update.
+        priceDeviationPin = takeOfferService.getPriceService().priceDeviationObservable().addObserver(deviation ->
+                UIThread.run(this::refreshPriceDisplay));
+
+        applyAmountsAndDisplay();
+    }
+
+    private void applyAmountsAndDisplay() {
         String toSendAmountDescription, toSendAmount, toSendCode, toReceiveAmountDescription, toReceiveAmount, toReceiveCode;
         Monetary fixBaseSideAmount = model.getTakersBaseSideAmount();
         Monetary fixQuoteSideAmount = model.getTakersQuoteSideAmount();
@@ -390,6 +417,14 @@ public class MuSigTakeOfferReviewController implements Controller {
 
     @Override
     public void onDeactivate() {
+        if (priceQuotePin != null) {
+            priceQuotePin.unbind();
+            priceQuotePin = null;
+        }
+        if (priceDeviationPin != null) {
+            priceDeviationPin.unbind();
+            priceDeviationPin = null;
+        }
         if (errorMessagePin != null) {
             errorMessagePin.unbind();
         }
@@ -408,12 +443,47 @@ public class MuSigTakeOfferReviewController implements Controller {
         closeAndNavigateToHandler.accept(NavigationTarget.MU_SIG_OPEN_TRADES);
     }
 
+    private void refreshPriceDisplay() {
+        PriceQuote quote = takeOfferService.getPriceService().getPriceQuote();
+        if (quote == null || model.getMuSigOffer() == null) {
+            return;
+        }
+        priceInput.setQuote(quote);
+        applyPriceQuote(Optional.of(quote));
+        applyPriceDetails(model.getMuSigOffer().getPriceSpec(), model.getMuSigOffer().getMarket());
+        refreshFixedAmountPassiveSide(quote);
+        applySecurityDepositAsBtc();
+        applyAmountsAndDisplay();
+    }
+
+    // Range selection recomputation belongs to the amount concern; for fixed amount offers the
+    // passive side is derived from the refreshed resolved quote so display and handoff stay
+    // consistent with the shown price.
+    private void refreshFixedAmountPassiveSide(PriceQuote quote) {
+        MuSigOffer offer = model.getMuSigOffer();
+        if (offer == null || !(offer.getAmountSpec() instanceof FixedAmountSpec)) {
+            return;
+        }
+        if (offer.getAmountSpec() instanceof BaseSideFixedAmountSpec) {
+            Monetary baseSideAmount = model.getTakersBaseSideAmount();
+            if (baseSideAmount != null) {
+                model.setTakersQuoteSideAmount(quote.toQuoteSideMonetary(baseSideAmount));
+            }
+        } else if (offer.getAmountSpec() instanceof QuoteSideFixedAmountSpec) {
+            Monetary quoteSideAmount = model.getTakersQuoteSideAmount();
+            if (quoteSideAmount != null) {
+                model.setTakersBaseSideAmount(quote.toBaseSideMonetary(quoteSideAmount));
+            }
+        }
+    }
+
     private void applyPriceDetails(PriceSpec priceSpec, Market market) {
-        Optional<MarketPrice> marketPrice = marketPriceService.findMarketPrice(market);
-        marketPrice.ifPresent(price -> model.setMarketPrice(price.getPriceQuote().getValue()));
-        Optional<PriceQuote> marketPriceQuote = marketPrice.map(MarketPrice::getPriceQuote);
+        // Market price and deviation come from the take offer use case so the displayed details
+        // always match the snapshot behind the resolved quote and the warning state.
+        Optional<PriceQuote> marketPriceQuote = Optional.ofNullable(takeOfferService.getPriceService().getMarketPriceQuote());
+        marketPriceQuote.ifPresent(quote -> model.setMarketPrice(quote.getValue()));
         String marketPriceAsString = marketPriceQuote.map(PriceFormatter::formatWithCode).orElseGet(() -> Res.get("data.na"));
-        Optional<Double> percentFromMarketPrice = PriceUtil.findPercentFromMarketPrice(marketPriceService, priceSpec, market);
+        Optional<Double> percentFromMarketPrice = Optional.ofNullable(takeOfferService.getPriceService().getPriceDeviation());
         double percent = percentFromMarketPrice.orElse(0d);
         if ((priceSpec instanceof FloatPriceSpec || priceSpec instanceof MarketPriceSpec) && percent == 0) {
             model.setPriceDetails(Res.get("muSig.offer.wizard.review.priceDetails", marketPriceAsString));

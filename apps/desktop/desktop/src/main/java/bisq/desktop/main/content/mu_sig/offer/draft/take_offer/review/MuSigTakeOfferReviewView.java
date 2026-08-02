@@ -57,6 +57,7 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
     private final TextFlow price;
     private final MuSigProtocolWaitingAnimation takeOfferSendMessageWaitingAnimation;
     private Subscription takeOfferStatusPin;
+    private Subscription priceWithCodeSubscription, priceDetailsSubscription;
     private boolean minWaitingTimePassed = false;
     private UIScheduler minWaitingTimeScheduler;
 
@@ -190,8 +191,10 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
 
     @Override
     protected void onViewAttached() {
-        TextFlowUtils.updateTextFlow(price, model.getPriceWithCode());
-        priceDetails.setText(model.getPriceDetails());
+        priceWithCodeSubscription = EasyBind.subscribe(model.getPriceWithCode(), value ->
+                TextFlowUtils.updateTextFlow(price, value == null ? "" : value));
+        priceDetailsSubscription = EasyBind.subscribe(model.getPriceDetails(), value ->
+                priceDetails.setText(value == null ? "" : value));
 
         paymentMethod.setText(model.getPaymentMethodDisplayString());
         String paymentMethodDetailsValue = model.getPaymentMethodDetails();
@@ -215,6 +218,14 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
 
     @Override
     protected void onViewDetached() {
+        if (priceWithCodeSubscription != null) {
+            priceWithCodeSubscription.unsubscribe();
+            priceWithCodeSubscription = null;
+        }
+        if (priceDetailsSubscription != null) {
+            priceDetailsSubscription.unsubscribe();
+            priceDetailsSubscription = null;
+        }
         paymentMethodDetails.setTooltip(null);
         takeOfferSuccessButton.setOnAction(null);
         takeOfferStatusPin.unsubscribe();
