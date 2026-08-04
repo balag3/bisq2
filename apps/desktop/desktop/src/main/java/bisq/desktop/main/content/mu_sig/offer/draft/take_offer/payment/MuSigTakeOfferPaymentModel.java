@@ -37,8 +37,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Getter
 public class MuSigTakeOfferPaymentModel implements Model {
@@ -65,6 +67,8 @@ public class MuSigTakeOfferPaymentModel implements Model {
     private final ObjectProperty<PaymentMethod<?>> paymentMethodWithMultipleAccounts = new SimpleObjectProperty<>();
 
     private final Map<PaymentMethod<?>, List<Account<?, ?>>> accountsByPaymentMethod = new HashMap<>();
+    // Methods whose rail limit cannot cover the offer amount; disabled with a reason in the view.
+    private final Set<PaymentMethod<?>> inadmissiblePaymentMethods = new HashSet<>();
     private final ObjectProperty<Account<?, ?>> selectedAccount = new SimpleObjectProperty<>();
     private final ObservableList<Account<? extends PaymentMethod<?>, ?>> accountsForPaymentMethod = FXCollections.observableArrayList();
     private final SortedList<Account<? extends PaymentMethod<?>, ?>> sortedAccountsForPaymentMethod = new SortedList<>(accountsForPaymentMethod);
@@ -93,6 +97,7 @@ public class MuSigTakeOfferPaymentModel implements Model {
         paymentMethodWithoutAccount.set(null);
         paymentMethodWithMultipleAccounts.set(null);
         accountsByPaymentMethod.clear();
+        inadmissiblePaymentMethods.clear();
         selectedAccount.set(null);
         accountsForPaymentMethod.clear();
         sortedAccountsForPaymentMethod.clear();

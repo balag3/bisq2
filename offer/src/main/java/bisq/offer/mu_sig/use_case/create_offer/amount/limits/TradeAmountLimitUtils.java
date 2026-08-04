@@ -28,8 +28,8 @@ import bisq.common.monetary.TradeAmount;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-class TradeAmountLimitUtils {
-    static TradeAmount toTradeAmountLimit(MarketPriceService marketPriceService,
+public class TradeAmountLimitUtils {
+    public static TradeAmount toTradeAmountLimit(MarketPriceService marketPriceService,
                                           Market market,
                                           PriceQuote priceQuote,
                                           Fiat usdAmount) {

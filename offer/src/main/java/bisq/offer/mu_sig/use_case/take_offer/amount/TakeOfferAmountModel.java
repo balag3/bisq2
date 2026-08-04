@@ -35,6 +35,7 @@ public class TakeOfferAmountModel implements TakeOfferAmountReadOnlyModel {
     protected final Observable<TradeAmountRange> tradeAmountLimits = new Observable<>();
     protected final Observable<MonetaryRange> inputAmountLimits = new Observable<>();
     protected final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
+    protected final Observable<Boolean> amountValid = new Observable<>(true);
 
     public TakeOfferAmountModel() {
     }
@@ -182,5 +183,36 @@ public class TakeOfferAmountModel implements TakeOfferAmountReadOnlyModel {
     @Override
     public Double getFixAmountSliderValue() {
         return fixAmountSliderValue.get();
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // amountValid
+    /* --------------------------------------------------------------------- */
+
+    void setAmountValid(boolean amountValid) {
+        this.amountValid.set(amountValid);
+    }
+
+    @Override
+    public ReadOnlyObservable<Boolean> amountValidObservable() {
+        return amountValid;
+    }
+
+    @Override
+    public boolean isAmountValid() {
+        return Boolean.TRUE.equals(amountValid.get());
+    }
+
+    void reset() {
+        amountSpec = null;
+        useBaseCurrencyForAmountInput.set(false);
+        fixTradeAmount.set(null);
+        userSpecificTradeAmountLimit.set(Optional.empty());
+        userSpecificTradeAmountLimitAsSliderValue.set(Optional.empty());
+        tradeAmountLimits.set(null);
+        inputAmountLimits.set(null);
+        fixAmountSliderValue.set(0d);
+        amountValid.set(true);
     }
 }

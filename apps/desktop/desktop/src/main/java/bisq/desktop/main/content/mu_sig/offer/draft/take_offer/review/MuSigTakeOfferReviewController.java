@@ -25,6 +25,7 @@ import bisq.bonded_roles.market_price.NoMarketPriceAvailableException;
 import bisq.common.market.Market;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.PriceQuote;
+import bisq.common.monetary.TradeAmount;
 import bisq.common.observable.Pin;
 import bisq.common.util.StringUtils;
 import bisq.desktop.ServiceProvider;
@@ -40,9 +41,6 @@ import bisq.mu_sig.MuSigService;
 import bisq.offer.Direction;
 import bisq.offer.amount.OfferAmountFormatter;
 import bisq.offer.amount.OfferAmountUtil;
-import bisq.offer.amount.spec.BaseSideFixedAmountSpec;
-import bisq.offer.amount.spec.FixedAmountSpec;
-import bisq.offer.amount.spec.QuoteSideFixedAmountSpec;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferUseCase;
 import bisq.offer.options.OfferOptionUtil;
@@ -84,6 +82,7 @@ public class MuSigTakeOfferReviewController implements Controller {
     private final TakeOfferUseCase takeOfferService;
     private Pin priceQuotePin;
     private Pin priceDeviationPin;
+    private Pin fixTradeAmountPin;
     private final MarketPriceService marketPriceService;
     private final UserIdentityService userIdentityService;
     private final BannedUserService bannedUserService;
@@ -119,12 +118,9 @@ public class MuSigTakeOfferReviewController implements Controller {
         String marketCodes = market.getMarketCodes();
         priceInput.setDescription(Res.get("muSig.offer.taker.review.price.price", marketCodes));
 
-        if (muSigOffer.getAmountSpec() instanceof FixedAmountSpec) {
-            OfferAmountUtil.findBaseSideFixedAmount(marketPriceService, muSigOffer)
-                    .ifPresent(model::setTakersBaseSideAmount);
-            OfferAmountUtil.findQuoteSideFixedAmount(marketPriceService, muSigOffer)
-                    .ifPresent(model::setTakersQuoteSideAmount);
-        }
+        // The domain amount concern holds the taker's trade amount for fixed offers, collapsed
+        // ranges and range selections alike; the observer registered in onActivate keeps it live.
+        applyTakersAmountsFromDomain();
 
         Optional<PriceQuote> priceQuote = Optional.ofNullable(takeOfferService.getPriceService().getPriceQuote());
         priceQuote.ifPresent(priceInput::setQuote);
@@ -139,20 +135,6 @@ public class MuSigTakeOfferReviewController implements Controller {
         model.setFormattedSecurityDepositAsPercent(PercentageFormatter.formatToPercentWithSymbol(securityDeposit, 0));
 
         applySecurityDepositAsBtc();
-    }
-
-    public void setTakersBaseSideAmount(Monetary amount) {
-        if (amount != null) {
-            model.setTakersBaseSideAmount(amount);
-            applySecurityDepositAsBtc();
-        }
-    }
-
-    public void setTakersQuoteSideAmount(Monetary amount) {
-        if (amount != null) {
-            model.setTakersQuoteSideAmount(amount);
-            applySecurityDepositAsBtc();
-        }
     }
 
     public void setTakersPaymentMethodSpec(PaymentMethodSpec<?> paymentMethodSpec) {
@@ -177,6 +159,16 @@ public class MuSigTakeOfferReviewController implements Controller {
         // guard is evaluated per attempt.
         if (takeOfferService.getPriceService().getMarketPriceQuote() == null) {
             new Popup().warning(Res.get("muSig.takeOffer.validation.noMarketPrice"))
+                    .owner(view.getRoot())
+                    .show();
+            return;
+        }
+        // Background invalidation gate: a market price update (or a payment method change on a
+        // fixed offer) can push the amount outside the effective limits; the amount is never
+        // clamped, confirmation is blocked instead and the block lifts on recovery
+        // (specification.md, "Amount limits", background changes).
+        if (!takeOfferService.getAmountService().isAmountValid()) {
+            new Popup().warning(Res.get("muSig.takeOffer.validation.amountOutsideLimits"))
                     .owner(view.getRoot())
                     .show();
             return;
@@ -365,6 +357,10 @@ public class MuSigTakeOfferReviewController implements Controller {
         // changes on every relevant market update.
         priceDeviationPin = takeOfferService.getPriceService().priceDeviationObservable().addObserver(deviation ->
                 UIThread.run(this::refreshPriceDisplay));
+        // Covers range selections made in the amount step, clamps after a payment method change
+        // and background passive-side refreshes; fires at registration for the initial state.
+        fixTradeAmountPin = takeOfferService.getAmountService().fixTradeAmountObservable().addObserver(tradeAmount ->
+                UIThread.run(this::applyTakersAmountsFromDomain));
 
         applyAmountsAndDisplay();
     }
@@ -425,6 +421,10 @@ public class MuSigTakeOfferReviewController implements Controller {
             priceDeviationPin.unbind();
             priceDeviationPin = null;
         }
+        if (fixTradeAmountPin != null) {
+            fixTradeAmountPin.unbind();
+            fixTradeAmountPin = null;
+        }
         if (errorMessagePin != null) {
             errorMessagePin.unbind();
         }
@@ -451,30 +451,21 @@ public class MuSigTakeOfferReviewController implements Controller {
         priceInput.setQuote(quote);
         applyPriceQuote(Optional.of(quote));
         applyPriceDetails(model.getMuSigOffer().getPriceSpec(), model.getMuSigOffer().getMarket());
-        refreshFixedAmountPassiveSide(quote);
         applySecurityDepositAsBtc();
         applyAmountsAndDisplay();
     }
 
-    // Range selection recomputation belongs to the amount concern; for fixed amount offers the
-    // passive side is derived from the refreshed resolved quote so display and handoff stay
-    // consistent with the shown price.
-    private void refreshFixedAmountPassiveSide(PriceQuote quote) {
-        MuSigOffer offer = model.getMuSigOffer();
-        if (offer == null || !(offer.getAmountSpec() instanceof FixedAmountSpec)) {
+    // The domain publishes trade amounts with the passive side already refreshed from the
+    // resolved quote, so display and handoff stay consistent with the shown price.
+    private void applyTakersAmountsFromDomain() {
+        TradeAmount fixTradeAmount = takeOfferService.getAmountService().getFixTradeAmount();
+        if (fixTradeAmount == null) {
             return;
         }
-        if (offer.getAmountSpec() instanceof BaseSideFixedAmountSpec) {
-            Monetary baseSideAmount = model.getTakersBaseSideAmount();
-            if (baseSideAmount != null) {
-                model.setTakersQuoteSideAmount(quote.toQuoteSideMonetary(baseSideAmount));
-            }
-        } else if (offer.getAmountSpec() instanceof QuoteSideFixedAmountSpec) {
-            Monetary quoteSideAmount = model.getTakersQuoteSideAmount();
-            if (quoteSideAmount != null) {
-                model.setTakersBaseSideAmount(quote.toBaseSideMonetary(quoteSideAmount));
-            }
-        }
+        model.setTakersBaseSideAmount(fixTradeAmount.getBaseSideAmount());
+        model.setTakersQuoteSideAmount(fixTradeAmount.getQuoteSideAmount());
+        applySecurityDepositAsBtc();
+        applyAmountsAndDisplay();
     }
 
     private void applyPriceDetails(PriceSpec priceSpec, Market market) {

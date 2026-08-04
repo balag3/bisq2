@@ -59,6 +59,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
     private final MuSigTakeOfferPaymentModel model;
     @Getter
     private final MuSigTakeOfferPaymentView view;
+    private final TakeOfferUseCase takeOfferService;
     private final TakeOfferPaymentMethodService takeOfferPaymentMethodService;
     private final Consumer<Boolean> navigationButtonsVisibleHandler;
     private Subscription paymentMethodWithoutAccountPin, paymentMethodWithMultipleAccountsPin;
@@ -68,6 +69,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
     public MuSigTakeOfferPaymentController(ServiceProvider serviceProvider,
                                            TakeOfferUseCase takeOfferService,
                                            Consumer<Boolean> navigationButtonsVisibleHandler) {
+        this.takeOfferService = takeOfferService;
         takeOfferPaymentMethodService = takeOfferService.getPaymentMethodService();
         this.navigationButtonsVisibleHandler = navigationButtonsVisibleHandler;
 
@@ -114,6 +116,11 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 .map(spec -> (PaymentMethod<?>) spec.getPaymentMethod())
                 .collect(Collectors.toList());
         model.getOfferedPaymentMethods().setAll(offeredPaymentMethods);
+        // Methods whose rail limit cannot cover the offer amount are shown disabled with a
+        // reason and cannot be selected (specification.md, "Amount limits").
+        offeredPaymentMethods.stream()
+                .filter(method -> !takeOfferService.isPaymentMethodAdmissible(method))
+                .forEach(model.getInadmissiblePaymentMethods()::add);
 
         // Seed the preselection applied by the use case (exactly one eligible account in total).
         ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedByMethod =
@@ -219,6 +226,17 @@ public class MuSigTakeOfferPaymentController implements Controller {
 
     void onTogglePaymentMethod(PaymentMethod<?> paymentMethod, boolean isSelected) {
         if (paymentMethod == null) {
+            return;
+        }
+        if (model.getInadmissiblePaymentMethods().contains(paymentMethod)) {
+            // Not selectable; the chip carries the reason as tooltip. A full deselect keeps the
+            // visual state (no chip selected) consistent with the selection state, else Next
+            // could proceed with the previously selected method.
+            model.getPaymentMethodWithMultipleAccounts().set(null);
+            model.getSelectedAccount().set(null);
+            model.getSelectedPaymentMethodSpec().set(null);
+            model.getToggleGroup().selectToggle(null);
+            takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
             return;
         }
         if (isSelected) {

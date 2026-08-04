@@ -26,6 +26,7 @@ import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodAccou
 import com.google.common.collect.ImmutableMap;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.experimental.Delegate;
 
 import java.util.List;
@@ -39,6 +40,11 @@ public class TakeOfferPaymentMethodService {
     @Delegate
     private final TakeOfferPaymentMethodModel model;
     private final PaymentMethodSelectionService paymentMethodSelectionService;
+    // Invoked AFTER a selection mutation completed, so a recomputation never observes the
+    // transient empty state of the clear-before-put sequence.
+    @Setter
+    private Runnable tradeAmountConstraintsRecalculationHandler = () -> {
+    };
 
     public enum PaymentMethodSelectionStatus {
         NO_ACCOUNT_AVAILABLE,
@@ -196,6 +202,7 @@ public class TakeOfferPaymentMethodService {
         model.clearSelectedAccountByPaymentMethod();
         model.putSelectedAccountByPaymentMethod(paymentMethod, account);
         if (recalculateTradeAmountConstraints) {
+            tradeAmountConstraintsRecalculationHandler.run();
         }
         return true;
     }
@@ -207,6 +214,7 @@ public class TakeOfferPaymentMethodService {
         }
         model.removeSelectedAccountByPaymentMethod(paymentMethod);
         if (recalculateTradeAmountConstraints) {
+            tradeAmountConstraintsRecalculationHandler.run();
         }
         return true;
     }
@@ -217,6 +225,7 @@ public class TakeOfferPaymentMethodService {
         }
         model.clearSelectedAccountByPaymentMethod();
         if (recalculateTradeAmountConstraints) {
+            tradeAmountConstraintsRecalculationHandler.run();
         }
         return true;
     }

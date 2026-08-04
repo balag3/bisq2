@@ -233,8 +233,13 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
                 button.setTooltip(new BisqTooltip(paymentMethod.getDisplayString()));
             }
 
+            boolean isAdmissible = !model.getInadmissiblePaymentMethods().contains(paymentMethod);
             boolean hasAccounts = model.getAccountsByPaymentMethod().containsKey(paymentMethod);
-            button.setActive(hasAccounts);
+            button.setActive(hasAccounts && isAdmissible);
+            if (!isAdmissible) {
+                button.setTooltip(new BisqTooltip(Res.get("muSig.offer.taker.payment.methodNotAdmissible",
+                        paymentMethod.getShortDisplayString())));
+            }
             List<Account<?, ?>> accounts = model.getAccountsByPaymentMethod().get(paymentMethod);
             button.setNumAccounts(hasAccounts ? accounts.size() : 0);
 

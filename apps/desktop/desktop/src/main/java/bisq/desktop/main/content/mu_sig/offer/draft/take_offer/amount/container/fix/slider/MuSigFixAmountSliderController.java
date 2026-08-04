@@ -50,20 +50,32 @@ public class MuSigFixAmountSliderController implements Controller {
 
     @Override
     public void onActivate() {
-        subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
-                value -> {
-                    if (value != null) {
-                        takeOfferService.setFixTradeAmountFromSliderValue(clamp(value.doubleValue()));
-                    }
-                }));
         pins.add(takeOfferAmountService.userSpecificTradeAmountLimitAsSliderValueObservable().addObserver(value -> {
             UIThread.run(() -> {
                 model.getMaxAllowedValue().set(value.orElse(1d));
             });
         }));
 
+        // The binding must seed the property with the domain value BEFORE the feedback
+        // subscription registers: EasyBind fires at registration, and pushing the property's
+        // default 0 into the domain would clamp the initialized default to the range minimum.
         pins.add(FxBindings.bind(model.getGetSliderValue())
                 .to(takeOfferAmountService.fixAmountSliderValueObservable()));
+
+        subscriptions.add(EasyBind.subscribe(model.getGetSliderValue(),
+                value -> {
+                    if (value == null) {
+                        return;
+                    }
+                    double clamped = clamp(value.doubleValue());
+                    // Domain-published values echo through the bound property; only genuine
+                    // slider input may feed back into the domain.
+                    Double domainValue = takeOfferAmountService.getFixAmountSliderValue();
+                    if (domainValue != null && Math.abs(domainValue - clamped) < 1e-9) {
+                        return;
+                    }
+                    takeOfferService.setFixTradeAmountFromSliderValue(clamped);
+                }));
     }
 
     @Override

@@ -75,6 +75,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
     private final TakeOfferUseCase takeOfferService;
     private final SettingsService settingsService;
     private Pin priceDeviationPin;
+    private Pin amountLimitsPin;
     private boolean warnedAboutPriceDeviation;
     private final OverlayController overlayController;
     @Getter
@@ -85,7 +86,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
     private final MuSigTakeOfferPaymentController muSigTakeOfferPaymentController;
     private final MuSigTakeOfferReviewController muSigTakeOfferReviewController;
     private final EventHandler<KeyEvent> onKeyPressedHandler = this::onKeyPressed;
-    private Subscription takersBaseSideAmountPin, takersQuoteSideAmountPin, selectedAccountPin, paymentMethodSpecPin;
+    private Subscription selectedAccountPin, paymentMethodSpecPin;
 
     public MuSigTakeOfferController(ServiceProvider serviceProvider) {
         super(NavigationTarget.MU_SIG_TAKE_OFFER);
@@ -142,7 +143,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
                 ? Res.get("muSig.offer.wizard.progress.account.fiat")
                 : Res.get("muSig.offer.wizard.progress.account.crypto"));
 
-        model.setAmountVisible(muSigOffer.hasAmountRange());
+        model.setAmountVisible(takeOfferService.shouldShowAmountStep());
         model.setPaymentMethodVisible(takeOfferService.shouldShowPaymentStep());
 
         model.getChildTargets().clear();
@@ -178,21 +179,38 @@ public class MuSigTakeOfferController extends NavigationController implements In
         model.getSelectedChildTarget().set(first);
         model.getBackButtonText().set(Res.get("action.back"));
         model.getNextButtonVisible().set(true);
-       /* takersBaseSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersBaseSideAmount(),
-                muSigTakeOfferReviewController::setTakersBaseSideAmount);
-        takersQuoteSideAmountPin = EasyBind.subscribe(muSigTakeOfferAmountController.getTakersQuoteSideAmount(),
-                muSigTakeOfferReviewController::setTakersQuoteSideAmount);*/
 
+        // The review step reads the taker's amounts from the domain amount observables directly.
         selectedAccountPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getSelectedAccount(),
                 muSigTakeOfferReviewController::setTakersAccount);
         paymentMethodSpecPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getPaymentMethodSpec(),
                 muSigTakeOfferReviewController::setTakersPaymentMethodSpec);
-        paymentMethodSpecPin = EasyBind.subscribe(muSigTakeOfferPaymentController.getPaymentMethodSpec(),
-                paymentMethodSpec -> {
-                    //  muSigTakeOfferAmountController.setTakersPaymentMethodSpec(paymentMethodSpec);
-                    muSigTakeOfferReviewController.setTakersPaymentMethodSpec(paymentMethodSpec);
+        // The domain publishes the limits AFTER updating the collapse state, so observing the
+        // limits (not the UI selection properties) reads a consistent shouldShowAmountStep.
+        amountLimitsPin = takeOfferService.getAmountService().tradeAmountLimitsObservable().addObserver(limits ->
+                UIThread.run(this::updateAmountStepVisibility));
+    }
 
-                });
+    // A payment method selection can collapse or un-collapse the effective amount range
+    // (specification.md, "Amount", collapse rule). Selection changes happen on the payment step,
+    // before the amount step is reached, so the remaining wizard targets can be rebuilt safely.
+    private void updateAmountStepVisibility() {
+        if (model.getTakeOfferValidationFailure() != null) {
+            return;
+        }
+        boolean amountVisible = takeOfferService.shouldShowAmountStep();
+        if (amountVisible == model.isAmountVisible()) {
+            return;
+        }
+        model.setAmountVisible(amountVisible);
+        if (amountVisible) {
+            int reviewIndex = model.getChildTargets().indexOf(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
+            if (reviewIndex >= 0 && !model.getChildTargets().contains(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT)) {
+                model.getChildTargets().add(reviewIndex, NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
+            }
+        } else {
+            model.getChildTargets().remove(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
+        }
     }
 
     @Override
@@ -201,13 +219,21 @@ public class MuSigTakeOfferController extends NavigationController implements In
             priceDeviationPin.unbind();
             priceDeviationPin = null;
         }
+        if (amountLimitsPin != null) {
+            amountLimitsPin.unbind();
+            amountLimitsPin = null;
+        }
         takeOfferService.dispose();
         overlayController.setUseEscapeKeyHandler(true);
         overlayController.getApplicationRoot().removeEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
-     /*   takersBaseSideAmountPin.unsubscribe();
-        takersQuoteSideAmountPin.unsubscribe();
-        selectedAccountPin.unsubscribe();
-        paymentMethodSpecPin.unsubscribe();*/
+        if (selectedAccountPin != null) {
+            selectedAccountPin.unsubscribe();
+            selectedAccountPin = null;
+        }
+        if (paymentMethodSpecPin != null) {
+            paymentMethodSpecPin.unsubscribe();
+            paymentMethodSpecPin = null;
+        }
         reset();
     }
 
@@ -313,6 +339,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
         return switch (reason) {
             case OWN_OFFER -> Res.get("muSig.takeOffer.validation.ownOffer");
             case NO_MARKET_PRICE -> Res.get("muSig.takeOffer.validation.noMarketPrice");
+            case AMOUNT_OUTSIDE_LIMITS -> Res.get("muSig.takeOffer.validation.amountOutsideLimits");
             default -> Res.get("muSig.takeOffer.validation.invalidOffer");
         };
     }

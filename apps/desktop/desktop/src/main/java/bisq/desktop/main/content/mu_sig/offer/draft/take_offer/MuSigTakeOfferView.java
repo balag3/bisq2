@@ -61,7 +61,7 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
     private final VBox content;
     private final ChangeListener<Number> currentIndexListener;
     private final ChangeListener<View<? extends Parent, ? extends Model, ? extends Controller>> viewChangeListener;
-    private Subscription showProgressBoxPin, takeOfferButtonVisiblePin;
+    private Subscription showProgressBoxPin, takeOfferButtonVisiblePin, amountVisiblePin;
 
     public MuSigTakeOfferView(MuSigTakeOfferModel model, MuSigTakeOfferController controller) {
         super(new VBox(), model, controller);
@@ -69,15 +69,11 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
         root.setPrefWidth(OverlayModel.WIDTH);
         root.setPrefHeight(POPUP_HEIGHT);
 
-        Label review = createAndGetProgressLabel(Res.get("muSig.offer.taker.progress.review"));
-        progressLabelList.add(review);
-
         progressBox = new HBox(10);
         progressBox.setAlignment(Pos.CENTER);
         progressBox.setMinHeight(TOP_PANE_HEIGHT);
         progressBox.setMaxHeight(TOP_PANE_HEIGHT);
         progressBox.setPadding(new Insets(0, 20, 0, 50));
-        progressBox.getChildren().add(review);
 
         closeButton = BisqIconButton.createIconButton("close");
 
@@ -135,18 +131,9 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
 
     @Override
     protected void onViewAttached() {
-        if (model.isAmountVisible()) {
-            Label amount = createAndGetProgressLabel(Res.get("muSig.offer.taker.progress.amount"));
-            progressLabelList.addFirst(amount);
-            progressBox.getChildren().addFirst(getHLine());
-            progressBox.getChildren().addFirst(amount);
-        }
-        if (model.isPaymentMethodVisible()) {
-            Label paymentMethod = createAndGetProgressLabel(model.getPaymentMethodProgressLabel());
-            progressLabelList.addFirst(paymentMethod);
-            progressBox.getChildren().addFirst(getHLine());
-            progressBox.getChildren().addFirst(paymentMethod);
-        }
+        // Rebuilds on change: a payment method selection can add or remove the amount step
+        // while the wizard is open. Fires at subscription for the initial build.
+        amountVisiblePin = EasyBind.subscribe(model.amountVisibleProperty(), amountVisible -> rebuildProgressBox());
 
         nextButton.textProperty().bind(model.getNextButtonText());
         nextButton.visibleProperty().bind(model.getNextButtonVisible());
@@ -221,12 +208,32 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
 
         showProgressBoxPin.unsubscribe();
         takeOfferButtonVisiblePin.unsubscribe();
+        amountVisiblePin.unsubscribe();
 
         nextButton.setOnAction(null);
         backButton.setOnAction(null);
         closeButton.setOnAction(null);
         takeOfferButton.setOnAction(null);
         root.setOnKeyPressed(null);
+    }
+
+    private void rebuildProgressBox() {
+        progressLabelList.clear();
+        progressBox.getChildren().clear();
+        if (model.isPaymentMethodVisible()) {
+            Label paymentMethod = createAndGetProgressLabel(model.getPaymentMethodProgressLabel());
+            progressLabelList.add(paymentMethod);
+            progressBox.getChildren().addAll(paymentMethod, getHLine());
+        }
+        if (model.isAmountVisible()) {
+            Label amount = createAndGetProgressLabel(Res.get("muSig.offer.taker.progress.amount"));
+            progressLabelList.add(amount);
+            progressBox.getChildren().addAll(amount, getHLine());
+        }
+        Label review = createAndGetProgressLabel(Res.get("muSig.offer.taker.progress.review"));
+        progressLabelList.add(review);
+        progressBox.getChildren().add(review);
+        applyProgress(model.getCurrentIndex().get(), false);
     }
 
     private Region getHLine() {

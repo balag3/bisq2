@@ -14,6 +14,8 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.locale.Country;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
+import bisq.common.monetary.Fiat;
+import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.network.identity.NetworkId;
@@ -26,6 +28,8 @@ import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException.Reason
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
+import bisq.offer.amount.spec.QuoteSideFixedAmountSpec;
+import bisq.offer.amount.spec.QuoteSideRangeAmountSpec;
 import bisq.offer.price.spec.FixPriceSpec;
 import bisq.offer.price.spec.FloatPriceSpec;
 import bisq.offer.price.spec.MarketPriceSpec;
@@ -37,10 +41,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +55,8 @@ public class TakeOfferUseCaseTest {
     private final Market market = MarketRepository.getUSDBitcoinMarket();
     private final PriceQuote marketPriceQuote = PriceQuote.fromFiatPrice(100_000, "USD");
     private final PaymentMethod<?> wiseMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.WISE);
+    private final PaymentMethod<?> advancedCashMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ADVANCED_CASH);
+    private final PaymentMethod<?> achMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
     private final PaymentMethod<?> mainChainMethod = BitcoinPaymentMethod.fromPaymentRail(BitcoinPaymentRail.MAIN_CHAIN);
 
     private final MarketPriceService marketPriceService = mock(MarketPriceService.class);
@@ -59,6 +68,9 @@ public class TakeOfferUseCaseTest {
         when(marketPrice.getPriceQuote()).thenReturn(quote);
         when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(marketPrice));
         when(marketPriceService.findMarketPriceQuote(market)).thenReturn(Optional.of(quote));
+        // The USD-defined amount limits convert through the market price of the offer market and
+        // the USD market (the same market in this harness).
+        when(marketPriceService.getMarketPriceQuoteOrThrow(market)).thenReturn(quote);
     }
 
     private void fireMarketPriceUpdate(PriceQuote quote) {
@@ -369,6 +381,12 @@ public class TakeOfferUseCaseTest {
         assertTrue(useCase.getPaymentMethodService().getIncompatibleAccountsByPaymentMethod().isEmpty());
         assertNull(useCase.getPriceService().getPriceQuote());
         assertNull(useCase.getPriceService().getPriceDeviation());
+        assertNull(useCase.getAmountService().getAmountSpec());
+        assertNull(useCase.getAmountService().getFixTradeAmount());
+        assertNull(useCase.getAmountService().getTradeAmountLimits());
+        assertNull(useCase.getAmountService().getInputAmountLimits());
+        assertTrue(useCase.getAmountService().getUserSpecificTradeAmountLimit().isEmpty());
+        assertTrue(useCase.getAmountService().isAmountValid());
 
         fireMarketPriceUpdate(PriceQuote.fromFiatPrice(105_000, "USD"));
         assertNull(useCase.getPriceService().getPriceQuote());
@@ -449,6 +467,484 @@ public class TakeOfferUseCaseTest {
         assertNull(useCase.getPriceService().getPriceDeviation());
     }
 
+    /* --------------------------------------------------------------------- */
+    // Amount (specification.md, "Amount" and "Amount limits")
+    /* --------------------------------------------------------------------- */
+
+    @Test
+    public void fixedAmountOfferInitializesTradeAmountAndSkipsAmountStep() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+
+        useCase.initialize(offer);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertNotNull(fixTradeAmount);
+        assertEquals(usd(500), fixTradeAmount.getQuoteSideAmount());
+        assertEquals(marketPriceQuote.toBaseSideMonetary(usd(500)), fixTradeAmount.getBaseSideAmount());
+        assertFalse(useCase.shouldShowAmountStep());
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertNotNull(useCase.getAmountService().getTradeAmountLimits());
+    }
+
+    @Test
+    public void fixedAmountBelowAbsoluteMinimumRejects() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyFixedAmount(offer, 5);
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void fixedAmountAboveUserCapRejectsOnlyWhenTakerBuysBitcoin() {
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase sellUseCase = createUseCase(market -> List.of(acAccount));
+        MuSigOffer sellOffer = offerWithMethods(Direction.SELL, advancedCashMethod);
+        applyFixedAmount(sellOffer, 5000);
+
+        assertRejected(sellUseCase, sellOffer, Reason.AMOUNT_OUTSIDE_LIMITS);
+
+        TakeOfferUseCase buyUseCase = createUseCase(market -> List.of(acAccount));
+        MuSigOffer buyOffer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        applyFixedAmount(buyOffer, 5000);
+
+        buyUseCase.initialize(buyOffer);
+        assertEquals(usd(5000), buyUseCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+    }
+
+    @Test
+    public void rangeOfferComputesEffectiveRangeAndMidpointDefault() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+
+        useCase.initialize(offer);
+
+        assertTrue(useCase.shouldShowAmountStep());
+        assertEquals(usd(1000), useCase.getAmountService().getTradeAmountLimits().getMin().getQuoteSideAmount());
+        assertEquals(usd(3000), useCase.getAmountService().getTradeAmountLimits().getMax().getQuoteSideAmount());
+        assertEquals(usd(1000), useCase.getAmountService().getInputAmountLimits().getMin());
+        assertEquals(usd(3000), useCase.getAmountService().getInputAmountLimits().getMax());
+        assertEquals(usd(2000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(0.5, useCase.getAmountService().getFixAmountSliderValue(), 1e-9);
+    }
+
+    @Test
+    public void rangeOfferMethodLimitBindsEffectiveMaximum() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 8000);
+
+        useCase.initialize(offer);
+
+        // WISE is a MODERATE chargeback-risk rail: 50% of the 10k USD absolute maximum.
+        assertEquals(usd(5000), useCase.getAmountService().getTradeAmountLimits().getMax().getQuoteSideAmount());
+        assertEquals(usd(5000), useCase.getAmountService().getInputAmountLimits().getMax());
+    }
+
+    @Test
+    public void rangeOfferOutsideAbsoluteLimitsRejects() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 15000, 20000);
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void rangeCollapsingToPointSkipsAmountStep() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 5000, 8000);
+
+        useCase.initialize(offer);
+
+        // The WISE limit squeezes the range to the single point 5000 USD.
+        assertFalse(useCase.shouldShowAmountStep());
+        assertEquals(usd(5000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void userCapBecomesEffectiveMaximumAndMarkerForBitcoinBuyer() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = offerWithMethods(Direction.SELL, wiseMethod);
+        applyRangeAmount(offer, 1000, 8000);
+
+        useCase.initialize(offer);
+
+        // Effective maximum = 4000 USD user cap; slider base stays the pre-user range 1000-5000.
+        assertEquals(usd(4000), useCase.getAmountService().getTradeAmountLimits().getMax().getQuoteSideAmount());
+        assertEquals(usd(5000), useCase.getAmountService().getInputAmountLimits().getMax());
+        assertEquals(usd(4000), useCase.getAmountService().getUserSpecificTradeAmountLimit().orElseThrow().getQuoteSideAmount());
+        assertEquals(0.75, useCase.getAmountService().getUserSpecificTradeAmountLimitAsSliderValue().orElseThrow(), 1e-9);
+        // Midpoint of the EFFECTIVE range 1000-4000.
+        assertEquals(usd(2500), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+    }
+
+    @Test
+    public void inputAmountEntryClampsToEffectiveRange() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 8000);
+        useCase.initialize(offer);
+
+        useCase.setFixTradeAmountFromInputAmount(usd(3000));
+        assertEquals(usd(3000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(0.5, useCase.getAmountService().getFixAmountSliderValue(), 1e-9);
+
+        useCase.setFixTradeAmountFromInputAmount(usd(7000));
+        assertEquals(usd(5000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(1.0, useCase.getAmountService().getFixAmountSliderValue(), 1e-9);
+    }
+
+    @Test
+    public void sliderEntryMapsOverBaseRangeAndCapsAtUserLimit() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = offerWithMethods(Direction.SELL, wiseMethod);
+        applyRangeAmount(offer, 1000, 8000);
+        useCase.initialize(offer);
+
+        useCase.setFixTradeAmountFromSliderValue(1.0);
+
+        // Slider end = 5000 USD (pre-user maximum), capped at the 4000 USD user limit and re-emitted.
+        assertEquals(usd(4000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(0.75, useCase.getAmountService().getFixAmountSliderValue(), 1e-9);
+    }
+
+    @Test
+    public void paymentMethodSwitchClampsSelectionVisibly() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 1000, 8000);
+        useCase.initialize(offer);
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(advancedCashMethod);
+        useCase.setFixTradeAmountFromInputAmount(usd(7000));
+        assertEquals(usd(7000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+
+        // User-initiated change: the selection is clamped visibly into the new effective range.
+        assertEquals(usd(5000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertEquals(1.0, useCase.getAmountService().getFixAmountSliderValue(), 1e-9);
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void laterMethodSelectionInvalidatesFixedAmountWithoutClamp() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyFixedAmount(offer, 6000);
+
+        useCase.initialize(offer);
+        assertTrue(useCase.getAmountService().isAmountValid());
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+
+        // A fixed offer amount is never clamped; it becomes invalid instead.
+        assertFalse(useCase.getAmountService().isAmountValid());
+        assertEquals(usd(6000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(advancedCashMethod);
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void backgroundPriceUpdateNeverClampsAndBlocksViaValidity() {
+        Market eurMarket = new Market("BTC", "EUR", "Bitcoin", "Euro");
+        PriceQuote btcEurQuote = PriceQuote.fromFiatPrice(100_000, "EUR");
+        Fiat offerAmount = Fiat.fromFaceValue(9_500, "EUR");
+        stubEurMarketPrice(eurMarket, btcEurQuote);
+
+        MuSigOffer offer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase eurUseCase = createUseCase(market -> List.of(acAccount));
+        when(offer.getMarket()).thenReturn(eurMarket);
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(btcEurQuote));
+        QuoteSideFixedAmountSpec amountSpec = new QuoteSideFixedAmountSpec(offerAmount.getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(false);
+
+        eurUseCase.initialize(offer);
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+
+        // EUR weakens against USD: the 10k USD absolute maximum is now 9000 EUR < the fixed 9500 EUR.
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(90_000, "EUR"));
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+        assertEquals(offerAmount, eurUseCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+
+        // Recovery lifts the block.
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(100_000, "EUR"));
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void backgroundPriceUpdateKeepsInputSideOfRangeSelection() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        useCase.setFixTradeAmountFromInputAmount(usd(3000));
+
+        PriceQuote newQuote = PriceQuote.fromFiatPrice(120_000, "USD");
+        fireMarketPriceUpdate(newQuote);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(usd(3000), fixTradeAmount.getQuoteSideAmount());
+        assertEquals(newQuote.toBaseSideMonetary(usd(3000)), fixTradeAmount.getBaseSideAmount());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void inputSideSwitchRecomputesInputRangeAndConversions() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+
+        useCase.setUseBaseCurrencyForAmountInput(true);
+
+        assertEquals("BTC", useCase.getAmountService().getInputAmountLimits().getMin().getCode());
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(fixTradeAmount.getBaseSideAmount(), useCase.toInputAmount(fixTradeAmount));
+        assertEquals(fixTradeAmount.getQuoteSideAmount(), useCase.toPassiveAmount(fixTradeAmount));
+
+        useCase.setUseBaseCurrencyForAmountInput(false);
+        assertEquals("USD", useCase.getAmountService().getInputAmountLimits().getMin().getCode());
+        assertEquals(fixTradeAmount.getQuoteSideAmount(), useCase.toInputAmount(fixTradeAmount));
+    }
+
+    @Test
+    public void incomputableLimitsBlockConfirmationUntilRecovery() {
+        Market eurMarket = new Market("BTC", "EUR", "Bitcoin", "Euro");
+        PriceQuote btcEurQuote = PriceQuote.fromFiatPrice(100_000, "EUR");
+        stubEurMarketPrice(eurMarket, btcEurQuote);
+
+        MuSigOffer offer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase eurUseCase = createUseCase(market -> List.of(acAccount));
+        when(offer.getMarket()).thenReturn(eurMarket);
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(btcEurQuote));
+        QuoteSideFixedAmountSpec amountSpec = new QuoteSideFixedAmountSpec(Fiat.fromFaceValue(5_000, "EUR").getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(false);
+
+        eurUseCase.initialize(offer);
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+
+        // The BTC/USD price needed for the USD-defined limits vanishes while the offer market's
+        // price is still present: the limits are not computable, confirmation must be blocked.
+        doThrow(new IllegalStateException("No BTC/USD market price"))
+                .when(marketPriceService).getMarketPriceQuoteOrThrow(market);
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(99_000, "EUR"));
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+
+        // Recovery lifts the block with the next successful recomputation.
+        doReturn(marketPriceQuote).when(marketPriceService).getMarketPriceQuoteOrThrow(market);
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(100_000, "EUR"));
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void methodWhoseLimitCannotCoverTheOfferIsInadmissible() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 6000, 8000);
+        useCase.initialize(offer);
+
+        // The WISE 5000 USD rail limit empties the 6000-8000 range; ADVANCED_CASH covers it.
+        assertFalse(useCase.isPaymentMethodAdmissible(wiseMethod));
+        assertTrue(useCase.isPaymentMethodAdmissible(advancedCashMethod));
+
+        TakeOfferUseCase fixedUseCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer fixedOffer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyFixedAmount(fixedOffer, 6000);
+        fixedUseCase.initialize(fixedOffer);
+
+        assertFalse(fixedUseCase.isPaymentMethodAdmissible(wiseMethod));
+        assertTrue(fixedUseCase.isPaymentMethodAdmissible(advancedCashMethod));
+    }
+
+    @Test
+    public void lateSelectionCollapsingTheRangeHidesTheAmountStep() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 5000, 8000);
+        useCase.initialize(offer);
+        assertTrue(useCase.shouldShowAmountStep());
+
+        // WISE's 5000 USD limit collapses the range to a point: treated as fixed, step hidden.
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+        assertFalse(useCase.shouldShowAmountStep());
+        assertEquals(usd(5000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(advancedCashMethod);
+        assertTrue(useCase.shouldShowAmountStep());
+    }
+
+    @Test
+    public void editingWhileLimitsAreStaleDoesNotLiftTheConfirmationBlock() {
+        Market eurMarket = new Market("BTC", "EUR", "Bitcoin", "Euro");
+        PriceQuote btcEurQuote = PriceQuote.fromFiatPrice(100_000, "EUR");
+        stubEurMarketPrice(eurMarket, btcEurQuote);
+
+        MuSigOffer offer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase eurUseCase = createUseCase(market -> List.of(acAccount));
+        when(offer.getMarket()).thenReturn(eurMarket);
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(btcEurQuote));
+        QuoteSideRangeAmountSpec amountSpec = new QuoteSideRangeAmountSpec(
+                Fiat.fromFaceValue(9_200, "EUR").getValue(), Fiat.fromFaceValue(9_800, "EUR").getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        eurUseCase.initialize(offer);
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+
+        // EUR weakens: the absolute maximum falls to 9000 EUR, below the offer minimum - the
+        // intersection is empty and the published limits are stale.
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(90_000, "EUR"));
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+
+        // Editing against the stale published limits must not lift the block.
+        eurUseCase.setFixTradeAmountFromSliderValue(0.5);
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+        eurUseCase.setFixTradeAmountFromInputAmount(Fiat.fromFaceValue(9_300, "EUR"));
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+
+        // Recovery recomputes the limits; editing validates again.
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(100_000, "EUR"));
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+        eurUseCase.setFixTradeAmountFromSliderValue(0.5);
+        assertTrue(eurUseCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void offerNoMethodCanCoverIsRejectedAtInitialization() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> achAccount = accountFor(achMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, achAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, achMethod);
+        // Both offered rails cap at 5000 USD; no method can cover 6000-8000.
+        applyRangeAmount(offer, 6000, 8000);
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void inadmissiblePreselectionIsDroppedInsteadOfRejecting() {
+        // WISE has the only eligible account and gets preselected, but its 5000 USD rail limit
+        // cannot cover the fixed 6000 USD amount; ADVANCED_CASH stays selectable via account
+        // creation, so the offer must not be rejected and the preselection must be dropped.
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyFixedAmount(offer, 6000);
+
+        useCase.initialize(offer);
+
+        assertTrue(useCase.getSelectedAccount().isEmpty());
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertEquals(usd(6000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+    }
+
+    @Test
+    public void missingUsdPriceAtInitializationRejectsCleanly() {
+        Market eurMarket = new Market("BTC", "EUR", "Bitcoin", "Euro");
+        PriceQuote btcEurQuote = PriceQuote.fromFiatPrice(100_000, "EUR");
+        stubEurMarketPrice(eurMarket, btcEurQuote);
+
+        MuSigOffer offer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase eurUseCase = createUseCase(market -> List.of(acAccount));
+        when(offer.getMarket()).thenReturn(eurMarket);
+        QuoteSideFixedAmountSpec amountSpec = new QuoteSideFixedAmountSpec(Fiat.fromFaceValue(5_000, "EUR").getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(false);
+        // The BTC/USD price needed for the USD-defined limits is missing while the offer
+        // market's price exists: a clean rejection, not an uncaught runtime exception.
+        doThrow(new IllegalStateException("No BTC/USD market price"))
+                .when(marketPriceService).getMarketPriceQuoteOrThrow(market);
+
+        assertRejected(eurUseCase, offer, Reason.NO_MARKET_PRICE);
+        assertNull(eurUseCase.getAmountService().getAmountSpec());
+    }
+
+    @Test
+    public void collapseStateIsCurrentWhenTheLimitsArePublished() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 5000, 8000);
+        useCase.initialize(offer);
+
+        // Observers of the limits (the wizard's step visibility) must read a consistent
+        // shouldShowAmountStep at fire time: collapse state updates before the ranges publish.
+        List<Boolean> shouldShowAtFireTime = new java.util.ArrayList<>();
+        useCase.getAmountService().tradeAmountLimitsObservable().addObserver(limits ->
+                shouldShowAtFireTime.add(useCase.shouldShowAmountStep()));
+        shouldShowAtFireTime.clear();
+
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+        assertEquals(List.of(false), shouldShowAtFireTime);
+
+        shouldShowAtFireTime.clear();
+        useCase.getPaymentMethodService().onPaymentMethodSelected(advancedCashMethod);
+        assertEquals(List.of(true), shouldShowAtFireTime);
+    }
+
+    private void stubEurMarketPrice(Market eurMarket, PriceQuote quote) {
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        when(marketPriceService.findMarketPrice(eurMarket)).thenReturn(Optional.of(marketPrice));
+        when(marketPriceService.findMarketPriceQuote(eurMarket)).thenReturn(Optional.of(quote));
+        when(marketPriceService.getMarketPriceQuoteOrThrow(eurMarket)).thenReturn(quote);
+    }
+
+    private void fireEurMarketPriceUpdate(Market eurMarket, PriceQuote quote) {
+        stubEurMarketPrice(eurMarket, quote);
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        marketPriceByCurrencyMap.put(eurMarket, marketPrice);
+    }
+
+    private MuSigOffer offerWithMethods(Direction direction, PaymentMethod<?>... methods) {
+        MuSigOffer offer = validOffer();
+        when(offer.getDirection()).thenReturn(direction);
+        List<PaymentMethodSpec<?>> specs = new java.util.ArrayList<>();
+        List<OfferOption> options = new java.util.ArrayList<>();
+        options.add(new CollateralOption(0.25, 0.25));
+        for (PaymentMethod<?> method : methods) {
+            specs.add(specOf(method));
+            options.add(accountOption(method));
+        }
+        when(offer.getQuoteSidePaymentMethodSpecs()).thenReturn(specs);
+        when(offer.getOfferOptions()).thenReturn(options);
+        return offer;
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Account<?, ?> accountFor(PaymentMethod<?> paymentMethod) {
         Account account = mock(Account.class);
@@ -485,7 +981,25 @@ public class TakeOfferUseCaseTest {
         when(offer.getQuoteSidePaymentMethodSpecs()).thenReturn(quoteSideSpecs);
         when(offer.getBaseSidePaymentMethodSpecs()).thenReturn(baseSideSpecs);
         when(offer.getOfferOptions()).thenReturn(offerOptions);
+        applyFixedAmount(offer, 500);
         return offer;
+    }
+
+    private static void applyFixedAmount(MuSigOffer offer, long usdFaceValue) {
+        QuoteSideFixedAmountSpec amountSpec = new QuoteSideFixedAmountSpec(usd(usdFaceValue).getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(false);
+    }
+
+    private static void applyRangeAmount(MuSigOffer offer, long minUsdFaceValue, long maxUsdFaceValue) {
+        QuoteSideRangeAmountSpec amountSpec =
+                new QuoteSideRangeAmountSpec(usd(minUsdFaceValue).getValue(), usd(maxUsdFaceValue).getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(true);
+    }
+
+    private static Fiat usd(long faceValue) {
+        return Fiat.fromFaceValue(faceValue, "USD");
     }
 
     private static PaymentMethodSpec<?> specOf(PaymentMethod<?> paymentMethod) {

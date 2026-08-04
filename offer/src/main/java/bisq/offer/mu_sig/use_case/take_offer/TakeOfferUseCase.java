@@ -24,15 +24,23 @@ import bisq.account.payment_method.PaymentRail;
 import bisq.account.protocol_type.TradeProtocolType;
 import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
-import bisq.common.monetary.Fiat;
 import bisq.common.monetary.Monetary;
+import bisq.common.monetary.MonetaryRange;
 import bisq.common.monetary.PriceQuote;
+import bisq.common.monetary.TradeAmountConversion;
+import bisq.common.monetary.TradeAmountRange;
 import bisq.common.observable.Pin;
 import bisq.common.monetary.TradeAmount;
 import bisq.identity.IdentityService;
 import bisq.offer.amount.spec.AmountSpec;
+import bisq.offer.amount.spec.AmountSpecUtil;
 import bisq.offer.mu_sig.MuSigOffer;
 import bisq.offer.mu_sig.use_case.DraftOfferUseCase;
+import bisq.offer.mu_sig.use_case.create_offer.amount.AmountSelection;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.AbsoluteAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.PaymentMethodBasedAmountLimitsProvider;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.TradeAmountLimitUtils;
+import bisq.offer.mu_sig.use_case.create_offer.amount.limits.UserSpecificAmountLimitsProvider;
 import bisq.offer.mu_sig.use_case.create_offer.payment_method.PaymentMethodSelection;
 import bisq.offer.mu_sig.use_case.create_offer.price.limits.PriceLimits;
 import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException.Reason;
@@ -71,12 +79,11 @@ import javax.annotation.Nullable;
 
 import java.util.Optional;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
-// TODO
 @Slf4j
 public class TakeOfferUseCase extends DraftOfferUseCase {
-    public static final Fiat DEFAULT_TRADE_AMOUNT_IN_USD = Fiat.fromFaceValue(500, "USD");
     @Getter
     private final TakeOfferMarketService marketService;
     @Getter
@@ -95,6 +102,10 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private MuSigOffer muSigOffer;
     @Nullable
     private Pin marketPricePin;
+    private boolean rangeCollapsed;
+    // True while the published amount constraints could not be refreshed (empty intersection or
+    // incomputable limits): user edits must not re-validate against the stale published ranges.
+    private boolean amountConstraintsStale;
 
 
     /* --------------------------------------------------------------------- */
@@ -129,6 +140,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
 
         paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService);
+        // A payment method selection change is a user-initiated change of the effective amount
+        // limits (specification.md, "Amount limits", user-initiated class).
+        paymentMethodService.setTradeAmountConstraintsRecalculationHandler(() -> recalculateAmountConstraints(true));
     }
 
     private PaymentRail getSelectedPaymentRail() {
@@ -165,6 +179,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
             priceService.setPriceQuote(priceQuote);
             paymentMethodService.updatePaymentMethods(muSigOffer);
+            // After the payment concern so a preselected method's limit participates from the start.
+            initializeAmount(muSigOffer, priceQuote);
             if (marketPricePin != null) {
                 marketPricePin.unbind();
             }
@@ -184,6 +200,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             priceService.setMarketPriceQuote(null);
             priceService.setPriceDeviation(null);
             paymentMethodService.reset();
+            amountService.reset();
+            rangeCollapsed = false;
+            amountConstraintsStale = false;
             if (marketPricePin != null) {
                 marketPricePin.unbind();
                 marketPricePin = null;
@@ -209,6 +228,15 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         return accounts == null || accounts.size() != 1;
     }
 
+    /**
+     * The amount step is shown only for range offers whose effective range did not collapse to a
+     * single value at initialization (specification.md, "Amount", collapse rule).
+     */
+    public boolean shouldShowAmountStep() {
+        checkNotNull(muSigOffer, "shouldShowAmountStep must not be called before initialize");
+        return muSigOffer.hasAmountRange() && !rangeCollapsed;
+    }
+
     public Optional<Account<?, ?>> getSelectedAccount() {
         ImmutableMap<PaymentMethod<?>, Account<?, ?>> selected = paymentMethodService.getSelectedAccountByPaymentMethod();
         return selected.size() == 1
@@ -228,8 +256,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         if (offer == null) {
             return;
         }
-        // Passive amount and USD limit recomputation chains on the price quote observable and is
-        // implemented with the amount concern.
         PriceUtil.findMarketPriceQuote(marketPriceService, offer.getMarket())
                 .ifPresentOrElse(marketPriceQuote -> {
                     PriceQuote priceQuote = resolvePriceQuote(offer, marketPriceQuote);
@@ -237,6 +263,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                     priceService.setMarketPriceQuote(marketPriceQuote);
                     priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
                     priceService.setPriceQuote(priceQuote);
+                    // Background class: limits recompute, the selected amount is never clamped
+                    // (specification.md, "Amount limits", background changes).
+                    recalculateAmountConstraints(false);
                 }, () -> {
                     // The market price disappeared while the take process is open. Keep the resolved
                     // quote for display but mark market price and deviation unknown; blocking the
@@ -384,13 +413,344 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     }
 
     /* --------------------------------------------------------------------- */
+    // Amount concern (specification.md, "Amount" and "Amount limits")
+    /* --------------------------------------------------------------------- */
+
+    // The effective range intersects offer, absolute, payment-method and user-specific limits;
+    // the pre-user range omits the user cap and is what the slider spans. A null effectiveRange
+    // means the intersection is empty.
+    private record AmountConstraints(@Nullable TradeAmountRange preUserRange,
+                                     @Nullable TradeAmountRange effectiveRange,
+                                     Optional<TradeAmount> userSpecificLimit) {
+    }
+
+    private void initializeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
+        rangeCollapsed = false;
+        amountConstraintsStale = false;
+        try {
+            initializeAmountValidated(offer, resolvedQuote);
+        } catch (TakeOfferValidationException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // The USD-defined limits need the BTC/USD market price, which can be missing while
+            // the offer market's price is present; surfaced like any other missing price.
+            throw new TakeOfferValidationException(Reason.NO_MARKET_PRICE,
+                    "The amount limits for offer " + offer.getId() + " cannot be computed: " + e.getMessage());
+        }
+    }
+
+    private void initializeAmountValidated(MuSigOffer offer, PriceQuote resolvedQuote) {
+        // The offer is untakeable only if NO offered method can cover its amounts; a single
+        // inadmissible method (including a preselected one) leaves the others selectable.
+        boolean anyMethodAdmissible = getTakerSidePaymentMethodSpecs(offer).stream()
+                .map(spec -> (PaymentMethod<?>) spec.getPaymentMethod())
+                .anyMatch(this::isPaymentMethodAdmissible);
+        if (!anyMethodAdmissible) {
+            throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                    "No payment method offered by " + offer.getId() + " can cover the offer amounts within the taker's limits");
+        }
+        ImmutableMap<PaymentMethod<?>, Account<?, ?>> selected = paymentMethodService.getSelectedAccountByPaymentMethod();
+        if (selected.size() == 1 && !isPaymentMethodAdmissible(selected.keySet().iterator().next())) {
+            log.info("Dropping the preselected payment method of offer {}: its rail limit cannot cover the offer amounts",
+                    offer.getId());
+            paymentMethodService.clearSelectedAccountByPaymentMethod();
+        }
+        AmountConstraints constraints = computeAmountConstraints(offer, resolvedQuote);
+        TradeAmountRange effectiveRange = constraints.effectiveRange();
+        if (effectiveRange == null) {
+            throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                    "The amounts of offer " + offer.getId() + " do not intersect the taker's amount limits");
+        }
+        amountService.setAmountSpec(offer.getAmountSpec());
+        if (!offer.hasAmountRange()) {
+            TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
+            // A fixed offer amount is never clamped, as that would change the maker's offer.
+            if (fixTradeAmount.compareToRange(effectiveRange) != 0) {
+                throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                        "The fixed amount of offer " + offer.getId() + " lies outside the taker's amount limits");
+            }
+            publishAmountConstraints(constraints);
+            publishFixTradeAmount(fixTradeAmount);
+            amountService.setAmountValid(true);
+            return;
+        }
+        // Collapse rule: a point intersection, or bounds indistinguishable at the display
+        // precision of the non-Bitcoin side in Bitcoin-Fiat markets, leaves nothing to select;
+        // the amount is treated as fixed and the amount step is skipped.
+        rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
+        publishAmountConstraints(constraints);
+        if (rangeCollapsed) {
+            publishFixTradeAmount(effectiveRange.getMax());
+        } else {
+            publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
+        }
+        amountService.setAmountValid(true);
+    }
+
+    private void recalculateAmountConstraints(boolean userInitiated) {
+        MuSigOffer offer = this.muSigOffer;
+        if (offer == null || amountService.getAmountSpec() == null) {
+            // The amount concern initializes after the payment concern; selection changes made
+            // during initialization are covered by the initial computation.
+            return;
+        }
+        PriceQuote resolvedQuote = priceService.getPriceQuote();
+        if (resolvedQuote == null || priceService.getMarketPriceQuote() == null) {
+            // Without a market price the USD-defined limits cannot be converted; confirmation is
+            // already blocked by the missing-market-price gate, the amount state stays untouched.
+            return;
+        }
+        AmountConstraints constraints;
+        try {
+            constraints = computeAmountConstraints(offer, resolvedQuote);
+        } catch (RuntimeException e) {
+            // Confirmation is only allowed while the limits are computable against current
+            // prices (e.g. the BTC/USD price needed for the USD-defined limits can vanish while
+            // the offer market's price is still present). The block lifts with the next
+            // successful recomputation.
+            log.warn("Amount limits are not computable, blocking confirmation: {}", e.getMessage());
+            amountConstraintsStale = true;
+            amountService.setAmountValid(false);
+            return;
+        }
+        TradeAmountRange effectiveRange = constraints.effectiveRange();
+        if (effectiveRange == null) {
+            // The flow is never closed and nothing is clamped: the previously published ranges
+            // stay visible and confirmation is blocked until a later update restores validity.
+            amountConstraintsStale = true;
+            amountService.setAmountValid(false);
+            return;
+        }
+        // The collapse state must be current before the ranges are published: observers of the
+        // limits read shouldShowAmountStep (dependencies before triggers). Background updates
+        // deliberately never change the step structure of an open flow.
+        if (offer.hasAmountRange() && userInitiated) {
+            rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
+        }
+        publishAmountConstraints(constraints);
+        amountConstraintsStale = false;
+        if (!offer.hasAmountRange()) {
+            // A fixed offer amount is never clamped; it becomes invalid instead - both for
+            // background updates and for a later payment method selection.
+            TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
+            publishFixTradeAmount(fixTradeAmount);
+            amountService.setAmountValid(fixTradeAmount.compareToRange(effectiveRange) == 0);
+            return;
+        }
+        TradeAmount current = amountService.getFixTradeAmount();
+        if (current == null) {
+            publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
+            amountService.setAmountValid(true);
+            return;
+        }
+        if (userInitiated) {
+            // User-initiated changes clamp the selection visibly into the new effective range;
+            // a collapsed range is treated as fixed at its single value.
+            publishFixTradeAmount(rangeCollapsed ? effectiveRange.getMax() : current.clamp(effectiveRange));
+            amountService.setAmountValid(true);
+        } else {
+            // Background changes keep the input side stable, recompute the passive side from the
+            // resolved quote and re-validate without clamping.
+            TradeAmount refreshed = AmountSelection.applyPriceQuoteToPassiveSide(current, resolvedQuote,
+                    amountService.getUseBaseCurrencyForAmountInput());
+            publishFixTradeAmount(refreshed);
+            amountService.setAmountValid(refreshed.compareToRange(effectiveRange) == 0);
+        }
+    }
+
+    private AmountConstraints computeAmountConstraints(MuSigOffer offer, PriceQuote resolvedQuote) {
+        return computeAmountConstraints(offer, resolvedQuote, getSelectedPaymentRail());
+    }
+
+    private AmountConstraints computeAmountConstraints(MuSigOffer offer,
+                                                       PriceQuote resolvedQuote,
+                                                       @Nullable PaymentRail selectedRail) {
+        Market market = offer.getMarket();
+        MonetaryRange offerQuoteSideRange = resolveOfferQuoteSideRange(offer, resolvedQuote);
+        // The USD-defined limits convert to the market's stable side via the market price; the
+        // Bitcoin side follows the resolved quote (same split as the create-offer limits).
+        TradeAmount absoluteMin = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService, market, resolvedQuote,
+                AbsoluteAmountLimitsProvider.MIN_TRADE_AMOUNT_IN_USD);
+        TradeAmount absoluteMax = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService, market, resolvedQuote,
+                AbsoluteAmountLimitsProvider.MAX_TRADE_AMOUNT_IN_USD);
+        long minValue = Math.max(offerQuoteSideRange.getMin().getValue(), absoluteMin.getQuoteSideAmount().getValue());
+        long maxValue = Math.min(offerQuoteSideRange.getMax().getValue(), absoluteMax.getQuoteSideAmount().getValue());
+        if (selectedRail != null) {
+            TradeAmount methodLimit = TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService, market, resolvedQuote,
+                    PaymentMethodBasedAmountLimitsProvider.evaluateLimitInUsd(selectedRail));
+            maxValue = Math.min(maxValue, methodLimit.getQuoteSideAmount().getValue());
+        }
+        // The user-specific cap applies when the taker is the Bitcoin buyer in a Bitcoin-Fiat
+        // market (taken offer direction SELL). A seller-side cap is deliberately absent.
+        Optional<TradeAmount> userSpecificLimit = market.isBtcFiatMarket() && offer.getDirection().isSell()
+                ? Optional.of(TradeAmountLimitUtils.toTradeAmountLimit(marketPriceService, market, resolvedQuote,
+                UserSpecificAmountLimitsProvider.getUserSpecificLimitInUsd()))
+                : Optional.empty();
+        if (minValue > maxValue) {
+            return new AmountConstraints(null, null, userSpecificLimit);
+        }
+        Monetary quoteSample = offerQuoteSideRange.getMin();
+        TradeAmountRange preUserRange = toTradeAmountRange(market, resolvedQuote, quoteSample, minValue, maxValue);
+        long effectiveMaxValue = maxValue;
+        if (userSpecificLimit.isPresent()) {
+            long capValue = userSpecificLimit.get().getQuoteSideAmount().getValue();
+            if (capValue < minValue) {
+                // The limit is never relaxed to meet the minimum; the intersection is empty.
+                return new AmountConstraints(preUserRange, null, userSpecificLimit);
+            }
+            effectiveMaxValue = Math.min(effectiveMaxValue, capValue);
+        }
+        TradeAmountRange effectiveRange = toTradeAmountRange(market, resolvedQuote, quoteSample, minValue, effectiveMaxValue);
+        return new AmountConstraints(preUserRange, effectiveRange, userSpecificLimit);
+    }
+
+    // Collapse test: a point intersection, or bounds indistinguishable at the display precision
+    // of the non-Bitcoin side in Bitcoin-Fiat markets.
+    private static boolean isCollapsed(TradeAmountRange effectiveRange, Market market) {
+        Monetary minQuote = effectiveRange.getMin().getQuoteSideAmount();
+        Monetary maxQuote = effectiveRange.getMax().getQuoteSideAmount();
+        return minQuote.getValue() == maxQuote.getValue()
+                || (market.isBtcFiatMarket() && minQuote.isEqual(maxQuote, minQuote.getLowPrecision()));
+    }
+
+    /**
+     * A payment method is selectable only when its rail limit leaves a non-empty effective range
+     * that admits the offer's fixed amount (specification.md, "Amount limits", method
+     * selectability). Methods that cannot be evaluated count as admissible - the confirmation
+     * gate covers them.
+     */
+    public boolean isPaymentMethodAdmissible(PaymentMethod<?> paymentMethod) {
+        MuSigOffer offer = this.muSigOffer;
+        PriceQuote resolvedQuote = priceService.getPriceQuote();
+        if (offer == null || resolvedQuote == null) {
+            return true;
+        }
+        AmountConstraints constraints;
+        try {
+            constraints = computeAmountConstraints(offer, resolvedQuote, paymentMethod.getPaymentRail());
+        } catch (RuntimeException e) {
+            return true;
+        }
+        TradeAmountRange effectiveRange = constraints.effectiveRange();
+        if (effectiveRange == null) {
+            return false;
+        }
+        if (!offer.hasAmountRange()) {
+            return resolveFixedTradeAmount(offer, resolvedQuote).compareToRange(effectiveRange) == 0;
+        }
+        return true;
+    }
+
+    private static MonetaryRange resolveOfferQuoteSideRange(MuSigOffer offer, PriceQuote resolvedQuote) {
+        Market market = offer.getMarket();
+        AmountSpec amountSpec = offer.getAmountSpec();
+        Optional<Monetary> minQuote = AmountSpecUtil.findQuoteSideMinOrFixedAmountFromSpec(amountSpec, market.getQuoteCurrencyCode());
+        Optional<Monetary> maxQuote = AmountSpecUtil.findQuoteSideMaxOrFixedAmountFromSpec(amountSpec, market.getQuoteCurrencyCode());
+        if (minQuote.isPresent() && maxQuote.isPresent()) {
+            return new MonetaryRange(minQuote.get(), maxQuote.get());
+        }
+        // Base-side denominated specs convert via the resolved quote; the stored range itself
+        // never changes.
+        Monetary minBase = AmountSpecUtil.findBaseSideMinOrFixedAmountFromSpec(amountSpec, market.getBaseCurrencyCode())
+                .orElseThrow(() -> new IllegalStateException("Unsupported amount spec: " + amountSpec));
+        Monetary maxBase = AmountSpecUtil.findBaseSideMaxOrFixedAmountFromSpec(amountSpec, market.getBaseCurrencyCode())
+                .orElseThrow(() -> new IllegalStateException("Unsupported amount spec: " + amountSpec));
+        return new MonetaryRange(resolvedQuote.toQuoteSideMonetary(minBase), resolvedQuote.toQuoteSideMonetary(maxBase));
+    }
+
+    private static TradeAmount resolveFixedTradeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
+        Market market = offer.getMarket();
+        Monetary fixedAmount = AmountSpecUtil.findQuoteSideFixedAmountFromSpec(offer.getAmountSpec(), market.getQuoteCurrencyCode())
+                .or(() -> AmountSpecUtil.findBaseSideFixedAmountFromSpec(offer.getAmountSpec(), market.getBaseCurrencyCode()))
+                .orElseThrow(() -> new IllegalStateException("Fixed amount spec expected but was " + offer.getAmountSpec()));
+        return TradeAmountConversion.toTradeAmount(market, resolvedQuote, fixedAmount);
+    }
+
+    private static TradeAmountRange toTradeAmountRange(Market market,
+                                                       PriceQuote resolvedQuote,
+                                                       Monetary quoteSample,
+                                                       long minValue,
+                                                       long maxValue) {
+        TradeAmount min = TradeAmountConversion.toTradeAmount(market, resolvedQuote, Monetary.from(quoteSample, minValue));
+        TradeAmount max = TradeAmountConversion.toTradeAmount(market, resolvedQuote, Monetary.from(quoteSample, maxValue));
+        return new TradeAmountRange(min, max);
+    }
+
+    private static TradeAmount midpointOf(TradeAmountRange effectiveRange, Market market, PriceQuote resolvedQuote) {
+        Monetary min = effectiveRange.getMin().getQuoteSideAmount();
+        Monetary max = effectiveRange.getMax().getQuoteSideAmount();
+        Monetary midpoint = Monetary.from(min, min.getValue() + (max.getValue() - min.getValue()) / 2);
+        if (market.isBtcFiatMarket()) {
+            midpoint = midpoint.round(0);
+        }
+        return TradeAmountConversion.toTradeAmount(market, resolvedQuote, midpoint).clamp(effectiveRange);
+    }
+
+    // Publish order: ranges, then the user marker, then amount and slider value
+    // (dependencies before triggers - the desktop slider controllers clamp incoming values
+    // against the last-emitted marker and feed the result back into the domain).
+    private void publishAmountConstraints(AmountConstraints constraints) {
+        TradeAmountRange effectiveRange = checkNotNull(constraints.effectiveRange());
+        TradeAmountRange preUserRange = checkNotNull(constraints.preUserRange());
+        amountService.setTradeAmountLimits(effectiveRange);
+        MonetaryRange inputAmountLimits = toInputSideRange(preUserRange);
+        amountService.setInputAmountLimits(inputAmountLimits);
+        amountService.setUserSpecificTradeAmountLimit(constraints.userSpecificLimit());
+        amountService.setUserSpecificTradeAmountLimitAsSliderValue(constraints.userSpecificLimit()
+                .map(limit -> AmountSelection.toSliderValueFromAmount(toInputAmount(limit), inputAmountLimits)));
+    }
+
+    private void publishFixTradeAmount(TradeAmount tradeAmount) {
+        amountService.setFixTradeAmount(tradeAmount);
+        MonetaryRange inputAmountLimits = amountService.getInputAmountLimits();
+        if (inputAmountLimits != null) {
+            amountService.setFixAmountSliderValue(
+                    AmountSelection.toSliderValueFromAmount(toInputAmount(tradeAmount), inputAmountLimits));
+        }
+    }
+
+    private MonetaryRange toInputSideRange(TradeAmountRange range) {
+        return new MonetaryRange(toInputAmount(range.getMin()), toInputAmount(range.getMax()));
+    }
+
+
+    /* --------------------------------------------------------------------- */
     // Amount input entry points
     /* --------------------------------------------------------------------- */
 
-    public void setFixTradeAmountFromInputAmount(Monetary amount) {
+    public void setFixTradeAmountFromInputAmount(@Nullable Monetary amount) {
+        // The desktop text input publishes null while empty; there is nothing to apply then.
+        if (amount == null) {
+            return;
+        }
+        TradeAmountRange effectiveRange = amountService.getTradeAmountLimits();
+        PriceQuote resolvedQuote = priceService.getPriceQuote();
+        if (effectiveRange == null || resolvedQuote == null) {
+            return;
+        }
+        TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(getMarket(), resolvedQuote, amount);
+        publishFixTradeAmount(tradeAmount.clamp(effectiveRange));
+        // A clamp against stale published limits proves nothing; the block stays until the
+        // limits could be recomputed.
+        amountService.setAmountValid(!amountConstraintsStale);
     }
 
     public void setFixTradeAmountFromSliderValue(double sliderValue) {
+        checkArgument(sliderValue >= 0 && sliderValue <= 1,
+                "sliderValue must be within [0, 1] but was %s", sliderValue);
+        MonetaryRange inputAmountLimits = amountService.getInputAmountLimits();
+        TradeAmountRange effectiveRange = amountService.getTradeAmountLimits();
+        PriceQuote resolvedQuote = priceService.getPriceQuote();
+        if (inputAmountLimits == null || effectiveRange == null || resolvedQuote == null) {
+            return;
+        }
+        long amountValue = AmountSelection.getAmountValueFromSliderValue(inputAmountLimits, sliderValue);
+        Monetary inputAmount = Monetary.from(inputAmountLimits.getMin(), amountValue);
+        TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(getMarket(), resolvedQuote, inputAmount);
+        // The slider spans the pre-user range; the clamp caps the value at the user-specific
+        // limit and the corrected slider value is re-emitted.
+        publishFixTradeAmount(tradeAmount.clamp(effectiveRange));
+        amountService.setAmountValid(!amountConstraintsStale);
     }
 
 
@@ -398,12 +758,16 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     // Amount conversion
     /* --------------------------------------------------------------------- */
 
-    public Monetary toInputAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        return null;
+    public Monetary toInputAmount(TradeAmount tradeAmount) {
+        return amountService.getUseBaseCurrencyForAmountInput()
+                ? tradeAmount.getBaseSideAmount()
+                : tradeAmount.getQuoteSideAmount();
     }
 
-    public Monetary toPassiveAmount(TradeAmount tradeAmount, boolean includeUserSpecificTradeAmountLimit) {
-        return null;
+    public Monetary toPassiveAmount(TradeAmount tradeAmount) {
+        return amountService.getUseBaseCurrencyForAmountInput()
+                ? tradeAmount.getQuoteSideAmount()
+                : tradeAmount.getBaseSideAmount();
     }
 
 
@@ -412,9 +776,13 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {
-    }
-
-    public void setFixTradeAmount(TradeAmount tradeAmount) {
+        if (amountService.getUseBaseCurrencyForAmountInput() == value) {
+            return;
+        }
+        amountService.setUseBaseCurrencyForAmountInput(value);
+        // An input-side switch is a user-initiated change: input range, marker and slider
+        // mapping are recomputed on the new side (the amount itself is unchanged).
+        recalculateAmountConstraints(true);
     }
 
 

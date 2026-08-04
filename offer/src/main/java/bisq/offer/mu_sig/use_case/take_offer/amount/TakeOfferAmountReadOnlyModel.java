@@ -62,4 +62,9 @@ public interface TakeOfferAmountReadOnlyModel {
     ReadOnlyObservable<Double> fixAmountSliderValueObservable();
 
     Double getFixAmountSliderValue();
+
+
+    ReadOnlyObservable<Boolean> amountValidObservable();
+
+    boolean isAmountValid();
 }

@@ -22,6 +22,7 @@ import bisq.desktop.navigation.NavigationTarget;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
@@ -49,10 +50,23 @@ public class MuSigTakeOfferModel extends NavigationModel {
     void suppressChildNavigation() {
         navigationTarget = NavigationTarget.NONE;
     }
-    @Setter
-    private boolean amountVisible;
+    // A property: a payment method selection can collapse or un-collapse the amount range while
+    // the wizard is open, and the progress strip must follow (view rebuilds on change).
+    private final BooleanProperty amountVisible = new SimpleBooleanProperty();
     @Setter
     private boolean paymentMethodVisible;
+
+    public boolean isAmountVisible() {
+        return amountVisible.get();
+    }
+
+    public void setAmountVisible(boolean value) {
+        amountVisible.set(value);
+    }
+
+    public ReadOnlyBooleanProperty amountVisibleProperty() {
+        return amountVisible;
+    }
     @Setter
     private boolean animateRightOut = true;
     private final IntegerProperty currentIndex = new SimpleIntegerProperty();
@@ -78,7 +92,7 @@ public class MuSigTakeOfferModel extends NavigationModel {
     }
 
     void reset() {
-        amountVisible = false;
+        amountVisible.set(false);
         paymentMethodVisible = false;
         animateRightOut = true;
         currentIndex.set(0);

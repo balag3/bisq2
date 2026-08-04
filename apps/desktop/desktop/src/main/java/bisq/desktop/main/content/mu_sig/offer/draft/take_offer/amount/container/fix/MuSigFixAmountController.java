@@ -143,13 +143,19 @@ public class MuSigFixAmountController implements Controller {
 
     private void applyInputAmount() {
         TradeAmount tradeAmount = takeOfferAmountService.getFixTradeAmount();
-        Monetary inputAmount = takeOfferService.toInputAmount(tradeAmount, true);
+        if (tradeAmount == null) {
+            return;
+        }
+        Monetary inputAmount = takeOfferService.toInputAmount(tradeAmount);
         amountTextInputController.setAmount(inputAmount);
     }
 
     private void applyPassiveAmount() {
         TradeAmount tradeAmount = takeOfferAmountService.getFixTradeAmount();
-        Monetary passiveAmount = takeOfferService.toPassiveAmount(tradeAmount, true);
+        if (tradeAmount == null) {
+            return;
+        }
+        Monetary passiveAmount = takeOfferService.toPassiveAmount(tradeAmount);
         passiveAmountController.setAmount(passiveAmount);
     }
 
