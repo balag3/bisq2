@@ -95,7 +95,19 @@ public class TakeOfferUseCaseTest {
     @Test
     public void ownOfferIsRejected() {
         TakeOfferUseCase useCase = createUseCase();
-        when(identityService.findActiveIdentity(any(NetworkId.class))).thenReturn(Optional.of(mock(Identity.class)));
+        when(identityService.findAnyIdentityByNetworkId(any(NetworkId.class))).thenReturn(Optional.of(mock(Identity.class)));
+
+        assertRejected(useCase, validOffer(), Reason.OWN_OFFER);
+    }
+
+    @Test
+    public void ownOfferOfAnyLocalIdentityIsRejected() {
+        // The own-offer rule covers ANY local identity, including retired ones: deleting a user
+        // profile retires the identity but its offers survive, so the check must use the
+        // any-identity lookup (active + retired + default), not the active-only one.
+        TakeOfferUseCase useCase = createUseCase();
+        when(identityService.findActiveIdentity(any(NetworkId.class))).thenReturn(Optional.empty());
+        when(identityService.findAnyIdentityByNetworkId(any(NetworkId.class))).thenReturn(Optional.of(mock(Identity.class)));
 
         assertRejected(useCase, validOffer(), Reason.OWN_OFFER);
     }
@@ -959,7 +971,7 @@ public class TakeOfferUseCaseTest {
     private TakeOfferUseCase createUseCase(bisq.offer.mu_sig.use_case.dependencies.AccountsProvider accountsProvider) {
         stubMarketPrice(marketPriceQuote);
         when(marketPriceService.getMarketPriceByCurrencyMap()).thenReturn(marketPriceByCurrencyMap);
-        when(identityService.findActiveIdentity(any(NetworkId.class))).thenReturn(Optional.empty());
+        when(identityService.findAnyIdentityByNetworkId(any(NetworkId.class))).thenReturn(Optional.empty());
         return new TakeOfferUseCase(marketPriceService,
                 identityService,
                 mock(TakeOfferDraftCookieStore.class),

@@ -304,7 +304,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                     "Offer " + offer.getId() + " does not support the MuSig trade protocol. protocolTypes="
                             + offer.getProtocolTypes());
         }
-        if (identityService.findActiveIdentity(offer.getMakerNetworkId()).isPresent()) {
+        // Any local identity, including retired ones: deleting a user profile retires the
+        // identity but its offers survive, and this client still owns the maker key.
+        if (identityService.findAnyIdentityByNetworkId(offer.getMakerNetworkId()).isPresent()) {
             throw new TakeOfferValidationException(Reason.OWN_OFFER,
                     "Offer " + offer.getId() + " was created by one of our own identities");
         }
