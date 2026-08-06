@@ -14,6 +14,7 @@ import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.locale.Country;
 import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
+import bisq.common.monetary.Coin;
 import bisq.common.monetary.Fiat;
 import bisq.common.monetary.TradeAmount;
 import bisq.common.monetary.PriceQuote;
@@ -41,6 +42,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -482,6 +484,156 @@ public class TakeOfferUseCaseTest {
     /* --------------------------------------------------------------------- */
     // Amount (specification.md, "Amount" and "Amount limits")
     /* --------------------------------------------------------------------- */
+
+    @Test
+    public void tradeFeeIsSetFromTheMaxTradeAmountAtInitialization() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+
+        useCase.initialize(offer);
+
+        // The mock keys the fee off the maximum BTC-side trade amount (3000 USD at 100k = 0.03 BTC).
+        long maxSats = useCase.getAmountService().getTradeAmountLimits().getMax().getBitcoinSideAmount().getValue();
+        assertEquals(feeForMaxSats(maxSats), useCase.getFeeService().getTradeFee());
+    }
+
+    @Test
+    public void nonPositiveMarketPriceIsRejectedAtInitialization() {
+        TakeOfferUseCase useCase = createUseCase();
+        PriceQuote zeroQuote = new PriceQuote(0, Coin.asBtcFromValue(1L), Fiat.fromFaceValue(100_000, "USD"));
+        MarketPrice zeroPrice = mock(MarketPrice.class);
+        when(zeroPrice.getPriceQuote()).thenReturn(zeroQuote);
+        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(zeroPrice));
+        when(marketPriceService.findMarketPriceQuote(market)).thenReturn(Optional.of(zeroQuote));
+
+        assertRejected(useCase, validOffer(), Reason.NO_MARKET_PRICE);
+    }
+
+    @Test
+    public void nonPositiveMarketPriceUpdateBlocksTheHandoff() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        useCase.initialize(validOffer());
+        assertTrue(useCase.getHandoff().isPresent());
+
+        // A zero-value price arriving on the poller must not be published or persisted; it is
+        // treated as no price, blocking confirmation (no marketPrice=0 contract).
+        PriceQuote zeroQuote = new PriceQuote(0, Coin.asBtcFromValue(1L), Fiat.fromFaceValue(100_000, "USD"));
+        MarketPrice zeroPrice = mock(MarketPrice.class);
+        when(zeroPrice.getPriceQuote()).thenReturn(zeroQuote);
+        when(marketPriceService.findMarketPrice(market)).thenReturn(Optional.of(zeroPrice));
+        when(marketPriceService.findMarketPriceQuote(market)).thenReturn(Optional.of(zeroQuote));
+        marketPriceByCurrencyMap.put(market, zeroPrice);
+
+        assertNull(useCase.getPriceService().getMarketPriceQuote());
+        assertTrue(useCase.getHandoff().isEmpty());
+    }
+
+    @Test
+    public void handoffSnapshotPairsTheAmountsWithTheMarketPrice() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        useCase.initialize(offer);
+
+        TakeOfferUseCase.Handoff handoff = useCase.getHandoff().orElseThrow();
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(fixTradeAmount.getBaseSideAmount(), handoff.baseSideAmount());
+        assertEquals(fixTradeAmount.getQuoteSideAmount(), handoff.quoteSideAmount());
+        assertEquals(marketPriceQuote.getValue(), handoff.marketPrice());
+
+        // A background price update moves both the amounts' passive side and the handed price;
+        // the snapshot must pair the two from the same update, never a torn mix.
+        PriceQuote newQuote = PriceQuote.fromFiatPrice(120_000, "USD");
+        fireMarketPriceUpdate(newQuote);
+        TakeOfferUseCase.Handoff updated = useCase.getHandoff().orElseThrow();
+        TradeAmount refreshed = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(refreshed.getBaseSideAmount(), updated.baseSideAmount());
+        assertEquals(newQuote.getValue(), updated.marketPrice());
+        assertEquals(newQuote.toBaseSideMonetary(refreshed.getQuoteSideAmount()), updated.baseSideAmount());
+    }
+
+    @Test
+    public void handoffIsEmptyWhenTheAmountIsInvalid() {
+        Market eurMarket = new Market("BTC", "EUR", "Bitcoin", "Euro");
+        PriceQuote btcEurQuote = PriceQuote.fromFiatPrice(100_000, "EUR");
+        stubEurMarketPrice(eurMarket, btcEurQuote);
+
+        MuSigOffer offer = offerWithMethods(Direction.BUY, advancedCashMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase eurUseCase = createUseCase(market -> List.of(acAccount));
+        when(offer.getMarket()).thenReturn(eurMarket);
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(btcEurQuote));
+        QuoteSideFixedAmountSpec amountSpec = new QuoteSideFixedAmountSpec(Fiat.fromFaceValue(9_500, "EUR").getValue());
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(false);
+        eurUseCase.initialize(offer);
+        assertTrue(eurUseCase.getHandoff().isPresent());
+
+        // The absolute maximum drops below the fixed amount; the amount is invalid, so no handoff.
+        fireEurMarketPriceUpdate(eurMarket, PriceQuote.fromFiatPrice(90_000, "EUR"));
+        assertFalse(eurUseCase.getAmountService().isAmountValid());
+        assertTrue(eurUseCase.getHandoff().isEmpty());
+    }
+
+    @Test
+    public void fixedOfferFeeStaysOnTheFixedAmountThroughRecomputation() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyFixedAmount(offer, 500);
+        useCase.initialize(offer);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        Coin feeAtInit = feeForMaxSats(fixTradeAmount.getBitcoinSideAmount().getValue());
+        assertEquals(feeAtInit, useCase.getFeeService().getTradeFee());
+
+        // A background price update recomputes limits; the fee must stay keyed on the fixed
+        // amount, not the wider effective range.
+        fireMarketPriceUpdate(PriceQuote.fromFiatPrice(120_000, "USD"));
+        TradeAmount refreshed = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(feeForMaxSats(refreshed.getBitcoinSideAmount().getValue()), useCase.getFeeService().getTradeFee());
+    }
+
+    @Test
+    public void tradeFeeTracksTheEffectiveMaxWhenAMethodChangesIt() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 1000, 8000);
+        useCase.initialize(offer);
+
+        // No rail selected yet: effective max = offer max 8000 USD.
+        long maxAtInit = useCase.getAmountService().getTradeAmountLimits().getMax().getBitcoinSideAmount().getValue();
+        assertEquals(feeForMaxSats(maxAtInit), useCase.getFeeService().getTradeFee());
+
+        // WISE's 5000 USD rail limit lowers the effective max; the fee must follow.
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+        long maxAfterWise = useCase.getAmountService().getTradeAmountLimits().getMax().getBitcoinSideAmount().getValue();
+        assertEquals(feeForMaxSats(maxAfterWise), useCase.getFeeService().getTradeFee());
+        assertNotEquals(maxAtInit, maxAfterWise);
+    }
+
+    private static Coin feeForMaxSats(long maxSats) {
+        return Coin.asBtcFromValue(Math.max(1_000L, Math.round(maxSats * 0.001)));
+    }
+
+    @Test
+    public void rejectedInitializationClearsTheTradeFee() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        useCase.initialize(validOffer());
+        assertNotNull(useCase.getFeeService().getTradeFee());
+
+        MuSigOffer rejectedOffer = validOffer();
+        when(rejectedOffer.getProtocolTypes()).thenReturn(List.of(TradeProtocolType.BISQ_EASY));
+        assertRejected(useCase, rejectedOffer, Reason.PROTOCOL_TYPE_NOT_SUPPORTED);
+
+        assertNull(useCase.getFeeService().getTradeFee());
+    }
 
     @Test
     public void fixedAmountOfferInitializesTradeAmountAndSkipsAmountStep() {

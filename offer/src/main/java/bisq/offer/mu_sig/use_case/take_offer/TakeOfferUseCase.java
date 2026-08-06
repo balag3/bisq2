@@ -60,6 +60,7 @@ import bisq.offer.mu_sig.use_case.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultTakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.dependencies.TakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
+import bisq.offer.mu_sig.use_case.take_offer.fee.TakeOfferFeeService;
 import bisq.offer.mu_sig.use_case.take_offer.direction.TakeOfferDirectionService;
 import bisq.offer.mu_sig.use_case.take_offer.market.TakeOfferMarketService;
 import bisq.offer.mu_sig.use_case.take_offer.payment_method.TakeOfferPaymentMethodService;
@@ -92,6 +93,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private final TakeOfferPriceService priceService;
     @Getter
     private final TakeOfferAmountService amountService;
+    @Getter
+    private final TakeOfferFeeService feeService;
 
     private final TakeOfferDraftCookieStore cookieStore;
     @Getter
@@ -130,6 +133,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         directionService = new TakeOfferDirectionService();
         priceService = new TakeOfferPriceService();
         amountService = new TakeOfferAmountService();
+        feeService = new TakeOfferFeeService();
 
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
@@ -165,7 +169,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             validate(muSigOffer);
             // Single market price lookup: the presence requirement and the quote resolution must
             // not diverge, and no service state is touched before all checks have passed.
-            PriceQuote marketPriceQuote = PriceUtil.findMarketPriceQuote(marketPriceService, muSigOffer.getMarket())
+            PriceQuote marketPriceQuote = findPositiveMarketPriceQuote(muSigOffer)
                     .orElseThrow(() -> new TakeOfferValidationException(Reason.NO_MARKET_PRICE,
                             "No market price available for market " + muSigOffer.getMarket().getMarketCodes()));
             PriceQuote priceQuote = resolvePriceQuote(muSigOffer, marketPriceQuote);
@@ -201,6 +205,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             priceService.setPriceDeviation(null);
             paymentMethodService.reset();
             amountService.reset();
+            feeService.reset();
             rangeCollapsed = false;
             amountConstraintsStale = false;
             if (marketPricePin != null) {
@@ -251,12 +256,32 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                 : Optional.empty();
     }
 
-    private void handleMarketPriceUpdate() {
+    /**
+     * The atomic snapshot handed to the trade protocol: the trade amounts and the market price
+     * they were validated against, read together. handleMarketPriceUpdate mutates these on the
+     * market-price thread in several steps, so the confirming thread must capture them under the
+     * same monitor to avoid a torn amounts-vs-price pair (specification.md, "Handoff").
+     */
+    public record Handoff(Monetary baseSideAmount, Monetary quoteSideAmount, long marketPrice) {
+    }
+
+    public synchronized Optional<Handoff> getHandoff() {
+        PriceQuote marketPriceQuote = priceService.getMarketPriceQuote();
+        TradeAmount fixTradeAmount = amountService.getFixTradeAmount();
+        if (marketPriceQuote == null || fixTradeAmount == null || !amountService.isAmountValid()) {
+            return Optional.empty();
+        }
+        return Optional.of(new Handoff(fixTradeAmount.getBaseSideAmount(),
+                fixTradeAmount.getQuoteSideAmount(),
+                marketPriceQuote.getValue()));
+    }
+
+    private synchronized void handleMarketPriceUpdate() {
         MuSigOffer offer = this.muSigOffer;
         if (offer == null) {
             return;
         }
-        PriceUtil.findMarketPriceQuote(marketPriceService, offer.getMarket())
+        findPositiveMarketPriceQuote(offer)
                 .ifPresentOrElse(marketPriceQuote -> {
                     PriceQuote priceQuote = resolvePriceQuote(offer, marketPriceQuote);
                     // Same publish order as at initialization: dependencies before triggers.
@@ -267,12 +292,20 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                     // (specification.md, "Amount limits", background changes).
                     recalculateAmountConstraints(false);
                 }, () -> {
-                    // The market price disappeared while the take process is open. Keep the resolved
-                    // quote for display but mark market price and deviation unknown; blocking the
-                    // confirmation is handled with the review concern.
+                    // The market price disappeared (or is non-positive) while the take process is
+                    // open. Keep the resolved quote for display but mark market price and deviation
+                    // unknown; blocking the confirmation is handled with the review concern.
                     priceService.setMarketPriceQuote(null);
                     priceService.setPriceDeviation(null);
                 });
+    }
+
+    // A non-positive market price is treated as no price: it cannot drive a deviation
+    // (getPercentageToMarketPrice requires a positive value) and must never be resolved into a
+    // quote or persisted into a contract.
+    private Optional<PriceQuote> findPositiveMarketPriceQuote(MuSigOffer offer) {
+        return PriceUtil.findMarketPriceQuote(marketPriceService, offer.getMarket())
+                .filter(marketPriceQuote -> marketPriceQuote.getValue() > 0);
     }
 
     // Both quotes come from the same lookup, so the deviation always matches the resolved quote.
@@ -473,6 +506,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             }
             publishAmountConstraints(constraints);
             publishFixTradeAmount(fixTradeAmount);
+            applyTradeFee(fixTradeAmount);
             amountService.setAmountValid(true);
             return;
         }
@@ -486,7 +520,13 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         } else {
             publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
         }
+        // The mocked fee keys off the maximum takeable trade amount (specification.md, "Review").
+        applyTradeFee(effectiveRange.getMax());
         amountService.setAmountValid(true);
+    }
+
+    private void applyTradeFee(TradeAmount maxTradeAmount) {
+        feeService.applyMaxTradeAmount(maxTradeAmount.getBitcoinSideAmount().getValue());
     }
 
     private void recalculateAmountConstraints(boolean userInitiated) {
@@ -536,9 +576,15 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // background updates and for a later payment method selection.
             TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
             publishFixTradeAmount(fixTradeAmount);
+            // A fixed offer's max takeable amount is the fixed amount itself, not the effective
+            // range max; keep the fee consistent with it across recomputations.
+            applyTradeFee(fixTradeAmount);
             amountService.setAmountValid(fixTradeAmount.compareToRange(effectiveRange) == 0);
             return;
         }
+        // Range offers: the fee tracks the current effective max, so a method switch or price
+        // update that moves the max keeps the review fee consistent with the limits.
+        applyTradeFee(effectiveRange.getMax());
         TradeAmount current = amountService.getFixTradeAmount();
         if (current == null) {
             publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));

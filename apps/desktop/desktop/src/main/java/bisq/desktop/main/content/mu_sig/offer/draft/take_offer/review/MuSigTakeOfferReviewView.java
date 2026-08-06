@@ -208,8 +208,9 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
         securityDeposit.setText(model.getFormattedSecurityDepositAsPercent());
         securityDepositDetails.setText(model.getSecurityDepositAsBtc());
 
-        fee.setText(model.getFee());
-        feeDetails.setText(model.getFeeDetails());
+        // Bound, not one-shot: a background limit change can move the fee while the review is open.
+        fee.textProperty().bind(model.getFee());
+        feeDetails.textProperty().bind(model.getFeeDetails());
 
         takeOfferSuccessButton.setOnAction(e -> controller.onShowOpenTrades());
 
@@ -226,6 +227,8 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
             priceDetailsSubscription.unsubscribe();
             priceDetailsSubscription = null;
         }
+        fee.textProperty().unbind();
+        feeDetails.textProperty().unbind();
         paymentMethodDetails.setTooltip(null);
         takeOfferSuccessButton.setOnAction(null);
         takeOfferStatusPin.unsubscribe();

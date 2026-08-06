@@ -131,11 +131,34 @@ class MuSigContractTest {
         assertFalse(contract.getMaker().getSaltedAccountPayloadHash().isPresent());
     }
 
+    @Test
+    void storesTheMarketPriceSnapshotHandedToIt() {
+        // The take-offer handoff passes the market-price snapshot the amounts were validated
+        // against; the contract must store exactly that value (MuSigContractVerifier compares
+        // full contracts, so a divergent price is a signature mismatch).
+        PaymentMethodSpec<?> baseSpec = PaymentMethodSpecUtil.createBitcoinMainChainPaymentMethodSpec().get(0);
+        PaymentMethodSpec<?> quoteSpec = PaymentMethodSpecUtil.createPaymentMethodSpec(
+                FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER), "USD");
+        long marketPriceSnapshot = 63_847_1234L;
+        MuSigContract contract = createContract(createBtcFiatMarket(), 111L, 222L, baseSpec, quoteSpec, marketPriceSnapshot);
+
+        assertEquals(marketPriceSnapshot, contract.getMarketPrice());
+    }
+
     private MuSigContract createContract(Market market,
                                          long baseSideAmount,
                                          long quoteSideAmount,
                                          PaymentMethodSpec<?> baseSpec,
                                          PaymentMethodSpec<?> quoteSpec) {
+        return createContract(market, baseSideAmount, quoteSideAmount, baseSpec, quoteSpec, 0);
+    }
+
+    private MuSigContract createContract(Market market,
+                                         long baseSideAmount,
+                                         long quoteSideAmount,
+                                         PaymentMethodSpec<?> baseSpec,
+                                         PaymentMethodSpec<?> quoteSpec,
+                                         long marketPrice) {
         PaymentMethodSpec<?> nonBtcPaymentMethodSpec = getNonBtcPaymentMethodSpec(market, baseSpec, quoteSpec);
         MuSigOffer offer = createOffer(market,
                 List.of(nonBtcPaymentMethodSpec.getPaymentMethod()),
@@ -150,7 +173,7 @@ class MuSigContractTest {
                 Optional.empty(),
                 Optional.empty(),
                 null,
-                0);
+                marketPrice);
     }
 
     private PaymentMethodSpec<?> getNonBtcPaymentMethodSpec(Market market,

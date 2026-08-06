@@ -85,10 +85,17 @@ class MuSigTakeOfferReviewModel implements Model {
     private String formattedSecurityDepositAsPercent;
     @Setter
     private String securityDepositAsBtc;
-    @Setter
-    private String fee;
-    @Setter
-    private String feeDetails;
+    private final StringProperty fee = new SimpleStringProperty();
+
+    public void setFee(String value) {
+        fee.set(value);
+    }
+
+    private final StringProperty feeDetails = new SimpleStringProperty();
+
+    public void setFeeDetails(String value) {
+        feeDetails.set(value);
+    }
     @Setter
     private long marketPrice;
     private final ObjectProperty<TakeOfferStatus> takeOfferStatus = new SimpleObjectProperty<>(TakeOfferStatus.NOT_STARTED);
@@ -110,8 +117,8 @@ class MuSigTakeOfferReviewModel implements Model {
         securityDepositAsPercent = 0;
         formattedSecurityDepositAsPercent = null;
         securityDepositAsBtc = null;
-        fee = null;
-        feeDetails = null;
+        fee.set(null);
+        feeDetails.set(null);
         marketPrice = 0;
         takeOfferStatus.set(null);
     }
