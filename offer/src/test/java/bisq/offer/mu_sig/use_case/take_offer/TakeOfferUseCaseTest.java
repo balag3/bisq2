@@ -29,6 +29,7 @@ import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException.Reason
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
+import bisq.offer.amount.spec.BaseSideRangeAmountSpec;
 import bisq.offer.amount.spec.QuoteSideFixedAmountSpec;
 import bisq.offer.amount.spec.QuoteSideRangeAmountSpec;
 import bisq.offer.price.spec.FixPriceSpec;
@@ -483,6 +484,76 @@ public class TakeOfferUseCaseTest {
 
     /* --------------------------------------------------------------------- */
     // Amount (specification.md, "Amount" and "Amount limits")
+
+    /* --------------------------------------------------------------------- */
+    // Converted amount sanity (zero and overflowing conversions)
+    /* --------------------------------------------------------------------- */
+
+    @Test
+    public void fixedAmountConvertingToZeroOnTheBaseSideIsRejected() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyFixedAmount(offer, 500);
+        // An internally consistent fixed price can still be absurd: 500 USD at 8e14 USD/BTC
+        // rounds to 0 sats on the base side while the quote side stays within all limits.
+        when(offer.getPriceSpec()).thenReturn(new FixPriceSpec(PriceQuote.fromFiatPrice(800_000_000_000_000L, "USD")));
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void baseSideRangeWhoseConversionOverflowsIsRejected() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        // The conversion of these base side amounts overflows a long; an unchecked conversion
+        // wraps them into a plausible looking quote range instead of failing.
+        BaseSideRangeAmountSpec amountSpec =
+                new BaseSideRangeAmountSpec(1_844_674_407_371_955_162L, 1_844_674_407_373_955_162L);
+        when(offer.getAmountSpec()).thenReturn(amountSpec);
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        assertRejected(useCase, offer, Reason.INVALID_OFFER);
+    }
+
+    @Test
+    public void amountInputWhoseConversionOverflowsIsIgnored() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        var midpoint = useCase.getAmountService().getFixTradeAmount();
+
+        // The typed amount wraps on conversion; clamping the wrapped pair would publish a base
+        // and quote side that no longer belong to the same price.
+        useCase.setFixTradeAmountFromInputAmount(Coin.asBtcFromValue(1_844_674_407_371_955_162L));
+
+        assertEquals(midpoint, useCase.getAmountService().getFixTradeAmount());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void backgroundPriceUpdateZeroingThePassiveSideBlocksTheHandoff() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        assertTrue(useCase.getHandoff().isPresent());
+        var limitsBefore = useCase.getAmountService().getTradeAmountLimits();
+
+        // The quote side intersection is price independent, so only the recomputed passive side
+        // reveals the absurd price; a 0 sat base amount must never reach the handoff, and the
+        // zero-sided recomputed limits must not replace the published ones.
+        fireMarketPriceUpdate(PriceQuote.fromFiatPrice(800_000_000_000_000L, "USD"));
+
+        assertFalse(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isEmpty());
+        assertEquals(limitsBefore, useCase.getAmountService().getTradeAmountLimits());
+    }
+
     /* --------------------------------------------------------------------- */
 
     @Test

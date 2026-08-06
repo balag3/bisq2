@@ -198,6 +198,11 @@ public class MuSigTakeOfferController extends NavigationController implements In
         if (model.getTakeOfferValidationFailure() != null) {
             return;
         }
+        // The limits observer queues this through UIThread.run; an already queued call can run
+        // after onDeactivate disposed the domain, where shouldShowAmountStep must not be asked.
+        if (takeOfferService.getAmountService().getTradeAmountLimits() == null) {
+            return;
+        }
         boolean amountVisible = takeOfferService.shouldShowAmountStep();
         if (amountVisible == model.isAmountVisible()) {
             return;

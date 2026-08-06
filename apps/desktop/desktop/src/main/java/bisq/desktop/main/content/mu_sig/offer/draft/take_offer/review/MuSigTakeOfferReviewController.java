@@ -523,6 +523,11 @@ public class MuSigTakeOfferReviewController implements Controller {
     }
 
     private void applyTakersAmountsFromDomain() {
+        // The observer queues this through UIThread.run; unbinding does not cancel an already
+        // queued call, which can therefore run after reset() cleared the model.
+        if (model.getMuSigOffer() == null) {
+            return;
+        }
         TradeAmount fixTradeAmount = takeOfferService.getAmountService().getFixTradeAmount();
         if (fixTradeAmount == null) {
             return;

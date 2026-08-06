@@ -31,6 +31,7 @@ public class TakeOfferValidationException extends RuntimeException {
         NO_MARKET_PRICE,
         FLOAT_PRICE_OUT_OF_BOUNDS,
         FIXED_PRICE_MARKET_MISMATCH,
+        INVALID_OFFER,
         INVALID_PAYMENT_METHOD_SPECS,
         INVALID_OFFER_OPTIONS,
         AMOUNT_OUTSIDE_LIMITS

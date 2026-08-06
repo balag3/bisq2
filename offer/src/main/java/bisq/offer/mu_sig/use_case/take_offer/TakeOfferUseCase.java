@@ -268,7 +268,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     public synchronized Optional<Handoff> getHandoff() {
         PriceQuote marketPriceQuote = priceService.getMarketPriceQuote();
         TradeAmount fixTradeAmount = amountService.getFixTradeAmount();
-        if (marketPriceQuote == null || fixTradeAmount == null || !amountService.isAmountValid()) {
+        if (marketPriceQuote == null || fixTradeAmount == null || !amountService.isAmountValid()
+                || !hasPositiveSides(fixTradeAmount)) {
             return Optional.empty();
         }
         return Optional.of(new Handoff(fixTradeAmount.getBaseSideAmount(),
@@ -466,6 +467,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             initializeAmountValidated(offer, resolvedQuote);
         } catch (TakeOfferValidationException e) {
             throw e;
+        } catch (ArithmeticException e) {
+            // Exact conversions fail instead of wrapping when an offer amount overflows a long
+            // at the resolved price; such an offer is malformed, not merely missing a price.
+            throw new TakeOfferValidationException(Reason.INVALID_OFFER,
+                    "The amounts of offer " + offer.getId() + " overflow when converted at the resolved price");
         } catch (RuntimeException e) {
             // The USD-defined limits need the BTC/USD market price, which can be missing while
             // the offer market's price is present; surfaced like any other missing price.
@@ -496,33 +502,43 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
                     "The amounts of offer " + offer.getId() + " do not intersect the taker's amount limits");
         }
+        // A valid price can still be absurd enough to round an in-range quote amount to
+        // 0 sats on the base side; nothing derived from such a range is takeable.
+        if (!hasPositiveSides(effectiveRange.getMin()) || !hasPositiveSides(effectiveRange.getMax())) {
+            throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                    "The amounts of offer " + offer.getId() + " convert to a non-positive amount at the resolved price");
+        }
         amountService.setAmountSpec(offer.getAmountSpec());
         if (!offer.hasAmountRange()) {
             TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
             // A fixed offer amount is never clamped, as that would change the maker's offer.
-            if (fixTradeAmount.compareToRange(effectiveRange) != 0) {
+            if (fixTradeAmount.compareToRange(effectiveRange) != 0 || !hasPositiveSides(fixTradeAmount)) {
                 throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
                         "The fixed amount of offer " + offer.getId() + " lies outside the taker's amount limits");
             }
-            publishAmountConstraints(constraints);
-            publishFixTradeAmount(fixTradeAmount);
+            if (!publishAmountConstraints(constraints)) {
+                throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                        "The amounts of offer " + offer.getId() + " convert to a non-positive amount at the resolved price");
+            }
+            boolean published = publishFixTradeAmount(fixTradeAmount);
             applyTradeFee(fixTradeAmount);
-            amountService.setAmountValid(true);
+            amountService.setAmountValid(published);
             return;
         }
         // Collapse rule: a point intersection, or bounds indistinguishable at the display
         // precision of the non-Bitcoin side in Bitcoin-Fiat markets, leaves nothing to select;
         // the amount is treated as fixed and the amount step is skipped.
         rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
-        publishAmountConstraints(constraints);
-        if (rangeCollapsed) {
-            publishFixTradeAmount(effectiveRange.getMax());
-        } else {
-            publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
+        if (!publishAmountConstraints(constraints)) {
+            throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
+                    "The amounts of offer " + offer.getId() + " convert to a non-positive amount at the resolved price");
         }
+        boolean published = rangeCollapsed
+                ? publishFixTradeAmount(effectiveRange.getMax())
+                : publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
         // The mocked fee keys off the maximum takeable trade amount (specification.md, "Review").
         applyTradeFee(effectiveRange.getMax());
-        amountService.setAmountValid(true);
+        amountService.setAmountValid(published);
     }
 
     private void applyTradeFee(TradeAmount maxTradeAmount) {
@@ -542,19 +558,23 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // already blocked by the missing-market-price gate, the amount state stays untouched.
             return;
         }
-        AmountConstraints constraints;
         try {
-            constraints = computeAmountConstraints(offer, resolvedQuote);
+            recalculateAmountConstraintsValidated(offer, resolvedQuote, userInitiated);
         } catch (RuntimeException e) {
-            // Confirmation is only allowed while the limits are computable against current
+            // Confirmation is only allowed while the amounts are computable against current
             // prices (e.g. the BTC/USD price needed for the USD-defined limits can vanish while
-            // the offer market's price is still present). The block lifts with the next
-            // successful recomputation.
-            log.warn("Amount limits are not computable, blocking confirmation: {}", e.getMessage());
+            // the offer market's price is still present, or an exact conversion can overflow).
+            // The block lifts with the next successful recomputation.
+            log.warn("Amount recomputation failed, blocking confirmation: {}", e.getMessage());
             amountConstraintsStale = true;
             amountService.setAmountValid(false);
-            return;
         }
+    }
+
+    private void recalculateAmountConstraintsValidated(MuSigOffer offer,
+                                                       PriceQuote resolvedQuote,
+                                                       boolean userInitiated) {
+        AmountConstraints constraints = computeAmountConstraints(offer, resolvedQuote);
         TradeAmountRange effectiveRange = constraints.effectiveRange();
         if (effectiveRange == null) {
             // The flow is never closed and nothing is clamped: the previously published ranges
@@ -569,17 +589,19 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         if (offer.hasAmountRange() && userInitiated) {
             rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
         }
-        publishAmountConstraints(constraints);
+        if (!publishAmountConstraints(constraints)) {
+            return;
+        }
         amountConstraintsStale = false;
         if (!offer.hasAmountRange()) {
             // A fixed offer amount is never clamped; it becomes invalid instead - both for
             // background updates and for a later payment method selection.
             TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
-            publishFixTradeAmount(fixTradeAmount);
+            boolean published = publishFixTradeAmount(fixTradeAmount);
             // A fixed offer's max takeable amount is the fixed amount itself, not the effective
             // range max; keep the fee consistent with it across recomputations.
             applyTradeFee(fixTradeAmount);
-            amountService.setAmountValid(fixTradeAmount.compareToRange(effectiveRange) == 0);
+            amountService.setAmountValid(published && fixTradeAmount.compareToRange(effectiveRange) == 0);
             return;
         }
         // Range offers: the fee tracks the current effective max, so a method switch or price
@@ -587,23 +609,34 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         applyTradeFee(effectiveRange.getMax());
         TradeAmount current = amountService.getFixTradeAmount();
         if (current == null) {
-            publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
-            amountService.setAmountValid(true);
+            amountService.setAmountValid(
+                    publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote)));
             return;
         }
         if (userInitiated) {
             // User-initiated changes clamp the selection visibly into the new effective range;
             // a collapsed range is treated as fixed at its single value.
-            publishFixTradeAmount(rangeCollapsed ? effectiveRange.getMax() : current.clamp(effectiveRange));
-            amountService.setAmountValid(true);
+            amountService.setAmountValid(
+                    publishFixTradeAmount(rangeCollapsed ? effectiveRange.getMax() : current.clamp(effectiveRange)));
         } else {
             // Background changes keep the input side stable, recompute the passive side from the
             // resolved quote and re-validate without clamping.
-            TradeAmount refreshed = AmountSelection.applyPriceQuoteToPassiveSide(current, resolvedQuote,
+            TradeAmount refreshed = refreshPassiveSideExact(current, resolvedQuote,
                     amountService.getUseBaseCurrencyForAmountInput());
-            publishFixTradeAmount(refreshed);
-            amountService.setAmountValid(refreshed.compareToRange(effectiveRange) == 0);
+            boolean published = publishFixTradeAmount(refreshed);
+            amountService.setAmountValid(published && refreshed.compareToRange(effectiveRange) == 0);
         }
+    }
+
+    private static TradeAmount refreshPassiveSideExact(TradeAmount current,
+                                                       PriceQuote resolvedQuote,
+                                                       boolean useBaseCurrencyForAmountInput) {
+        if (useBaseCurrencyForAmountInput) {
+            Monetary baseSideAmount = current.getBaseSideAmount();
+            return new TradeAmount(baseSideAmount, resolvedQuote.toQuoteSideMonetaryExact(baseSideAmount));
+        }
+        Monetary quoteSideAmount = current.getQuoteSideAmount();
+        return new TradeAmount(resolvedQuote.toBaseSideMonetaryExact(quoteSideAmount), quoteSideAmount);
     }
 
     private AmountConstraints computeAmountConstraints(MuSigOffer offer, PriceQuote resolvedQuote) {
@@ -703,7 +736,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                 .orElseThrow(() -> new IllegalStateException("Unsupported amount spec: " + amountSpec));
         Monetary maxBase = AmountSpecUtil.findBaseSideMaxOrFixedAmountFromSpec(amountSpec, market.getBaseCurrencyCode())
                 .orElseThrow(() -> new IllegalStateException("Unsupported amount spec: " + amountSpec));
-        return new MonetaryRange(resolvedQuote.toQuoteSideMonetary(minBase), resolvedQuote.toQuoteSideMonetary(maxBase));
+        return new MonetaryRange(resolvedQuote.toQuoteSideMonetaryExact(minBase), resolvedQuote.toQuoteSideMonetaryExact(maxBase));
     }
 
     private static TradeAmount resolveFixedTradeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
@@ -711,7 +744,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         Monetary fixedAmount = AmountSpecUtil.findQuoteSideFixedAmountFromSpec(offer.getAmountSpec(), market.getQuoteCurrencyCode())
                 .or(() -> AmountSpecUtil.findBaseSideFixedAmountFromSpec(offer.getAmountSpec(), market.getBaseCurrencyCode()))
                 .orElseThrow(() -> new IllegalStateException("Fixed amount spec expected but was " + offer.getAmountSpec()));
-        return TradeAmountConversion.toTradeAmount(market, resolvedQuote, fixedAmount);
+        return TradeAmountConversion.toTradeAmountExact(market, resolvedQuote, fixedAmount);
     }
 
     private static TradeAmountRange toTradeAmountRange(Market market,
@@ -719,8 +752,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                                                        Monetary quoteSample,
                                                        long minValue,
                                                        long maxValue) {
-        TradeAmount min = TradeAmountConversion.toTradeAmount(market, resolvedQuote, Monetary.from(quoteSample, minValue));
-        TradeAmount max = TradeAmountConversion.toTradeAmount(market, resolvedQuote, Monetary.from(quoteSample, maxValue));
+        TradeAmount min = TradeAmountConversion.toTradeAmountExact(market, resolvedQuote, Monetary.from(quoteSample, minValue));
+        TradeAmount max = TradeAmountConversion.toTradeAmountExact(market, resolvedQuote, Monetary.from(quoteSample, maxValue));
         return new TradeAmountRange(min, max);
     }
 
@@ -731,30 +764,54 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         if (market.isBtcFiatMarket()) {
             midpoint = midpoint.round(0);
         }
-        return TradeAmountConversion.toTradeAmount(market, resolvedQuote, midpoint).clamp(effectiveRange);
+        return TradeAmountConversion.toTradeAmountExact(market, resolvedQuote, midpoint).clamp(effectiveRange);
     }
 
     // Publish order: ranges, then the user marker, then amount and slider value
     // (dependencies before triggers - the desktop slider controllers clamp incoming values
     // against the last-emitted marker and feed the result back into the domain).
-    private void publishAmountConstraints(AmountConstraints constraints) {
+    private boolean publishAmountConstraints(AmountConstraints constraints) {
         TradeAmountRange effectiveRange = checkNotNull(constraints.effectiveRange());
         TradeAmountRange preUserRange = checkNotNull(constraints.preUserRange());
+        // Invariant: no range endpoint with a non-positive side reaches the amount concern.
+        // Currently unreachable (an absurd price also collapses the absolute limits into an
+        // empty intersection), but the limit providers must not be able to change that.
+        if (!hasPositiveSides(effectiveRange.getMin()) || !hasPositiveSides(effectiveRange.getMax())
+                || !hasPositiveSides(preUserRange.getMin()) || !hasPositiveSides(preUserRange.getMax())) {
+            log.warn("Refusing to publish amount limits with a non-positive side, blocking confirmation");
+            amountConstraintsStale = true;
+            amountService.setAmountValid(false);
+            return false;
+        }
         amountService.setTradeAmountLimits(effectiveRange);
         MonetaryRange inputAmountLimits = toInputSideRange(preUserRange);
         amountService.setInputAmountLimits(inputAmountLimits);
         amountService.setUserSpecificTradeAmountLimit(constraints.userSpecificLimit());
         amountService.setUserSpecificTradeAmountLimitAsSliderValue(constraints.userSpecificLimit()
                 .map(limit -> AmountSelection.toSliderValueFromAmount(toInputAmount(limit), inputAmountLimits)));
+        return true;
     }
 
-    private void publishFixTradeAmount(TradeAmount tradeAmount) {
+    private boolean publishFixTradeAmount(TradeAmount tradeAmount) {
+        // Invariant: a trade amount with a non-positive side never reaches the amount concern,
+        // whatever path produced it; publishing is refused and confirmation stays blocked.
+        if (!hasPositiveSides(tradeAmount)) {
+            log.warn("Refusing to publish a non-positive trade amount, blocking confirmation: {}", tradeAmount);
+            amountConstraintsStale = true;
+            amountService.setAmountValid(false);
+            return false;
+        }
         amountService.setFixTradeAmount(tradeAmount);
         MonetaryRange inputAmountLimits = amountService.getInputAmountLimits();
         if (inputAmountLimits != null) {
             amountService.setFixAmountSliderValue(
                     AmountSelection.toSliderValueFromAmount(toInputAmount(tradeAmount), inputAmountLimits));
         }
+        return true;
+    }
+
+    private static boolean hasPositiveSides(TradeAmount tradeAmount) {
+        return tradeAmount.getBaseSideAmount().getValue() > 0 && tradeAmount.getQuoteSideAmount().getValue() > 0;
     }
 
     private MonetaryRange toInputSideRange(TradeAmountRange range) {
@@ -776,7 +833,15 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         if (effectiveRange == null || resolvedQuote == null) {
             return;
         }
-        TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(getMarket(), resolvedQuote, amount);
+        TradeAmount tradeAmount;
+        try {
+            tradeAmount = TradeAmountConversion.toTradeAmountExact(getMarket(), resolvedQuote, amount);
+        } catch (ArithmeticException e) {
+            // A wrapped conversion followed by the clamp would publish a base and quote side
+            // that no longer belong to the same price; such input is ignored like empty input.
+            log.warn("Ignoring an amount input whose conversion overflows: {}", amount);
+            return;
+        }
         publishFixTradeAmount(tradeAmount.clamp(effectiveRange));
         // A clamp against stale published limits proves nothing; the block stays until the
         // limits could be recomputed.
@@ -794,7 +859,15 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         }
         long amountValue = AmountSelection.getAmountValueFromSliderValue(inputAmountLimits, sliderValue);
         Monetary inputAmount = Monetary.from(inputAmountLimits.getMin(), amountValue);
-        TradeAmount tradeAmount = TradeAmountConversion.toTradeAmount(getMarket(), resolvedQuote, inputAmount);
+        TradeAmount tradeAmount;
+        try {
+            tradeAmount = TradeAmountConversion.toTradeAmountExact(getMarket(), resolvedQuote, inputAmount);
+        } catch (ArithmeticException e) {
+            // The slider spans the published input limits, but the resolved quote may have moved
+            // since they were published; a wrapping conversion must not reach the clamp.
+            log.warn("Ignoring a slider amount whose conversion overflows: {}", inputAmount);
+            return;
+        }
         // The slider spans the pre-user range; the clamp caps the value at the user-specific
         // limit and the corrected slider value is re-emitted.
         publishFixTradeAmount(tradeAmount.clamp(effectiveRange));
