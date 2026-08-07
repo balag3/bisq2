@@ -270,7 +270,8 @@ public class MuSigService extends LifecycleService {
                                               Monetary takersQuoteSideAmount,
                                               PaymentMethodSpec<?> takersPaymentMethodSpec,
                                               Account<?, ?> takersAccount,
-                                              long marketPrice)
+                                              long marketPrice,
+                                              boolean proceedWithoutMediator)
             throws UserProfileBannedException, NoMuSigMediatorAvailableException,
             NoMuSigArbitratorAvailableException, RateLimitExceededException, UserProfileIgnoredException {
 
@@ -285,7 +286,7 @@ public class MuSigService extends LifecycleService {
         Optional<UserProfile> mediator = muSigTraderMediationService.selectMediator(makersUserProfileId,
                 takerIdentity.getId(),
                 muSigOffer.getId());
-        if (!DevMode.isDevMode() && mediator.isEmpty()) {
+        if (!DevMode.isDevMode() && !proceedWithoutMediator && mediator.isEmpty()) {
             throw new NoMuSigMediatorAvailableException();
         }
 

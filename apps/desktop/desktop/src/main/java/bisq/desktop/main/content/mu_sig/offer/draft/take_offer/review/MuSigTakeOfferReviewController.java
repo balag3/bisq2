@@ -72,7 +72,6 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static com.google.common.base.Preconditions.checkArgument;
 
 @Slf4j
 public class MuSigTakeOfferReviewController implements Controller {
@@ -172,14 +171,14 @@ public class MuSigTakeOfferReviewController implements Controller {
                 && dontShowAgainService.showAgain(DontShowAgainKey.OFFER_ALREADY_TAKEN_WARN)) {
             new Popup().information(Res.get("muSig.offer.taker.offerAlreadyTaken.info"))
                     .actionButtonText(Res.get("confirmation.yes"))
-                    .onAction(this::doTakeOffer)
+                    .onAction(() -> doTakeOffer(false))
                     .closeButtonText(Res.get("confirmation.no"))
                     .dontShowAgainId(DontShowAgainKey.OFFER_ALREADY_TAKEN_WARN)
                     .owner(view.getRoot())
                     .show();
             return;
         }
-        doTakeOffer();
+        doTakeOffer(false);
     }
 
     // Re-checked at every entry, including after the async already-taken popup: a market price
@@ -206,13 +205,12 @@ public class MuSigTakeOfferReviewController implements Controller {
         return true;
     }
 
-    private void doTakeOffer() {
+    private void doTakeOffer(boolean proceedWithoutMediator) {
         if (!confirmationAllowed()) {
             return;
         }
         MuSigOffer muSigOffer = model.getMuSigOffer();
         PaymentMethodSpec<?> paymentMethodSpec = model.getTakersPaymentMethodSpec();
-        checkArgument(muSigOffer.getBaseSidePaymentMethodSpecs().size() == 1);
         // The amounts and the market price they were validated against are captured as one
         // atomic snapshot: a market-price update on another thread mutates them in several steps,
         // so reading them separately could hand off a torn pair (specification.md, "Handoff").
@@ -235,7 +233,8 @@ public class MuSigTakeOfferReviewController implements Controller {
                     takersQuoteSideAmount,
                     paymentMethodSpec,
                     model.getTakersAccount(),
-                    marketPrice);
+                    marketPrice,
+                    proceedWithoutMediator);
             MuSigTrade trade = muSigProtocol.getTrade();
             model.setMuSigTrade(trade);
             muSigService.createMuSigOpenTradeChannel(trade, takerIdentity);
@@ -358,22 +357,12 @@ public class MuSigTakeOfferReviewController implements Controller {
                 }
             });
         } catch (NoMuSigMediatorAvailableException e) {
+            // Proceeding unmediated needs explicit consent; the retry re-enters through the
+            // confirmation gates and takes a fresh handoff snapshot.
             UIThread.run(() -> new Popup().warning(Res.get("muSig.offer.taker.noMediatorAvailable.warning"))
                     .closeButtonText(Res.get("action.cancel"))
-                    .actionButtonText(Res.get("confirmation.ok"))
-                    .onAction(() -> {
-                        try {
-                            //todo
-                           /* muSigService.takeOffer(muSigOffer,
-                                    takersBaseSideAmount,
-                                    takersQuoteSideAmount,
-                                    bitcoinPaymentMethodSpec,
-                                    paymentMethodSpec,
-                                    false
-                            );*/
-                        } catch (Exception ignore) {
-                        }
-                    })
+                    .actionButtonText(Res.get("muSig.offer.taker.noMediatorAvailable.proceed"))
+                    .onAction(() -> doTakeOffer(true))
                     .show());
         } catch (NoMuSigArbitratorAvailableException e) {
             UIThread.run(() -> new Popup().warning(Res.get("muSig.offer.taker.noArbitratorAvailable.warning")).show());

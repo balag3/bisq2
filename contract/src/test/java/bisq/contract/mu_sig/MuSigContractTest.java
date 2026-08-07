@@ -63,6 +63,32 @@ class MuSigContractTest {
     }
 
     @Test
+    void usesTheSelectedSpecWhenTheNonBtcBaseSideOffersMultipleMethods() {
+        // The take wizard lets the taker pick one of several offered methods on a crypto
+        // market; the contract must carry the picked spec, not assume a single-spec offer.
+        PaymentMethodSpec<?> selectedSpec = PaymentMethodSpecUtil.createPaymentMethodSpec(new CryptoPaymentMethod("XMR"), "XMR");
+        PaymentMethodSpec<?> quoteSpec = PaymentMethodSpecUtil.createBitcoinMainChainPaymentMethodSpec().get(0);
+        MuSigOffer offer = createOffer(createCryptoBtcMarket(),
+                List.of(selectedSpec.getPaymentMethod(), new CryptoPaymentMethod("XMR2")),
+                List.of());
+
+        MuSigContract contract = new MuSigContract(System.currentTimeMillis(),
+                offer,
+                null,
+                111L,
+                222L,
+                selectedSpec,
+                new byte[20],
+                Optional.empty(),
+                Optional.empty(),
+                null,
+                0);
+
+        assertEquals(selectedSpec, contract.getNonBtcSidePaymentMethodSpec());
+        assertEquals(quoteSpec, contract.getBtcSidePaymentMethodSpec());
+    }
+
+    @Test
     void derivesMakerSaltedAccountPayloadHashFromNonBtcQuoteSideAccountOption() {
         FiatPaymentMethod paymentMethod = FiatPaymentMethod.fromPaymentRail(FiatPaymentRail.ACH_TRANSFER);
         byte[] expectedHash = hash((byte) 1);

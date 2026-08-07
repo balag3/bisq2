@@ -249,7 +249,6 @@ public class MuSigTakeOfferController extends NavigationController implements In
         model.getNextButtonText().set(isTakeOfferReview ?
                 Res.get("muSig.offer.taker.review.takeOffer") :
                 Res.get("action.next"));
-        model.getShowProgressBox().set(!isTakeOfferReview);
         setMainButtonsVisibleState(true);
         model.getTakeOfferButtonVisible().set(isTakeOfferReview);
         model.getNextButtonVisible().set(!isTakeOfferReview);
@@ -366,7 +365,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
 
     private void reset() {
         resetSelectedChildTarget();
-        //  muSigTakeOfferAmountController.reset();
+        muSigTakeOfferAmountController.reset();
         muSigTakeOfferPaymentController.reset();
         muSigTakeOfferReviewController.reset();
 

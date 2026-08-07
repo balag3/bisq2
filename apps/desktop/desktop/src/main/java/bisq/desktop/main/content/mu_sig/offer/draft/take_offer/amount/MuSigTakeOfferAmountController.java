@@ -103,6 +103,10 @@ public class MuSigTakeOfferAmountController implements Controller {
         return model.getIsOverlayVisible();
     }
 
+    public void reset() {
+        model.reset();
+    }
+
 
     /* --------------------------------------------------------------------- */
     // UI handlers

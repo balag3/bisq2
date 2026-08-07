@@ -61,7 +61,7 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
     private final VBox content;
     private final ChangeListener<Number> currentIndexListener;
     private final ChangeListener<View<? extends Parent, ? extends Model, ? extends Controller>> viewChangeListener;
-    private Subscription showProgressBoxPin, takeOfferButtonVisiblePin, amountVisiblePin;
+    private Subscription takeOfferButtonVisiblePin, amountVisiblePin;
 
     public MuSigTakeOfferView(MuSigTakeOfferModel model, MuSigTakeOfferController controller) {
         super(new VBox(), model, controller);
@@ -161,22 +161,6 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
             }
         });
 
-      /*  if (!model.getShowProgressBox().get()) {
-            progressBox.setOpacity(0);
-            topPane.setStyle("-fx-background-color: transparent");
-        }*/
-        showProgressBoxPin = EasyBind.subscribe(model.getShowProgressBox(), showProgressBox -> {
-           /* if (showProgressBox) {
-                // VBox.setMargin(content, new Insets(0, 0, 0, 0));
-                Transitions.fadeIn(progressBox, 200);
-                topPane.setStyle("-fx-background-color: -bisq-dark-grey-20");
-            } else {
-                // VBox.setMargin(content, new Insets(0, 40, 0, 40));
-                Transitions.fadeOut(progressBox, 200);
-                topPane.setStyle("-fx-background-color: transparent");
-            }*/
-        });
-
         nextButton.setOnAction(e -> controller.onNext());
         backButton.setOnAction(evt -> controller.onBack());
         closeButton.setOnAction(e -> controller.onClose());
@@ -206,7 +190,6 @@ public class MuSigTakeOfferView extends NavigationView<VBox, MuSigTakeOfferModel
         model.getCurrentIndex().removeListener(currentIndexListener);
         model.getView().removeListener(viewChangeListener);
 
-        showProgressBoxPin.unsubscribe();
         takeOfferButtonVisiblePin.unsubscribe();
         amountVisiblePin.unsubscribe();
 

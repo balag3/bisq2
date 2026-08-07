@@ -77,7 +77,6 @@ public class MuSigTakeOfferModel extends NavigationModel {
     private final BooleanProperty nextButtonVisible = new SimpleBooleanProperty();
     private final BooleanProperty takeOfferButtonVisible = new SimpleBooleanProperty();
     private final BooleanProperty backButtonVisible = new SimpleBooleanProperty();
-    private final BooleanProperty showProgressBox = new SimpleBooleanProperty();
     private final ObjectProperty<NavigationTarget> selectedChildTarget = new SimpleObjectProperty<>();
     private final List<NavigationTarget> childTargets = new ArrayList<>();
     @Setter
@@ -103,7 +102,6 @@ public class MuSigTakeOfferModel extends NavigationModel {
         nextButtonVisible.set(false);
         takeOfferButtonVisible.set(false);
         backButtonVisible.set(false);
-        showProgressBox.set(false);
         selectedChildTarget.set(null);
         childTargets.clear();
         paymentMethodProgressLabel = null;
