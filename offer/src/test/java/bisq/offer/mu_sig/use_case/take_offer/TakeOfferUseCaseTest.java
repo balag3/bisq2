@@ -325,7 +325,10 @@ public class TakeOfferUseCaseTest {
         useCase.initialize(offer);
 
         assertTrue(useCase.shouldShowPaymentStep());
+        // The review confirmation gate blocks the take when either is empty; they must be empty
+        // together so a spec can never be handed off without its account.
         assertTrue(useCase.getSelectedAccount().isEmpty());
+        assertTrue(useCase.getSelectedPaymentMethodSpec().isEmpty());
     }
 
     @Test

@@ -202,6 +202,17 @@ public class MuSigTakeOfferReviewController implements Controller {
                     .show();
             return false;
         }
+        // The take can only proceed with the use case's validated account and payment method
+        // spec, which come from the same selection entry and are therefore mutually consistent.
+        // A deep navigation to the review step could otherwise bypass the payment step's own
+        // validation and reach here with no (or a stale) selection.
+        if (takeOfferService.getSelectedAccount().isEmpty()
+                || takeOfferService.getSelectedPaymentMethodSpec().isEmpty()) {
+            new Popup().warning(Res.get("muSig.takeOffer.validation.noPaymentAccount"))
+                    .owner(view.getRoot())
+                    .show();
+            return false;
+        }
         return true;
     }
 
@@ -210,7 +221,10 @@ public class MuSigTakeOfferReviewController implements Controller {
             return;
         }
         MuSigOffer muSigOffer = model.getMuSigOffer();
-        PaymentMethodSpec<?> paymentMethodSpec = model.getTakersPaymentMethodSpec();
+        // Source the account and spec from the use case (validated, mutually consistent) rather
+        // than the review model, whose display fields can lag a payment method switch.
+        PaymentMethodSpec<?> paymentMethodSpec = takeOfferService.getSelectedPaymentMethodSpec().orElseThrow();
+        Account<?, ?> takersAccount = takeOfferService.getSelectedAccount().orElseThrow();
         // The amounts and the market price they were validated against are captured as one
         // atomic snapshot: a market-price update on another thread mutates them in several steps,
         // so reading them separately could hand off a torn pair (specification.md, "Handoff").
@@ -232,7 +246,7 @@ public class MuSigTakeOfferReviewController implements Controller {
                     takersBaseSideAmount,
                     takersQuoteSideAmount,
                     paymentMethodSpec,
-                    model.getTakersAccount(),
+                    takersAccount,
                     marketPrice,
                     proceedWithoutMediator);
             MuSigTrade trade = muSigProtocol.getTrade();

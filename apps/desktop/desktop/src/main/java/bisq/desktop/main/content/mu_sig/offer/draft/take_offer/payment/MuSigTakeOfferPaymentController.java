@@ -248,6 +248,11 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 if (accountsForPaymentMethod.size() == 1) {
                     model.getSelectedAccount().set(accountsForPaymentMethod.get(0));
                 } else {
+                    // Multiple accounts need an explicit pick from the overlay. Drop any prior
+                    // account and domain selection first, so the newly set spec is never paired
+                    // with an account from the previously selected method until the user chooses.
+                    model.getSelectedAccount().set(null);
+                    takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
                     model.getAccountsForPaymentMethod().setAll(accountsForPaymentMethod);
                     model.getPaymentMethodWithMultipleAccounts().set(paymentMethod);
                 }
