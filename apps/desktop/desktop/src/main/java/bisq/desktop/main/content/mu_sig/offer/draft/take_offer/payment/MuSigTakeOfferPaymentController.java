@@ -117,7 +117,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 .collect(Collectors.toList());
         model.getOfferedPaymentMethods().setAll(offeredPaymentMethods);
         // Methods whose rail limit cannot cover the offer amount are shown disabled with a
-        // reason and cannot be selected (specification.md, "Amount limits").
+        // reason and cannot be selected (take-offer.md, "Amount limits").
         offeredPaymentMethods.stream()
                 .filter(method -> !takeOfferService.isPaymentMethodAdmissible(method))
                 .forEach(model.getInadmissiblePaymentMethods()::add);
@@ -190,7 +190,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
                 });
 
         // A single-method offer without an eligible account has no chip grid to click, so the
-        // create-account prompt must open directly (specification.md, "Payment method": the
+        // create-account prompt must open directly (take-offer.md, "Payment method": the
         // prompt applies in every path, including a single-method offer without accounts).
         if (model.isSinglePaymentMethod() && model.getAccountsForPaymentMethod().isEmpty()) {
             PaymentMethodSpec<?> selectedSpec = model.getSelectedPaymentMethodSpec().get();

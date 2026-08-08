@@ -486,7 +486,7 @@ public class TakeOfferUseCaseTest {
     }
 
     /* --------------------------------------------------------------------- */
-    // Amount (specification.md, "Amount" and "Amount limits")
+    // Amount (take-offer.md, "Amount" and "Amount limits")
 
     /* --------------------------------------------------------------------- */
     // Converted amount sanity (zero and overflowing conversions)

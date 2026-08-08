@@ -21,7 +21,7 @@ import lombok.Getter;
 
 /**
  * Thrown when an offer fails the take-offer trust-boundary validation
- * (specification.md, "Offer as root input").
+ * (take-offer.md, "Offer as root input").
  */
 @Getter
 public class TakeOfferValidationException extends RuntimeException {

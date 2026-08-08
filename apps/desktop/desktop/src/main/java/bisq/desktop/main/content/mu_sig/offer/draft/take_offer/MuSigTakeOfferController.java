@@ -192,7 +192,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
     }
 
     // A payment method selection can collapse or un-collapse the effective amount range
-    // (specification.md, "Amount", collapse rule). Selection changes happen on the payment step,
+    // (take-offer.md, "Amount", collapse rule). Selection changes happen on the payment step,
     // before the amount step is reached, so the remaining wizard targets can be rebuilt safely.
     private void updateAmountStepVisibility() {
         if (model.getTakeOfferValidationFailure() != null) {

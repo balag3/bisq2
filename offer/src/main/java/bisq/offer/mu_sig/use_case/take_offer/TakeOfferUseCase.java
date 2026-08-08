@@ -145,7 +145,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
         paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService);
         // A payment method selection change is a user-initiated change of the effective amount
-        // limits (specification.md, "Amount limits", user-initiated class).
+        // limits (take-offer.md, "Amount limits", user-initiated class).
         paymentMethodService.setTradeAmountConstraintsRecalculationHandler(() -> recalculateAmountConstraints(true));
     }
 
@@ -219,7 +219,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /**
      * The payment step is skipped when both side specification lists contain exactly one payment
      * method and exactly one eligible account exists for the taker-side method; the method and
-     * account are then applied automatically (specification.md, "Payment method", step bypass).
+     * account are then applied automatically (take-offer.md, "Payment method", step bypass).
      */
     public boolean shouldShowPaymentStep() {
         checkNotNull(muSigOffer, "shouldShowPaymentStep must not be called before initialize");
@@ -235,7 +235,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     /**
      * The amount step is shown only for range offers whose effective range did not collapse to a
-     * single value at initialization (specification.md, "Amount", collapse rule).
+     * single value at initialization (take-offer.md, "Amount", collapse rule).
      */
     public boolean shouldShowAmountStep() {
         checkNotNull(muSigOffer, "shouldShowAmountStep must not be called before initialize");
@@ -260,7 +260,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
      * The atomic snapshot handed to the trade protocol: the trade amounts and the market price
      * they were validated against, read together. handleMarketPriceUpdate mutates these on the
      * market-price thread in several steps, so the confirming thread must capture them under the
-     * same monitor to avoid a torn amounts-vs-price pair (specification.md, "Handoff").
+     * same monitor to avoid a torn amounts-vs-price pair (take-offer.md, "Handoff").
      */
     public record Handoff(Monetary baseSideAmount, Monetary quoteSideAmount, long marketPrice) {
     }
@@ -290,7 +290,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                     priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
                     priceService.setPriceQuote(priceQuote);
                     // Background class: limits recompute, the selected amount is never clamped
-                    // (specification.md, "Amount limits", background changes).
+                    // (take-offer.md, "Amount limits", background changes).
                     recalculateAmountConstraints(false);
                 }, () -> {
                     // The market price disappeared (or is non-positive) while the take process is
@@ -329,7 +329,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
 
     /* --------------------------------------------------------------------- */
-    // Trust-boundary validation (specification.md, "Offer as root input")
+    // Trust-boundary validation (take-offer.md, "Offer as root input")
     /* --------------------------------------------------------------------- */
 
     private void validate(MuSigOffer offer) {
@@ -449,7 +449,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     }
 
     /* --------------------------------------------------------------------- */
-    // Amount concern (specification.md, "Amount" and "Amount limits")
+    // Amount concern (take-offer.md, "Amount" and "Amount limits")
     /* --------------------------------------------------------------------- */
 
     // The effective range intersects offer, absolute, payment-method and user-specific limits;
@@ -536,7 +536,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         boolean published = rangeCollapsed
                 ? publishFixTradeAmount(effectiveRange.getMax())
                 : publishFixTradeAmount(midpointOf(effectiveRange, offer.getMarket(), resolvedQuote));
-        // The mocked fee keys off the maximum takeable trade amount (specification.md, "Review").
+        // The mocked fee keys off the maximum takeable trade amount (take-offer.md, "Review").
         applyTradeFee(effectiveRange.getMax());
         amountService.setAmountValid(published);
     }
@@ -696,7 +696,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     /**
      * A payment method is selectable only when its rail limit leaves a non-empty effective range
-     * that admits the offer's fixed amount (specification.md, "Amount limits", method
+     * that admits the offer's fixed amount (take-offer.md, "Amount limits", method
      * selectability). Methods that cannot be evaluated count as admissible - the confirmation
      * gate covers them.
      */

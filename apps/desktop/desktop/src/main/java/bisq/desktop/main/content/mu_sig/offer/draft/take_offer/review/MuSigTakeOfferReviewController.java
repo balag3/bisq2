@@ -165,7 +165,7 @@ public class MuSigTakeOfferReviewController implements Controller {
         MuSigOffer muSigOffer = model.getMuSigOffer();
         UserIdentity takerIdentity = userIdentityService.getSelectedUserIdentity();
         // Already-taken is a soft confirm: the taker may retake (the trade id includes the take
-        // date, so a retake gets a fresh id). Shown once unless muted (specification.md, Review).
+        // date, so a retake gets a fresh id). Shown once unless muted (take-offer.md, Review).
         NetworkId takerNetworkId = takerIdentity.getUserProfile().getNetworkId();
         if (muSigService.wasOfferAlreadyTaken(muSigOffer, takerNetworkId)
                 && dontShowAgainService.showAgain(DontShowAgainKey.OFFER_ALREADY_TAKEN_WARN)) {
@@ -183,10 +183,10 @@ public class MuSigTakeOfferReviewController implements Controller {
 
     // Re-checked at every entry, including after the async already-taken popup: a market price
     // update between opening the popup and confirming can remove the price or invalidate the
-    // amount (specification.md, "Amount limits", background changes).
+    // amount (take-offer.md, "Amount limits", background changes).
     private boolean confirmationAllowed() {
         // Runtime invalidation gate: without a current market price the take cannot proceed
-        // (specification.md, Price). The block lifts as soon as a price arrives again.
+        // (take-offer.md, Price). The block lifts as soon as a price arrives again.
         if (takeOfferService.getPriceService().getMarketPriceQuote() == null) {
             new Popup().warning(Res.get("muSig.takeOffer.validation.noMarketPrice"))
                     .owner(view.getRoot())
@@ -227,7 +227,7 @@ public class MuSigTakeOfferReviewController implements Controller {
         Account<?, ?> takersAccount = takeOfferService.getSelectedAccount().orElseThrow();
         // The amounts and the market price they were validated against are captured as one
         // atomic snapshot: a market-price update on another thread mutates them in several steps,
-        // so reading them separately could hand off a torn pair (specification.md, "Handoff").
+        // so reading them separately could hand off a torn pair (take-offer.md, "Handoff").
         TakeOfferUseCase.Handoff handoff = takeOfferService.getHandoff().orElse(null);
         if (handoff == null) {
             new Popup().warning(Res.get("muSig.takeOffer.validation.amountOutsideLimits"))
@@ -517,7 +517,7 @@ public class MuSigTakeOfferReviewController implements Controller {
     // The domain publishes trade amounts with the passive side already refreshed from the
     // resolved quote, so display and handoff stay consistent with the shown price.
     // The trade fee comes from the single fee domain service; the schedule is a mock until it is
-    // decided, and the protocol still uses a hard-coded placeholder (specification.md, "Review").
+    // decided, and the protocol still uses a hard-coded placeholder (take-offer.md, "Review").
     private String formattedTradeFee() {
         Coin tradeFee = takeOfferService.getFeeService().getTradeFee();
         return tradeFee != null
