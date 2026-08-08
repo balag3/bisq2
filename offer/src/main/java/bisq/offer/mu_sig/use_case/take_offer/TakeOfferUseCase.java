@@ -197,22 +197,36 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         } catch (TakeOfferValidationException e) {
             // A rejected initialization must not leave state behind, also when a previous
             // initialization on this instance had succeeded.
-            this.muSigOffer = null;
-            marketService.initialize(null);
-            directionService.initialize(null);
-            priceService.setPriceQuote(null);
-            priceService.setMarketPriceQuote(null);
-            priceService.setPriceDeviation(null);
-            paymentMethodService.reset();
-            amountService.reset();
-            feeService.reset();
-            rangeCollapsed = false;
-            amountConstraintsStale = false;
-            if (marketPricePin != null) {
-                marketPricePin.unbind();
-                marketPricePin = null;
-            }
+            resetState();
             throw e;
+        }
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        // UI callbacks queued before disposal still run afterwards and re-read the price and
+        // amount state; they must find it cleared, not the closed session's values.
+        resetState();
+    }
+
+    // Shares the monitor with handleMarketPriceUpdate so an in-flight update completes before
+    // the state is cleared and cannot republish afterwards (its pin is unbound by then).
+    private synchronized void resetState() {
+        muSigOffer = null;
+        marketService.initialize(null);
+        directionService.initialize(null);
+        priceService.setPriceQuote(null);
+        priceService.setMarketPriceQuote(null);
+        priceService.setPriceDeviation(null);
+        paymentMethodService.reset();
+        amountService.reset();
+        feeService.reset();
+        rangeCollapsed = false;
+        amountConstraintsStale = false;
+        if (marketPricePin != null) {
+            marketPricePin.unbind();
+            marketPricePin = null;
         }
     }
 

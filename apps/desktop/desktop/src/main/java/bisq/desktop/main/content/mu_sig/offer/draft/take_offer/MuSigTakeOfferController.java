@@ -77,6 +77,7 @@ public class MuSigTakeOfferController extends NavigationController implements In
     private Pin priceDeviationPin;
     private Pin amountLimitsPin;
     private boolean warnedAboutPriceDeviation;
+    private long activationGeneration;
     private final OverlayController overlayController;
     @Getter
     private final MuSigTakeOfferModel model;
@@ -164,6 +165,12 @@ public class MuSigTakeOfferController extends NavigationController implements In
         overlayController.setUseEscapeKeyHandler(false);
         overlayController.setEnterKeyHandler(null);
         overlayController.getApplicationRoot().addEventHandler(KeyEvent.KEY_PRESSED, onKeyPressedHandler);
+
+        // The controller instance is cached across wizard sessions: the latch must start fresh,
+        // and bumping the generation invalidates any deferred warning a previous session left in
+        // OverlayController.runOnShown.
+        warnedAboutPriceDeviation = false;
+        activationGeneration++;
 
         TakeOfferValidationException.Reason validationFailure = model.getTakeOfferValidationFailure();
         if (validationFailure != null) {
@@ -313,6 +320,11 @@ public class MuSigTakeOfferController extends NavigationController implements In
     // display animation completed (else the overlay stage ends up above it), and the deviation may
     // have changed meanwhile.
     private void maybeShowPriceDeviationWarning() {
+        // The observer queues this through UIThread.run; unbinding does not cancel an already
+        // queued call, which can therefore run after onDeactivate disposed the domain.
+        if (priceDeviationPin == null) {
+            return;
+        }
         Double deviation = takeOfferService.getPriceService().getPriceDeviation();
         if (deviation == null) {
             return;
@@ -321,7 +333,13 @@ public class MuSigTakeOfferController extends NavigationController implements In
         if (Math.abs(deviation) > threshold) {
             if (!warnedAboutPriceDeviation) {
                 warnedAboutPriceDeviation = true;
+                long generation = activationGeneration;
                 overlayController.runOnShown(() -> {
+                    // A deferred handler can outlive the wizard session that stored it; only the
+                    // registering activation may show its warning.
+                    if (generation != activationGeneration || priceDeviationPin == null) {
+                        return;
+                    }
                     Double currentDeviation = takeOfferService.getPriceService().getPriceDeviation();
                     double currentThreshold = settingsService.getPriceDeviationWarningThreshold().get();
                     if (currentDeviation == null || Math.abs(currentDeviation) <= currentThreshold) {

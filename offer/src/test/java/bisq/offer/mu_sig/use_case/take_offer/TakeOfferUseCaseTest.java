@@ -279,6 +279,28 @@ public class TakeOfferUseCaseTest {
         assertNull(useCase.getPriceService().getPriceQuote());
     }
 
+    @Test
+    public void disposeClearsRetainedState() {
+        // The wizard disposes the use case on deactivation, but UI callbacks queued before that
+        // still run afterwards and re-read the price state; disposal must not leave the closed
+        // session's values readable.
+        TakeOfferUseCase useCase = createUseCase();
+        useCase.initialize(validOffer());
+        assertNotNull(useCase.getPriceService().getPriceQuote());
+        assertNotNull(useCase.getPriceService().getMarketPriceQuote());
+        assertNotNull(useCase.getPriceService().getPriceDeviation());
+        assertNotNull(useCase.getFeeService().getTradeFee());
+
+        useCase.dispose();
+
+        assertNull(useCase.getPriceService().getPriceQuote());
+        assertNull(useCase.getPriceService().getMarketPriceQuote());
+        assertNull(useCase.getPriceService().getPriceDeviation());
+        assertNull(useCase.getFeeService().getTradeFee());
+        assertNull(useCase.getAmountService().getFixTradeAmount());
+        assertThrows(NullPointerException.class, useCase::getMarket);
+    }
+
     private static OfferOption realAccountOption(FiatPaymentRail paymentRail) {
         return new AccountOption(FiatPaymentMethod.fromPaymentRail(paymentRail),
                 "a".repeat(40),
