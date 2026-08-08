@@ -468,7 +468,7 @@ validated input set:
   converted into a different price specification. The market price handed off must be
   the same snapshot against which the amounts were last validated at confirmation;
   fetching a fresh price inside the handoff can store a price inconsistent with the
-  contract's own amounts (the current implementation does this and must be aligned)
+  contract's own amounts
 
 These guarantees are established at the use-case boundary; the trade protocol and the
 musigd backend are outside the scope of the take-offer process and must not need to
