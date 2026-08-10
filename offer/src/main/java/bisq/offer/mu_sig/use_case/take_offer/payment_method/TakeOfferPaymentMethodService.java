@@ -31,7 +31,6 @@ import lombok.experimental.Delegate;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -150,27 +149,15 @@ public class TakeOfferPaymentMethodService {
             putAllAccountsByPaymentMethod(map);
         }
 
-        boolean selectedAccountsChanged = false;
-
         // Remove payment methods which are not present in the eligible accounts
         ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedAccountByPaymentMethod = getSelectedAccountByPaymentMethod();
         List<? extends PaymentMethod<?>> paymentMethodsToRemove = paymentMethodSelectionService.findSelectedPaymentMethodsToRemove(selectedAccountByPaymentMethod,
                 accountsForMarket);
-        if (!paymentMethodsToRemove.isEmpty()) {
-            selectedAccountsChanged = true;
-            paymentMethodsToRemove.forEach(paymentMethod -> removeSelectedAccountByPaymentMethod(paymentMethod, false));
-        }
+        paymentMethodsToRemove.forEach(paymentMethod -> removeSelectedAccountByPaymentMethod(paymentMethod, false));
 
         // If we have only one, we pre-select
-        Optional<Account<?, ?>> accountToAutoSelect = paymentMethodSelectionService.findAccountToAutoSelect(accountsForMarket,
-                getSelectedAccountByPaymentMethod());
-        if (accountToAutoSelect.isPresent()) {
-            Account<?, ?> account = accountToAutoSelect.get();
-            selectedAccountsChanged |= putSelectedAccountByPaymentMethod(account.getPaymentMethod(), account, false);
-        }
-
-        if (selectedAccountsChanged) {
-        }
+        paymentMethodSelectionService.findAccountToAutoSelect(accountsForMarket, getSelectedAccountByPaymentMethod())
+                .ifPresent(account -> putSelectedAccountByPaymentMethod(account.getPaymentMethod(), account, false));
     }
 
 

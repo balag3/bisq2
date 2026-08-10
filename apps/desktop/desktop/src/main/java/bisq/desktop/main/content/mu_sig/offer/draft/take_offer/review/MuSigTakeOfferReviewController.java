@@ -19,8 +19,6 @@ package bisq.desktop.main.content.mu_sig.offer.draft.take_offer.review;
 
 import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethodSpec;
-import bisq.bonded_roles.market_price.MarketPrice;
-import bisq.bonded_roles.market_price.MarketPriceService;
 import bisq.common.market.Market;
 import bisq.common.monetary.Monetary;
 import bisq.common.monetary.Coin;
@@ -86,7 +84,6 @@ public class MuSigTakeOfferReviewController implements Controller {
     private Pin priceDeviationPin;
     private Pin fixTradeAmountPin;
     private Pin tradeFeePin;
-    private final MarketPriceService marketPriceService;
     private final UserIdentityService userIdentityService;
     private final BannedUserService bannedUserService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
@@ -103,7 +100,6 @@ public class MuSigTakeOfferReviewController implements Controller {
         this.mainButtonsVisibleHandler = mainButtonsVisibleHandler;
         userIdentityService = serviceProvider.getUserService().getUserIdentityService();
         this.closeAndNavigateToHandler = closeAndNavigateToHandler;
-        marketPriceService = serviceProvider.getBondedRolesService().getMarketPriceService();
         muSigService = serviceProvider.getMuSigService();
         bannedUserService = serviceProvider.getUserService().getBannedUserService();
         dontShowAgainService = serviceProvider.getDontShowAgainService();

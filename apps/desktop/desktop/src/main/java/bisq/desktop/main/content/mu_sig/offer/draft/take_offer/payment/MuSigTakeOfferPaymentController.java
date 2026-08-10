@@ -203,9 +203,8 @@ public class MuSigTakeOfferPaymentController implements Controller {
         // erase the preselection the use case applied before this controller activates.
         subscriptions.add(EasyBind.subscribe(model.getSelectedAccount(), selectedAccount -> {
             if (selectedAccount != null) {
-                // The take flow holds at most one selection; clear before put so switching
+                // The service clears any previous selection before the put, so switching
                 // methods cannot accumulate entries in the service state.
-                takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
                 takeOfferPaymentMethodService.putSelectedAccountByPaymentMethod(selectedAccount.getPaymentMethod(), selectedAccount);
             }
         }));
