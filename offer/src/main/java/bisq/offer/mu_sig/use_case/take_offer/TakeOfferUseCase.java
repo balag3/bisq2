@@ -145,7 +145,12 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
         paymentMethodService = new TakeOfferPaymentMethodService(paymentMethodSelectionService);
         // A payment method selection change is a user-initiated change of the effective amount
-        // limits (take-offer.md, "Amount limits", user-initiated class).
+        // limits (take-offer.md, "Amount limits", user-initiated class). The selection map is
+        // mutated on the JavaFX thread outside the use case monitor: a background update can
+        // read the rail mid-change and compute once without the method limit, but this handler
+        // recomputes on the same JavaFX call stack right after the mutation - no FX event (and
+        // so no confirmation) can run in between, and the recomputation republishes with the
+        // completed selection.
         paymentMethodService.setTradeAmountConstraintsRecalculationHandler(() -> recalculateAmountConstraints(true));
     }
 
@@ -163,7 +168,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         throw new UnsupportedOperationException("Use initialize(MuSigOffer)");
     }
 
-    public void initialize(MuSigOffer muSigOffer) {
+    public synchronized void initialize(MuSigOffer muSigOffer) {
         checkNotNull(muSigOffer, "muSigOffer must not be null");
         try {
             validate(muSigOffer);
@@ -210,8 +215,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         resetState();
     }
 
-    // Shares the monitor with handleMarketPriceUpdate so an in-flight update completes before
-    // the state is cleared and cannot republish afterwards (its pin is unbound by then).
+    // Every read-compute-publish sequence over the price and amount state shares the instance
+    // monitor (initialization, the market-price update, the amount mutators, the constraint
+    // recomputation, the handoff and this reset): a mutator that read the resolved quote can
+    // never publish its result after a concurrent update replaced the price, and an in-flight
+    // update completes before the state is cleared here.
     private synchronized void resetState() {
         muSigOffer = null;
         marketService.initialize(null);
@@ -563,7 +571,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         feeService.applyMaxTradeAmount(maxTradeAmount.getBitcoinSideAmount().getValue());
     }
 
-    private void recalculateAmountConstraints(boolean userInitiated) {
+    private synchronized void recalculateAmountConstraints(boolean userInitiated) {
         MuSigOffer offer = this.muSigOffer;
         if (offer == null || amountService.getAmountSpec() == null) {
             // The amount concern initializes after the payment concern; selection changes made
@@ -841,7 +849,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     // Amount input entry points
     /* --------------------------------------------------------------------- */
 
-    public void setFixTradeAmountFromInputAmount(@Nullable Monetary amount) {
+    public synchronized void setFixTradeAmountFromInputAmount(@Nullable Monetary amount) {
         // The desktop text input publishes null while empty; there is nothing to apply then.
         if (amount == null) {
             return;
@@ -866,7 +874,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         amountService.setAmountValid(!amountConstraintsStale);
     }
 
-    public void setFixTradeAmountFromSliderValue(double sliderValue) {
+    public synchronized void setFixTradeAmountFromSliderValue(double sliderValue) {
         checkArgument(sliderValue >= 0 && sliderValue <= 1,
                 "sliderValue must be within [0, 1] but was %s", sliderValue);
         MonetaryRange inputAmountLimits = amountService.getInputAmountLimits();
@@ -914,7 +922,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     // Mutation API
     /* --------------------------------------------------------------------- */
 
-    public void setUseBaseCurrencyForAmountInput(boolean value) {
+    public synchronized void setUseBaseCurrencyForAmountInput(boolean value) {
         Optional<Market> market = marketService.findMarket();
         if (market.isEmpty()) {
             // A queued UI callback can arrive after dispose; the session's state is cleared

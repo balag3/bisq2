@@ -40,6 +40,9 @@ import org.junit.jupiter.api.Test;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -498,6 +501,69 @@ public class TakeOfferUseCaseTest {
 
         verify(cookieStore, never()).persistUseBaseCurrencyForAmountInput(any(Market.class), anyBoolean());
         assertFalse(useCase.getAmountService().getUseBaseCurrencyForAmountInput());
+    }
+
+    @Test
+    public void mutatorWaitsForAnInFlightMarketPriceUpdate() throws Exception {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 100, 4_000);
+        useCase.initialize(offer);
+
+        // Parks the update thread inside handleMarketPriceUpdate while it holds the use case
+        // monitor. Registered after initialize and armed only for the staged update, so the
+        // at-registration fire and the initialization publishes pass through unhindered.
+        AtomicBoolean armed = new AtomicBoolean(false);
+        CountDownLatch parkEntered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        useCase.getPriceService().marketPriceQuoteObservable().addObserver(quote -> {
+            if (armed.get()) {
+                armed.set(false);
+                parkEntered.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+
+        PriceQuote newQuote = PriceQuote.fromFiatPrice(80_000, "USD");
+        armed.set(true);
+        Thread updateThread = new Thread(() -> fireMarketPriceUpdate(newQuote), "market-price-update");
+        updateThread.setDaemon(true);
+
+        CountDownLatch mutatorStarted = new CountDownLatch(1);
+        CountDownLatch mutatorCompleted = new CountDownLatch(1);
+        Thread mutatorThread = new Thread(() -> {
+            mutatorStarted.countDown();
+            useCase.setFixTradeAmountFromInputAmount(usd(500));
+            mutatorCompleted.countDown();
+        }, "amount-mutator");
+        mutatorThread.setDaemon(true);
+
+        try {
+            updateThread.start();
+            assertTrue(parkEntered.await(5, TimeUnit.SECONDS), "update thread should reach the park point");
+            mutatorThread.start();
+            assertTrue(mutatorStarted.await(5, TimeUnit.SECONDS));
+            // The update still holds the monitor mid-publish; the mutator must not complete a
+            // read-compute-publish against the half-updated price state.
+            assertFalse(mutatorCompleted.await(300, TimeUnit.MILLISECONDS),
+                    "mutator must wait for the in-flight market price update");
+        } finally {
+            release.countDown();
+        }
+        assertTrue(mutatorCompleted.await(5, TimeUnit.SECONDS));
+        updateThread.join(5_000);
+        mutatorThread.join(5_000);
+
+        // The mutator ran strictly after the update: the handoff pairs the $500 input with the
+        // new price and the base side converted at the new resolved quote.
+        TakeOfferUseCase.Handoff handoff = useCase.getHandoff().orElseThrow();
+        assertEquals(newQuote.getValue(), handoff.marketPrice());
+        assertEquals(usd(500).getValue(), handoff.quoteSideAmount().getValue());
+        assertEquals(newQuote.toBaseSideMonetaryExact(usd(500)).getValue(), handoff.baseSideAmount().getValue());
     }
 
     @Test
