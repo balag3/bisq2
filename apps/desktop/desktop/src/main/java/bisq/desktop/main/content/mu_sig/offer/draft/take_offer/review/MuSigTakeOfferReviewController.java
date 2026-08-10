@@ -181,6 +181,14 @@ public class MuSigTakeOfferReviewController implements Controller {
     // update between opening the popup and confirming can remove the price or invalidate the
     // amount (take-offer.md, "Amount limits", background changes).
     private boolean confirmationAllowed() {
+        // A submission is already in flight or has succeeded. Hiding the buttons does not
+        // disable the parent's Enter-key handler, so repeated input could otherwise create a
+        // second trade for the same offer (the trade id contains the take date, so a resend is
+        // a new trade, not a duplicate message). The failure path resets the status, which
+        // re-opens the gate for a legitimate retry.
+        if (model.getTakeOfferStatus().get() != MuSigTakeOfferReviewModel.TakeOfferStatus.NOT_STARTED) {
+            return false;
+        }
         // Runtime invalidation gate: without a current market price the take cannot proceed
         // (take-offer.md, Price). The block lifts as soon as a price arrives again.
         if (takeOfferService.getPriceService().getMarketPriceQuote() == null) {

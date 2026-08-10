@@ -120,6 +120,8 @@ class MuSigTakeOfferReviewModel implements Model {
         fee.set(null);
         feeDetails.set(null);
         marketPrice = 0;
-        takeOfferStatus.set(null);
+        // Back to the initial state, not null: the controller is cached across wizard sessions
+        // and the confirmation gate admits a submission only while the status is NOT_STARTED.
+        takeOfferStatus.set(TakeOfferStatus.NOT_STARTED);
     }
 }
