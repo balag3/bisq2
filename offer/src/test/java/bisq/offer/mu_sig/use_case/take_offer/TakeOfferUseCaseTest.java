@@ -49,9 +49,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TakeOfferUseCaseTest {
@@ -445,6 +448,56 @@ public class TakeOfferUseCaseTest {
         assertTrue(useCase.getPaymentMethodService().getAccountsByPaymentMethod().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getTakerSidePaymentMethodSpecs().isEmpty());
         assertTrue(useCase.getPaymentMethodService().getIncompatibleAccountsByPaymentMethod().isEmpty());
+    }
+
+    @Test
+    public void initializeRestoresPersistedAmountInputSide() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        when(cookieStore.getUseBaseCurrencyForAmountInput(market)).thenReturn(true);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+
+        useCase.initialize(validOffer());
+
+        assertTrue(useCase.getAmountService().getUseBaseCurrencyForAmountInput());
+        // The input-side range must be published on the restored side.
+        assertEquals("BTC", useCase.getAmountService().getInputAmountLimits().getMin().getCode());
+    }
+
+    @Test
+    public void inputSideToggleIsPersisted() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+        useCase.initialize(validOffer());
+
+        useCase.setUseBaseCurrencyForAmountInput(true);
+
+        verify(cookieStore).persistUseBaseCurrencyForAmountInput(market, true);
+        assertTrue(useCase.getAmountService().getUseBaseCurrencyForAmountInput());
+        assertEquals("BTC", useCase.getAmountService().getInputAmountLimits().getMin().getCode());
+    }
+
+    @Test
+    public void unchangedInputSideIsNotPersisted() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+        useCase.initialize(validOffer());
+
+        useCase.setUseBaseCurrencyForAmountInput(false);
+
+        verify(cookieStore, never()).persistUseBaseCurrencyForAmountInput(any(Market.class), anyBoolean());
+    }
+
+    @Test
+    public void inputSideToggleAfterDisposeIsInert() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+        useCase.initialize(validOffer());
+        useCase.dispose();
+
+        useCase.setUseBaseCurrencyForAmountInput(true);
+
+        verify(cookieStore, never()).persistUseBaseCurrencyForAmountInput(any(Market.class), anyBoolean());
+        assertFalse(useCase.getAmountService().getUseBaseCurrencyForAmountInput());
     }
 
     @Test
@@ -1214,6 +1267,16 @@ public class TakeOfferUseCaseTest {
 
     private TakeOfferUseCase createUseCase() {
         return createUseCase(market -> List.of());
+    }
+
+    private TakeOfferUseCase createUseCase(TakeOfferDraftCookieStore cookieStore) {
+        stubMarketPrice(marketPriceQuote);
+        when(marketPriceService.getMarketPriceByCurrencyMap()).thenReturn(marketPriceByCurrencyMap);
+        when(identityService.findAnyIdentityByNetworkId(any(NetworkId.class))).thenReturn(Optional.empty());
+        return new TakeOfferUseCase(marketPriceService,
+                identityService,
+                cookieStore,
+                market -> List.of());
     }
 
     private TakeOfferUseCase createUseCase(bisq.offer.mu_sig.use_case.dependencies.AccountsProvider accountsProvider) {

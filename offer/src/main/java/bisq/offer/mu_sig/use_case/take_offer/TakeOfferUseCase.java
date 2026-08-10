@@ -477,6 +477,10 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private void initializeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
         rangeCollapsed = false;
         amountConstraintsStale = false;
+        // The persisted input-side preference (shared with the create-offer flow) must be
+        // restored before any input-side range or slider value is published, as those are
+        // denominated in the input side.
+        amountService.setUseBaseCurrencyForAmountInput(cookieStore.getUseBaseCurrencyForAmountInput(offer.getMarket()));
         try {
             initializeAmountValidated(offer, resolvedQuote);
         } catch (TakeOfferValidationException e) {
@@ -911,10 +915,17 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public void setUseBaseCurrencyForAmountInput(boolean value) {
+        Optional<Market> market = marketService.findMarket();
+        if (market.isEmpty()) {
+            // A queued UI callback can arrive after dispose; the session's state is cleared
+            // and must stay cleared.
+            return;
+        }
         if (amountService.getUseBaseCurrencyForAmountInput() == value) {
             return;
         }
         amountService.setUseBaseCurrencyForAmountInput(value);
+        cookieStore.persistUseBaseCurrencyForAmountInput(market.get(), value);
         // An input-side switch is a user-initiated change: input range, marker and slider
         // mapping are recomputed on the new side (the amount itself is unchanged).
         recalculateAmountConstraints(true);
