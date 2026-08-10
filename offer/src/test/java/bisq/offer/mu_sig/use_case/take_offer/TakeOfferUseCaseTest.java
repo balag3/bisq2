@@ -3,6 +3,7 @@ package bisq.offer.mu_sig.use_case.take_offer;
 import bisq.account.accounts.Account;
 import bisq.account.accounts.fiat.CountryBasedAccountPayload;
 import bisq.account.payment_method.BitcoinPaymentMethod;
+import bisq.account.payment_method.crypto.CryptoPaymentMethod;
 import bisq.account.payment_method.BitcoinPaymentRail;
 import bisq.account.payment_method.PaymentMethod;
 import bisq.account.payment_method.PaymentMethodSpec;
@@ -16,7 +17,9 @@ import bisq.common.market.Market;
 import bisq.common.market.MarketRepository;
 import bisq.common.monetary.Coin;
 import bisq.common.monetary.Fiat;
+import bisq.common.monetary.Monetary;
 import bisq.common.monetary.TradeAmount;
+import bisq.common.monetary.TradeAmountRange;
 import bisq.common.monetary.PriceQuote;
 import bisq.common.observable.map.ObservableHashMap;
 import bisq.network.identity.NetworkId;
@@ -29,6 +32,7 @@ import bisq.offer.mu_sig.use_case.take_offer.TakeOfferValidationException.Reason
 import bisq.offer.options.AccountOption;
 import bisq.offer.options.CollateralOption;
 import bisq.offer.options.OfferOption;
+import bisq.offer.amount.spec.BaseSideFixedAmountSpec;
 import bisq.offer.amount.spec.BaseSideRangeAmountSpec;
 import bisq.offer.amount.spec.QuoteSideFixedAmountSpec;
 import bisq.offer.amount.spec.QuoteSideRangeAmountSpec;
@@ -87,6 +91,46 @@ public class TakeOfferUseCaseTest {
         MarketPrice marketPrice = mock(MarketPrice.class);
         when(marketPrice.getPriceQuote()).thenReturn(quote);
         marketPriceByCurrencyMap.put(market, marketPrice);
+    }
+
+    // Altcoin regime: XMR precision is 12 and the unit price (251,234 sats per XMR) is far
+    // below one quote unit per base unit, so quote-side rounding losses amplify on the base
+    // side instead of vanishing below one unit as they do at fiat prices.
+    private final Market xmrMarket = MarketRepository.getXmrBtcMarket();
+    private final PriceQuote xmrPriceQuote = PriceQuote.fromPrice(0.00251234, "XMR", "BTC");
+    private final PaymentMethod<?> xmrMethod = new CryptoPaymentMethod("XMR");
+
+    private void stubXmrMarketPrice(PriceQuote quote) {
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        when(marketPriceService.findMarketPrice(xmrMarket)).thenReturn(Optional.of(marketPrice));
+        when(marketPriceService.findMarketPriceQuote(xmrMarket)).thenReturn(Optional.of(quote));
+    }
+
+    private void fireXmrMarketPriceUpdate(PriceQuote quote) {
+        stubXmrMarketPrice(quote);
+        MarketPrice marketPrice = mock(MarketPrice.class);
+        when(marketPrice.getPriceQuote()).thenReturn(quote);
+        marketPriceByCurrencyMap.put(xmrMarket, marketPrice);
+    }
+
+    private MuSigOffer validXmrOffer() {
+        NetworkId makerNetworkId = mock(NetworkId.class);
+        List<PaymentMethodSpec<?>> baseSideSpecs = List.of(specOf(xmrMethod));
+        List<PaymentMethodSpec<?>> quoteSideSpecs = List.of(specOf(mainChainMethod));
+        List<OfferOption> offerOptions = List.of(new CollateralOption(0.25, 0.25), accountOption(xmrMethod));
+        MuSigOffer offer = mock(MuSigOffer.class);
+        when(offer.getId()).thenReturn("test-xmr-offer-id");
+        when(offer.getMakerNetworkId()).thenReturn(makerNetworkId);
+        when(offer.getMarket()).thenReturn(xmrMarket);
+        when(offer.getProtocolTypes()).thenReturn(List.of(TradeProtocolType.MU_SIG));
+        when(offer.getDirection()).thenReturn(Direction.BUY);
+        when(offer.getPriceSpec()).thenReturn(new MarketPriceSpec());
+        when(offer.getQuoteSidePaymentMethodSpecs()).thenReturn(quoteSideSpecs);
+        when(offer.getBaseSidePaymentMethodSpecs()).thenReturn(baseSideSpecs);
+        when(offer.getOfferOptions()).thenReturn(offerOptions);
+        stubXmrMarketPrice(xmrPriceQuote);
+        return offer;
     }
 
     @Test
@@ -564,6 +608,154 @@ public class TakeOfferUseCaseTest {
         assertEquals(newQuote.getValue(), handoff.marketPrice());
         assertEquals(usd(500).getValue(), handoff.quoteSideAmount().getValue());
         assertEquals(newQuote.toBaseSideMonetaryExact(usd(500)).getValue(), handoff.baseSideAmount().getValue());
+    }
+
+    @Test
+    public void fixedBaseSideAltcoinAmountInitializesExactly() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validXmrOffer();
+        // 1.1 XMR: 1_100_000_000_000 units; the derived quote side is 276_357 sats (truncated
+        // from 276_357.4). Reconstructing the base side from that quote would lose 1_592_141
+        // XMR units and reject the offer against its own bound.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideFixedAmountSpec(1_100_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(false);
+
+        useCase.initialize(offer);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(1_100_000_000_000L, fixTradeAmount.getBaseSideAmount().getValue());
+        assertEquals(276_357L, fixTradeAmount.getQuoteSideAmount().getValue());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void baseSideRangeEndpointsKeepStoredValues() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validXmrOffer();
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_000_000_000_000L, 1_100_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        TradeAmountRange limits = useCase.getAmountService().getTradeAmountLimits();
+        assertEquals(1_000_000_000_000L, limits.getMin().getBaseSideAmount().getValue());
+        assertEquals(1_100_000_000_000L, limits.getMax().getBaseSideAmount().getValue());
+        assertEquals(251_234L, limits.getMin().getQuoteSideAmount().getValue());
+        assertEquals(276_357L, limits.getMax().getQuoteSideAmount().getValue());
+    }
+
+    @Test
+    public void limitBoundEndpointKeepsItsOwnPair() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validXmrOffer();
+        // 100 XMR converts to 25_123_400 sats, beyond the 10_000_000 sat absolute maximum at
+        // 100k USD/BTC: the max endpoint is the limit's own internally consistent pair.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_000_000_000_000L, 100_000_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        TradeAmountRange limits = useCase.getAmountService().getTradeAmountLimits();
+        Monetary maxQuote = limits.getMax().getQuoteSideAmount();
+        assertEquals(10_000_000L, maxQuote.getValue());
+        assertEquals(xmrPriceQuote.toBaseSideMonetary(maxQuote).getValue(),
+                limits.getMax().getBaseSideAmount().getValue());
+    }
+
+    @Test
+    public void invertedRoundingDistanceRangeRejects() {
+        TakeOfferUseCase useCase = createUseCase();
+        // At 50k USD/BTC the absolute minimum is 20_000 sats whose limit pair carries a
+        // HALF_UP base; an offer maximum stored at exactly that base value derives DOWN to
+        // 19_999 sats. The sides disagree by one rounding unit, so the intersection is empty.
+        PriceQuote fiftyThousand = PriceQuote.fromFiatPrice(50_000, "USD");
+        when(marketPriceService.getMarketPriceQuoteOrThrow(market)).thenReturn(fiftyThousand);
+        MuSigOffer offer = validXmrOffer();
+        long absoluteMinBase = xmrPriceQuote.toBaseSideMonetary(Coin.fromValue(20_000, "BTC", 8)).getValue();
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(20_000_000_000L, absoluteMinBase));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void fixedAmountTiedWithAbsoluteMinimumBaseCannotUndercutTheFloor() {
+        TakeOfferUseCase useCase = createUseCase();
+        // A stored base equal to the absolute minimum's HALF_UP base derives DOWN to 19_999
+        // sats, one quote unit below the 20_000 sat floor at 50k USD/BTC. The tie on the
+        // stored side must select the limit endpoint, which makes the pair inversion visible
+        // and the intersection empty - never a published amount below the floor.
+        PriceQuote fiftyThousand = PriceQuote.fromFiatPrice(50_000, "USD");
+        when(marketPriceService.getMarketPriceQuoteOrThrow(market)).thenReturn(fiftyThousand);
+        MuSigOffer offer = validXmrOffer();
+        long absoluteMinBase = xmrPriceQuote.toBaseSideMonetary(Coin.fromValue(20_000, "BTC", 8)).getValue();
+        when(offer.getAmountSpec()).thenReturn(new BaseSideFixedAmountSpec(absoluteMinBase));
+        when(offer.hasAmountRange()).thenReturn(false);
+
+        assertRejected(useCase, offer, Reason.AMOUNT_OUTSIDE_LIMITS);
+    }
+
+    @Test
+    public void rangeMinTiedWithAbsoluteMinimumBaseGetsTheLimitPair() {
+        TakeOfferUseCase useCase = createUseCase();
+        PriceQuote fiftyThousand = PriceQuote.fromFiatPrice(50_000, "USD");
+        when(marketPriceService.getMarketPriceQuoteOrThrow(market)).thenReturn(fiftyThousand);
+        MuSigOffer offer = validXmrOffer();
+        long absoluteMinBase = xmrPriceQuote.toBaseSideMonetary(Coin.fromValue(20_000, "BTC", 8)).getValue();
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(absoluteMinBase, 1_100_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        TradeAmountRange limits = useCase.getAmountService().getTradeAmountLimits();
+        assertEquals(20_000L, limits.getMin().getQuoteSideAmount().getValue());
+        assertEquals(absoluteMinBase, limits.getMin().getBaseSideAmount().getValue());
+    }
+
+    @Test
+    public void limitConversionOverflowAtExtremePriceFailsClosed() {
+        TakeOfferUseCase useCase = createUseCase();
+        // At 1 sat per XMR the 10,000 USD absolute maximum converts to 10^20 XMR atomic
+        // units, beyond long range. The take must fail closed instead of comparing or
+        // publishing a wrapped limit (which would falsely empty the intersection of this
+        // 800-900 USD offer).
+        PriceQuote tenThousand = PriceQuote.fromFiatPrice(10_000, "USD");
+        when(marketPriceService.getMarketPriceQuoteOrThrow(market)).thenReturn(tenThousand);
+        MuSigOffer offer = validXmrOffer();
+        PriceQuote oneSatPerXmr = PriceQuote.fromPrice(0.00000001, "XMR", "BTC");
+        stubXmrMarketPrice(oneSatPerXmr);
+        when(offer.getAmountSpec()).thenReturn(
+                new BaseSideRangeAmountSpec(8_000_000_000_000_000_000L, 9_000_000_000_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        assertRejected(useCase, offer, Reason.INVALID_OFFER);
+    }
+
+    @Test
+    public void backgroundRefreshKeepsEndpointAmountValid() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        when(cookieStore.getUseBaseCurrencyForAmountInput(xmrMarket)).thenReturn(true);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+        MuSigOffer offer = validXmrOffer();
+        // The offer minimum sits below the 10_000 sat absolute minimum, so the effective min
+        // endpoint comes from the limit chain (HALF_UP base) while amounts author their pairs
+        // through the DOWN direction.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(20_000_000_000L, 1_100_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+        useCase.initialize(offer);
+
+        useCase.setFixTradeAmountFromSliderValue(0.0);
+        TradeAmount selected = useCase.getAmountService().getFixTradeAmount();
+        long minQuote = useCase.getAmountService().getTradeAmountLimits().getMin().getQuoteSideAmount().getValue();
+        assertEquals(minQuote, selected.getQuoteSideAmount().getValue());
+        assertTrue(useCase.getAmountService().isAmountValid());
+
+        // A background update at the unchanged price must not flip the endpoint amount
+        // invalid by re-deriving its passive side on a different path than the endpoint's.
+        fireXmrMarketPriceUpdate(xmrPriceQuote);
+
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertEquals(minQuote, useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount().getValue());
     }
 
     @Test
