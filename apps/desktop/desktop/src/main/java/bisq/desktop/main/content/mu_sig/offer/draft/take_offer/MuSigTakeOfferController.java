@@ -198,9 +198,10 @@ public class MuSigTakeOfferController extends NavigationController implements In
                 UIThread.run(this::updateAmountStepVisibility));
     }
 
-    // A payment method selection can collapse or un-collapse the effective amount range
-    // (take-offer.md, "Amount", collapse rule). Selection changes happen on the payment step,
-    // before the amount step is reached, so the remaining wizard targets can be rebuilt safely.
+    // A user-initiated recomputation can collapse or un-collapse the effective amount range
+    // (take-offer.md, "Amount", collapse rule). It can originate from the payment step (method
+    // selection) or from the amount step itself (input-side switch), so the rebuilt target list
+    // must be reconciled with the step the user is currently on.
     private void updateAmountStepVisibility() {
         if (model.getTakeOfferValidationFailure() != null) {
             return;
@@ -223,6 +224,32 @@ public class MuSigTakeOfferController extends NavigationController implements In
         } else {
             model.getChildTargets().remove(NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT);
         }
+        reconcileCurrentStep();
+    }
+
+    // The child target list just changed. The current index must follow the selected target's
+    // new position, else Next and Back would address neighbours of a stale index. An input-side
+    // switch happens ON the amount step, so the recomputation it triggers can remove the very
+    // step the user is standing on; the flow then moves to the review step (the collapsed
+    // amount has already been published as fixed by the domain).
+    private void reconcileCurrentStep() {
+        NavigationTarget selected = model.getSelectedChildTarget().get();
+        if (selected == null) {
+            return;
+        }
+        int index = model.getChildTargets().indexOf(selected);
+        if (index >= 0) {
+            model.getCurrentIndex().set(index);
+            return;
+        }
+        int reviewIndex = model.getChildTargets().indexOf(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
+        if (reviewIndex < 0) {
+            return;
+        }
+        model.setAnimateRightOut(false);
+        model.getCurrentIndex().set(reviewIndex);
+        model.getSelectedChildTarget().set(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
+        Navigation.navigateTo(NavigationTarget.MU_SIG_TAKE_OFFER_REVIEW);
     }
 
     @Override
