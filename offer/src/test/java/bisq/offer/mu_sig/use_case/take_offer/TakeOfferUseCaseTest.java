@@ -265,6 +265,23 @@ public class TakeOfferUseCaseTest {
     }
 
     @Test
+    public void everyMarketPriceUpdateBumpsTheConstraintsRecomputeRevision() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validOffer();
+        useCase.initialize(offer);
+        int revisionAfterInit = useCase.getAmountService().constraintsRecomputeRevisionObservable().get();
+
+        // An update at the unchanged quote publishes no changed projection (equal values are
+        // suppressed), yet per-method admissibility can flip through the independent BTC/USD
+        // leg of the limit conversions; the revision must bump on every recomputation so
+        // admissibility consumers never go stale.
+        fireMarketPriceUpdate(marketPriceQuote);
+
+        assertEquals(revisionAfterInit + 1,
+                useCase.getAmountService().constraintsRecomputeRevisionObservable().get());
+    }
+
+    @Test
     public void missingAccountOptionForSelectableMethodIsRejected() {
         TakeOfferUseCase useCase = createUseCase();
         MuSigOffer offer = validOffer();

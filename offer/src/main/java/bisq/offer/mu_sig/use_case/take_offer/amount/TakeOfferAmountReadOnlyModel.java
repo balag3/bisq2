@@ -43,6 +43,8 @@ public interface TakeOfferAmountReadOnlyModel {
 
     ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable();
 
+    ReadOnlyObservable<Integer> constraintsRecomputeRevisionObservable();
+
 
     ReadOnlyObservable<Optional<TradeAmount>> userSpecificTradeAmountLimitObservable();
 

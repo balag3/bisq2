@@ -36,6 +36,10 @@ public class TakeOfferAmountModel implements TakeOfferAmountReadOnlyModel {
     protected final Observable<MonetaryRange> inputAmountLimits = new Observable<>();
     protected final Observable<Double> fixAmountSliderValue = new Observable<>(0d);
     protected final Observable<Boolean> amountValid = new Observable<>(true);
+    // Bumped after every constraints recomputation, also when every published projection stays
+    // equal (equal values are suppressed by the observables) or the recomputation fails; UI
+    // state derived from the full constraints (e.g. per-method admissibility) observes this.
+    protected final Observable<Integer> constraintsRecomputeRevision = new Observable<>(0);
 
     public TakeOfferAmountModel() {
     }
@@ -107,6 +111,20 @@ public class TakeOfferAmountModel implements TakeOfferAmountReadOnlyModel {
     @Override
     public ReadOnlyObservable<TradeAmountRange> tradeAmountLimitsObservable() {
         return tradeAmountLimits;
+    }
+
+
+    /* --------------------------------------------------------------------- */
+    // constraintsRecomputeRevision
+    /* --------------------------------------------------------------------- */
+
+    void markConstraintsRecomputed() {
+        constraintsRecomputeRevision.set(constraintsRecomputeRevision.get() + 1);
+    }
+
+    @Override
+    public ReadOnlyObservable<Integer> constraintsRecomputeRevisionObservable() {
+        return constraintsRecomputeRevision;
     }
 
 
@@ -207,6 +225,7 @@ public class TakeOfferAmountModel implements TakeOfferAmountReadOnlyModel {
     void reset() {
         amountSpec = null;
         useBaseCurrencyForAmountInput.set(false);
+        constraintsRecomputeRevision.set(0);
         fixTradeAmount.set(null);
         userSpecificTradeAmountLimit.set(Optional.empty());
         userSpecificTradeAmountLimitAsSliderValue.set(Optional.empty());

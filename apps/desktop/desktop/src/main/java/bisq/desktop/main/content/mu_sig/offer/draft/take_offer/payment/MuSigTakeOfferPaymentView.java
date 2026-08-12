@@ -58,7 +58,8 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
     private final List<MuSigPaymentMethodChipButton> paymentMethodChipButtons = new ArrayList<>();
     private final WizardOverlay noAccountOverlay, multipleAccountsOverlay, noPaymentMethodSelectedOverlay;
     private Subscription selectedPaymentMethodPin, selectedTogglePin, shouldShowNoAccountOverlayPin,
-            shouldShowMultipleAccountsOverlayPin, shouldShowNoPaymentMethodSelectedOverlayPin;
+            shouldShowMultipleAccountsOverlayPin, shouldShowNoPaymentMethodSelectedOverlayPin,
+            paymentMethodAdmissibilityPin;
 
     public MuSigTakeOfferPaymentView(MuSigTakeOfferPaymentModel model,
                                      MuSigTakeOfferPaymentController controller) {
@@ -152,6 +153,9 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             }
         });
 
+        paymentMethodAdmissibilityPin = EasyBind.subscribe(model.getPaymentMethodAdmissibilityVersion(), version ->
+                paymentMethodChipButtons.forEach(this::applyAdmissibility));
+
         createAccountButton.setOnAction(e -> controller.onOpenCreateAccountScreen());
         noAccountOverlayCloseButton.setOnAction(e -> controller.onCloseNoAccountOverlay());
         multipleAccountsOverlayCloseButton.setOnAction(e -> controller.onCloseMultipleAccountsOverlay());
@@ -195,6 +199,7 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
         shouldShowNoPaymentMethodSelectedOverlayPin.unsubscribe();
         selectedPaymentMethodPin.unsubscribe();
         selectedTogglePin.unsubscribe();
+        paymentMethodAdmissibilityPin.unsubscribe();
 
         paymentMethodChipButtons.forEach(MuSigPaymentMethodChipButton::dispose);
 
@@ -232,16 +237,9 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             if (!paymentMethod.getShortDisplayString().equals(paymentMethod.getDisplayString())) {
                 button.setTooltip(new BisqTooltip(paymentMethod.getDisplayString()));
             }
-
-            boolean isAdmissible = !model.getInadmissiblePaymentMethods().contains(paymentMethod);
-            boolean hasAccounts = model.getAccountsByPaymentMethod().containsKey(paymentMethod);
-            button.setActive(hasAccounts && isAdmissible);
-            if (!isAdmissible) {
-                button.setTooltip(new BisqTooltip(Res.get("muSig.offer.taker.payment.methodNotAdmissible",
-                        paymentMethod.getShortDisplayString())));
-            }
+            applyAdmissibility(button);
             List<Account<?, ?>> accounts = model.getAccountsByPaymentMethod().get(paymentMethod);
-            button.setNumAccounts(hasAccounts ? accounts.size() : 0);
+            button.setNumAccounts(accounts != null ? accounts.size() : 0);
 
             Account<?, ?> account = model.getSelectedAccount().get();
             if (accounts != null && account != null && accounts.size() > 1 && account.getPaymentMethod().equals(paymentMethod)) {
@@ -277,6 +275,17 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
         return paymentMethodChipButtons.stream()
                 .filter(button -> button.getPaymentMethod().equals(paymentMethod))
                 .findAny();
+    }
+
+    private void applyAdmissibility(MuSigPaymentMethodChipButton button) {
+        PaymentMethod<?> paymentMethod = button.getPaymentMethod();
+        boolean isAdmissible = !model.getInadmissiblePaymentMethods().contains(paymentMethod);
+        boolean hasAccounts = model.getAccountsByPaymentMethod().containsKey(paymentMethod);
+        button.setActive(hasAccounts && isAdmissible);
+        button.setInadmissibleReasonTooltip(isAdmissible
+                ? null
+                : new BisqTooltip(Res.get("muSig.offer.taker.payment.methodNotAdmissible",
+                        paymentMethod.getShortDisplayString())));
     }
 
     private void updateSelectionsState() {

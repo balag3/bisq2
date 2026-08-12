@@ -599,6 +599,13 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             log.warn("Amount recomputation failed, blocking confirmation: {}", e.getMessage());
             amountConstraintsStale = true;
             amountService.setAmountValid(false);
+        } finally {
+            // Published projections stay equal on many recomputations (equal values are
+            // suppressed, an empty intersection publishes nothing) while derived state such as
+            // per-method admissibility may still have changed - it depends on the BTC/USD leg
+            // of the limit conversions, which moves independently of the offer market's quote.
+            // The revision is the completion signal admissibility consumers observe.
+            amountService.markConstraintsRecomputed();
         }
     }
 

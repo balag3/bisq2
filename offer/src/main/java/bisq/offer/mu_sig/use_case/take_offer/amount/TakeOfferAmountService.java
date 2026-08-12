@@ -50,6 +50,10 @@ public class TakeOfferAmountService {
         model.setFixTradeAmount(fixTradeAmount);
     }
 
+    public void markConstraintsRecomputed() {
+        model.markConstraintsRecomputed();
+    }
+
     public void setUserSpecificTradeAmountLimit(Optional<TradeAmount> userSpecificTradeAmountLimit) {
         model.setUserSpecificTradeAmountLimit(userSpecificTradeAmountLimit);
     }

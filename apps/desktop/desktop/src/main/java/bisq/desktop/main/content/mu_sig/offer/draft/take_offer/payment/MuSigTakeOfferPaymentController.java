@@ -25,6 +25,7 @@ import bisq.common.locale.CountryRepository;
 import bisq.common.market.Market;
 import bisq.common.observable.Pin;
 import bisq.desktop.ServiceProvider;
+import bisq.desktop.common.threading.UIThread;
 import bisq.desktop.common.utils.KeyHandlerUtil;
 import bisq.desktop.common.view.Controller;
 import bisq.desktop.common.view.Navigation;
@@ -118,9 +119,7 @@ public class MuSigTakeOfferPaymentController implements Controller {
         model.getOfferedPaymentMethods().setAll(offeredPaymentMethods);
         // Methods whose rail limit cannot cover the offer amount are shown disabled with a
         // reason and cannot be selected (take-offer.md, "Amount limits").
-        offeredPaymentMethods.stream()
-                .filter(method -> !takeOfferService.isPaymentMethodAdmissible(method))
-                .forEach(model.getInadmissiblePaymentMethods()::add);
+        refreshInadmissiblePaymentMethods();
 
         // Seed the preselection applied by the use case (exactly one eligible account in total).
         ImmutableMap<PaymentMethod<?>, Account<?, ?>> selectedByMethod =
@@ -169,6 +168,16 @@ public class MuSigTakeOfferPaymentController implements Controller {
     public void onActivate() {
         model.getPaymentMethodWithoutAccount().set(null);
         model.getPaymentMethodWithMultipleAccounts().set(null);
+
+        // The rail limits are converted at the market price, so a method inadmissible at
+        // initialization can become admissible again (and vice versa) while the take is open;
+        // the chip states follow the domain recomputation. The revision signal fires after
+        // every recomputation - the published projections are no substitute, as they can all
+        // stay equal while another method's admissibility flips through the BTC/USD leg of the
+        // limit conversions. The at-registration fire also reconciles changes that happened
+        // while this step was not active.
+        pins.add(takeOfferService.getAmountService().constraintsRecomputeRevisionObservable().addObserver(revision ->
+                UIThread.run(this::refreshInadmissiblePaymentMethods)));
 
         paymentMethodWithoutAccountPin = EasyBind.subscribe(model.getPaymentMethodWithoutAccount(), paymentMethod -> {
             if (paymentMethod != null) {
@@ -335,6 +344,18 @@ public class MuSigTakeOfferPaymentController implements Controller {
     // The taker has accounts for the method but none passed the offer's AccountOption
     // restrictions; explain the first mismatch so the prompt is actionable. Deterministic
     // pick: alphabetically first account name, country mismatch before bank.
+    private void refreshInadmissiblePaymentMethods() {
+        Set<PaymentMethod<?>> inadmissible = model.getOfferedPaymentMethods().stream()
+                .filter(method -> !takeOfferService.isPaymentMethodAdmissible(method))
+                .collect(Collectors.toSet());
+        if (inadmissible.equals(model.getInadmissiblePaymentMethods())) {
+            return;
+        }
+        model.getInadmissiblePaymentMethods().clear();
+        model.getInadmissiblePaymentMethods().addAll(inadmissible);
+        model.getPaymentMethodAdmissibilityVersion().set(model.getPaymentMethodAdmissibilityVersion().get() + 1);
+    }
+
     private String buildNoAccountReason(PaymentMethod<?> paymentMethod) {
         List<AccountCompatibilityMismatch> mismatches =
                 takeOfferPaymentMethodService.getIncompatibleAccountsByPaymentMethod().get(paymentMethod);
