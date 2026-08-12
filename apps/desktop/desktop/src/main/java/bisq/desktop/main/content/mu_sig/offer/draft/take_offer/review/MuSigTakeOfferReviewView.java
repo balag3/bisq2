@@ -197,9 +197,12 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
                 priceDetails.setText(value == null ? "" : value));
 
         paymentMethod.setText(model.getPaymentMethodDisplayString());
+        // Null until a payment selection was applied: the review target is reachable by direct
+        // navigation before the payment step ran; the confirmation gate rejects such a take,
+        // but the view must still attach.
         String paymentMethodDetailsValue = model.getPaymentMethodDetails();
         paymentMethodDetails.setText(paymentMethodDetailsValue);
-        if (paymentMethodDetailsValue.length() > 50) {
+        if (paymentMethodDetailsValue != null && paymentMethodDetailsValue.length() > 50) {
             paymentMethodDetails.setTooltip(new BisqTooltip(paymentMethodDetailsValue));
         }
 

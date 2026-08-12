@@ -477,9 +477,6 @@ public class MuSigTakeOfferReviewController implements Controller {
             toSendCode = fixBaseSideAmount.getCode();
             toReceiveAmount = formattedQuoteAmount;
             toReceiveCode = fixQuoteSideAmount.getCode();
-
-            model.setFee(formattedTradeFee());
-            model.setFeeDetails(Res.get("muSig.offer.taker.review.takerPaysMinerFee"));
         } else {
             toSendAmountDescription = Res.get("muSig.offer.wizard.review.toPay");
             toReceiveAmountDescription = Res.get("muSig.offer.wizard.review.toReceive");
@@ -487,10 +484,15 @@ public class MuSigTakeOfferReviewController implements Controller {
             toSendCode = fixQuoteSideAmount.getCode();
             toReceiveAmount = formattedBaseAmount;
             toReceiveCode = fixBaseSideAmount.getCode();
-
-            model.setFee(formattedTradeFee());
-            model.setFeeDetails(Res.get("muSig.offer.taker.review.sellerPaysMinerFeeLong"));
         }
+
+        model.setFee(formattedTradeFee());
+        // The mining fee is charged to the Bitcoin seller. The display direction is
+        // altcoin-denominated in Altcoin-Bitcoin markets, so the fee note keys on the
+        // Bitcoin-side taker direction (the mirror of the Bitcoin-side offer direction).
+        model.setFeeDetails(model.getMuSigOffer().getTakersDirection().isSell()
+                ? Res.get("muSig.offer.taker.review.takerPaysMinerFee")
+                : Res.get("muSig.offer.taker.review.sellerPaysMinerFeeLong"));
 
         String directionString = String.format("%s %s",
                 Res.get(takersDirection.isSell() ? "offer.sell" : "offer.buy").toUpperCase(),
@@ -591,7 +593,14 @@ public class MuSigTakeOfferReviewController implements Controller {
         marketPriceQuote.ifPresent(quote -> model.setMarketPrice(quote.getValue()));
         String marketPriceAsString = marketPriceQuote.map(PriceFormatter::formatWithCode).orElseGet(() -> Res.get("data.na"));
         Optional<Double> percentFromMarketPrice = Optional.ofNullable(takeOfferService.getPriceService().getPriceDeviation());
-        double percent = percentFromMarketPrice.orElse(0d);
+        if (percentFromMarketPrice.isEmpty()) {
+            // The market price vanished mid-flow (deviation and market quote are cleared
+            // together): no relation to the market price can be claimed, in particular not
+            // "same as market price". Confirmation is blocked separately.
+            model.setPriceDetails(Res.get("data.na"));
+            return;
+        }
+        double percent = percentFromMarketPrice.get();
         if ((priceSpec instanceof FloatPriceSpec || priceSpec instanceof MarketPriceSpec) && percent == 0) {
             model.setPriceDetails(Res.get("muSig.offer.wizard.review.priceDetails", marketPriceAsString));
         } else {
