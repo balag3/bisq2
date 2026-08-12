@@ -22,8 +22,7 @@ The taken `MuSigOffer` is the root input of the take-offer process. It fixes:
   (currently static 25%/25%, not maker-editable). The take wizard reads both kinds:
   the `CollateralOption` (security deposit display on the review step) and the
   `AccountOption` compatibility data (taker account eligibility filtering, see Payment
-  method; the current take code does not evaluate the compatibility data and must be
-  extended).
+  method).
   `AccountOption` is additionally consumed at handoff: contract creation embeds the
   maker's salted account payload hash for the selected payment method from it — one
   reason the shape validation below requires one `AccountOption` per selectable
@@ -68,8 +67,9 @@ initialization:
 * if the user has already taken this offer before, taking is still allowed but requires
   an extra confirmation (mirrors Bisq Easy's already-taken dialog; each take creates a
   distinct trade since the trade id includes the take date). "Already taken" means any
-  persisted trade of this user for this offer id, regardless of trade state — open,
-  closed, or failed attempts all count
+  currently persisted trade of this user for this offer id, regardless of trade state —
+  open and failed attempts both count; a trade the user has closed is removed from the
+  trade store and deliberately no longer triggers the confirmation
 
 The offer's amounts are deliberately not validated against the absolute limits at
 initialization. The absolute limits are USD-defined and converted at the current market
