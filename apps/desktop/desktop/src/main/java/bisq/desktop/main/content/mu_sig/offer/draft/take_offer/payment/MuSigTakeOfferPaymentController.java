@@ -228,14 +228,8 @@ public class MuSigTakeOfferPaymentController implements Controller {
             return;
         }
         if (model.getInadmissiblePaymentMethods().contains(paymentMethod)) {
-            // Not selectable; the chip carries the reason as tooltip. A full deselect keeps the
-            // visual state (no chip selected) consistent with the selection state, else Next
-            // could proceed with the previously selected method.
-            model.getPaymentMethodWithMultipleAccounts().set(null);
-            model.getSelectedAccount().set(null);
-            model.getSelectedPaymentMethodSpec().set(null);
-            model.getToggleGroup().selectToggle(null);
-            takeOfferPaymentMethodService.clearSelectedAccountByPaymentMethod();
+            // Not selectable; the chip carries the reason as tooltip. The view already rejects
+            // the click and restores the toggle visuals - an existing selection stays untouched.
             return;
         }
         if (isSelected) {
