@@ -57,14 +57,12 @@ class MuSigTakeOfferReviewModel implements Model {
     private Monetary takersBaseSideAmount;
     @Setter
     private Monetary takersQuoteSideAmount;
-    @Setter
     private final StringProperty priceWithCode = new SimpleStringProperty();
 
     public void setPriceWithCode(String value) {
         priceWithCode.set(value);
     }
 
-    @Setter
     private final StringProperty priceDetails = new SimpleStringProperty();
 
     public void setPriceDetails(String value) {
