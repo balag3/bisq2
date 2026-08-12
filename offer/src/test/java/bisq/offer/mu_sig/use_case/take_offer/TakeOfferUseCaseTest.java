@@ -645,6 +645,47 @@ public class TakeOfferUseCaseTest {
     }
 
     @Test
+    public void baseStoredFiatRangeInitializesAtWholeFiatMidpoint() {
+        TakeOfferUseCase useCase = createUseCase();
+        // The create flow stores Bitcoin-Fiat amounts on the base (sats) side; the default must
+        // still be the whole-fiat midpoint, not a sats-side value rounded as a whole Bitcoin.
+        MuSigOffer offer = validOffer();
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_000_000L, 3_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(20_000_000L, fixTradeAmount.getQuoteSideAmount().getValue());
+        assertEquals(2_000_000L, fixTradeAmount.getBaseSideAmount().getValue());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void baseSideRangeInitializesAtStoredSideMidpoint() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validXmrOffer();
+        // 1.0-1.1 XMR: the stored-side midpoint is exactly 1.05 XMR. A midpoint computed on
+        // the derived quote side (263_795 sats) converts back to 1_049_998_766_xxx units,
+        // publishing a default that is not the middle of the stored range.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_000_000_000_000L, 1_100_000_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        TradeAmount fixTradeAmount = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(1_050_000_000_000L, fixTradeAmount.getBaseSideAmount().getValue());
+        assertEquals(263_795L, fixTradeAmount.getQuoteSideAmount().getValue());
+
+        // An unchanged-price refresh keeps the published pair verbatim: re-deriving the stored
+        // base from the quote side would move the default to 1_049_997_213_753 units.
+        fireXmrMarketPriceUpdate(xmrPriceQuote);
+        TradeAmount afterRefresh = useCase.getAmountService().getFixTradeAmount();
+        assertEquals(1_050_000_000_000L, afterRefresh.getBaseSideAmount().getValue());
+        assertEquals(263_795L, afterRefresh.getQuoteSideAmount().getValue());
+    }
+
+    @Test
     public void limitBoundEndpointKeepsItsOwnPair() {
         TakeOfferUseCase useCase = createUseCase();
         MuSigOffer offer = validXmrOffer();

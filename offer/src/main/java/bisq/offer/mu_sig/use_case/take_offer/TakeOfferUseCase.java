@@ -151,7 +151,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         // recomputes on the same JavaFX call stack right after the mutation - no FX event (and
         // so no confirmation) can run in between, and the recomputation republishes with the
         // completed selection.
-        paymentMethodService.setTradeAmountConstraintsRecalculationHandler(() -> recalculateAmountConstraints(true));
+        paymentMethodService.setTradeAmountConstraintsRecalculationHandler(() -> recalculateAmountConstraints(true, false));
     }
 
     private PaymentRail getSelectedPaymentRail() {
@@ -196,7 +196,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // The map observer fires at registration, which reconciles any market price change that
             // happened between the initialization lookup and this registration. Quote, market price
             // and deviation are always set together from one lookup, so every update is internally
-            // consistent; an unchanged map is a no-op through equal-value suppression.
+            // consistent; at an unchanged resolved quote the recompute keeps the published amount
+            // pair and only re-validates.
             marketPricePin = marketPriceService.getMarketPriceByCurrencyMap().addObserver(this::handleMarketPriceUpdate);
             addDisposable(marketPricePin);
         } catch (TakeOfferValidationException e) {
@@ -307,13 +308,14 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         findPositiveMarketPriceQuote(offer)
                 .ifPresentOrElse(marketPriceQuote -> {
                     PriceQuote priceQuote = resolvePriceQuote(offer, marketPriceQuote);
+                    boolean quoteChanged = !priceQuote.equals(priceService.getPriceQuote());
                     // Same publish order as at initialization: dependencies before triggers.
                     priceService.setMarketPriceQuote(marketPriceQuote);
                     priceService.setPriceDeviation(calculateDeviation(priceQuote, marketPriceQuote));
                     priceService.setPriceQuote(priceQuote);
                     // Background class: limits recompute, the selected amount is never clamped
                     // (take-offer.md, "Amount limits", background changes).
-                    recalculateAmountConstraints(false);
+                    recalculateAmountConstraints(false, quoteChanged);
                 }, () -> {
                     // The market price disappeared (or is non-positive) while the take process is
                     // open. Keep the resolved quote for display but mark market price and deviation
@@ -574,7 +576,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         feeService.applyMaxTradeAmount(maxTradeAmount.getBitcoinSideAmount().getValue());
     }
 
-    private synchronized void recalculateAmountConstraints(boolean userInitiated) {
+    private synchronized void recalculateAmountConstraints(boolean userInitiated, boolean quoteChanged) {
         MuSigOffer offer = this.muSigOffer;
         if (offer == null || amountService.getAmountSpec() == null) {
             // The amount concern initializes after the payment concern; selection changes made
@@ -588,7 +590,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             return;
         }
         try {
-            recalculateAmountConstraintsValidated(offer, resolvedQuote, userInitiated);
+            recalculateAmountConstraintsValidated(offer, resolvedQuote, userInitiated, quoteChanged);
         } catch (RuntimeException e) {
             // Confirmation is only allowed while the amounts are computable against current
             // prices (e.g. the BTC/USD price needed for the USD-defined limits can vanish while
@@ -602,7 +604,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     private void recalculateAmountConstraintsValidated(MuSigOffer offer,
                                                        PriceQuote resolvedQuote,
-                                                       boolean userInitiated) {
+                                                       boolean userInitiated,
+                                                       boolean quoteChanged) {
         AmountConstraints constraints = computeAmountConstraints(offer, resolvedQuote);
         TradeAmountRange effectiveRange = constraints.effectiveRange();
         if (effectiveRange == null) {
@@ -652,13 +655,17 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         } else {
             // Background changes keep the input side stable, recompute the passive side from the
             // resolved quote and re-validate without clamping.
-            // The refresh re-derives the passive side; an amount sitting on an endpoint is
-            // restored to the whole endpoint pair, else the re-derivation (a different
-            // conversion path than a limit endpoint's own) could flip a boundary amount
-            // invalid without any change.
-            TradeAmount refreshed = alignToRangeEndpoints(
-                    refreshPassiveSideExact(current, resolvedQuote, amountService.getUseBaseCurrencyForAmountInput()),
-                    effectiveRange, isQuoteSideStored(offer));
+            // The passive side is re-derived only when the resolved quote actually changed: a
+            // recompute triggered by anything else (a limits change, the at-registration
+            // reconciliation) must keep the published pair, as re-deriving the stored side of a
+            // base-stored offer from the quote side is lossy at sub-unit prices.
+            // An amount sitting on an endpoint is restored to the whole endpoint pair, else the
+            // re-derivation (a different conversion path than a limit endpoint's own) could flip
+            // a boundary amount invalid without any change.
+            TradeAmount basis = quoteChanged
+                    ? refreshPassiveSideExact(current, resolvedQuote, amountService.getUseBaseCurrencyForAmountInput())
+                    : current;
+            TradeAmount refreshed = alignToRangeEndpoints(basis, effectiveRange, isQuoteSideStored(offer));
             boolean published = publishFixTradeAmount(refreshed);
             amountService.setAmountValid(published && isWithinRangeOnStoredSide(offer, refreshed, effectiveRange));
         }
@@ -815,7 +822,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     }
 
     private static long storedSideValue(boolean quoteSideStored, TradeAmount amount) {
-        return quoteSideStored ? amount.getQuoteSideAmount().getValue() : amount.getBaseSideAmount().getValue();
+        return storedSideAmount(quoteSideStored, amount).getValue();
+    }
+
+    private static Monetary storedSideAmount(boolean quoteSideStored, TradeAmount amount) {
+        return quoteSideStored ? amount.getQuoteSideAmount() : amount.getBaseSideAmount();
     }
 
     // Stored-side ties select the LIMIT endpoint (the second argument at every call site): a
@@ -896,13 +907,24 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     private static TradeAmount midpointOf(MuSigOffer offer, TradeAmountRange effectiveRange, PriceQuote resolvedQuote) {
         Market market = offer.getMarket();
-        Monetary min = effectiveRange.getMin().getQuoteSideAmount();
-        Monetary max = effectiveRange.getMax().getQuoteSideAmount();
-        Monetary midpoint = Monetary.from(min, min.getValue() + (max.getValue() - min.getValue()) / 2);
+        boolean quoteSideStored = isQuoteSideStored(offer);
+        // Bitcoin-Fiat markets default to a whole fiat amount, whichever side the offer stores:
+        // the midpoint is taken on the fiat (quote) side and rounded to whole units - at fiat
+        // scale the conversion round trip is absorbed by that rounding. Everywhere else the
+        // midpoint is computed on the stored side: on the derived side both endpoints can round
+        // to nearby (or equal) values, so a midpoint taken there converts back to a default off
+        // the middle of the stored range, or below its minimum.
+        Monetary midpoint;
         if (market.isBtcFiatMarket()) {
-            midpoint = midpoint.round(0);
+            Monetary min = effectiveRange.getMin().getQuoteSideAmount();
+            Monetary max = effectiveRange.getMax().getQuoteSideAmount();
+            midpoint = Monetary.from(min, min.getValue() + (max.getValue() - min.getValue()) / 2).round(0);
+        } else {
+            Monetary min = storedSideAmount(quoteSideStored, effectiveRange.getMin());
+            Monetary max = storedSideAmount(quoteSideStored, effectiveRange.getMax());
+            midpoint = Monetary.from(min, min.getValue() + (max.getValue() - min.getValue()) / 2);
         }
-        return clampToRangeOnStoredSide(isQuoteSideStored(offer),
+        return clampToRangeOnStoredSide(quoteSideStored,
                 TradeAmountConversion.toTradeAmountExact(market, resolvedQuote, midpoint), effectiveRange);
     }
 
@@ -1049,7 +1071,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         cookieStore.persistUseBaseCurrencyForAmountInput(market.get(), value);
         // An input-side switch is a user-initiated change: input range, marker and slider
         // mapping are recomputed on the new side (the amount itself is unchanged).
-        recalculateAmountConstraints(true);
+        recalculateAmountConstraints(true, false);
     }
 
 
