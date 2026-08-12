@@ -261,6 +261,9 @@ public class MuSigTakeOfferReviewController implements Controller {
                 timeoutScheduler.stop();
             }
             timeoutScheduler = UIScheduler.run(() -> {
+                        if (model.getMuSigTrade() != trade) {
+                            return;
+                        }
                         closeAndNavigateToHandler.accept(NavigationTarget.MU_SIG);
                         new Popup().warning(Res.get("muSig.offer.taker.timeout.warning", 150)).show();
                     })
@@ -268,7 +271,11 @@ public class MuSigTakeOfferReviewController implements Controller {
             // We have 120 seconds socket timeout, so we should never
             // get triggered here, as the message will be sent as mailbox message
 
-            // A previous attempt's observers must not survive into this attempt (retry case).
+            // A previous attempt's callbacks must not act on this attempt (retry case): the
+            // unbind below stops future notifications, but a runnable the old observer already
+            // queued on the JavaFX thread still runs afterwards - every deferred callback
+            // therefore re-checks that its trade is still the current attempt before touching
+            // the shared schedulers, status or popups.
             if (errorMessagePin != null) {
                 errorMessagePin.unbind();
             }
@@ -278,6 +285,9 @@ public class MuSigTakeOfferReviewController implements Controller {
             errorMessagePin = trade.errorMessageObservable().addObserver(errorMessage -> {
                         if (errorMessage != null) {
                             UIThread.run(() -> {
+                                if (model.getMuSigTrade() != trade) {
+                                    return;
+                                }
                                 resetTakeOfferStatusOnFailure();
                                 if (trade.getTradeProtocolFailure() == null || trade.getTradeProtocolFailure().isUnexpected()) {
                                     String errorStackTrace = trade.getErrorStackTrace() != null ? StringUtils.truncate(trade.getErrorStackTrace(), 2000) : "";
@@ -299,6 +309,9 @@ public class MuSigTakeOfferReviewController implements Controller {
             peersErrorMessagePin = trade.peersErrorMessageObservable().addObserver(peersErrorMessage -> {
                         if (peersErrorMessage != null) {
                             UIThread.run(() -> {
+                                if (model.getMuSigTrade() != trade) {
+                                    return;
+                                }
                                 resetTakeOfferStatusOnFailure();
                                 if (trade.getPeersTradeProtocolFailure() == null || trade.getPeersTradeProtocolFailure().isUnexpected()) {
                                     String errorStackTrace = trade.getPeersErrorStackTrace() != null ? StringUtils.truncate(trade.getPeersErrorStackTrace(), 2000) : "";
@@ -333,9 +346,17 @@ public class MuSigTakeOfferReviewController implements Controller {
                 delayedSuccessScheduler.stop();
             }
             delayedSuccessScheduler = UIScheduler.run(() -> {
+                if (model.getMuSigTrade() != trade) {
+                    return;
+                }
                 if (trade.getErrorMessage() != null || trade.getPeersErrorMessage() != null) {
                     // The maker rejected the take offer; the error observer already informed the user.
                     return;
+                }
+                // The attempt succeeded; the timeout must not navigate away from the success
+                // screen later with a warning about this same attempt.
+                if (timeoutScheduler != null) {
+                    timeoutScheduler.stop();
                 }
                 model.getTakeOfferStatus().set(MuSigTakeOfferReviewModel.TakeOfferStatus.SUCCESS);
             }).after(200);
@@ -384,6 +405,24 @@ public class MuSigTakeOfferReviewController implements Controller {
                     .show());
         } catch (NoMuSigArbitratorAvailableException e) {
             UIThread.run(() -> new Popup().warning(Res.get("muSig.offer.taker.noArbitratorAvailable.warning")).show());
+        } catch (RuntimeException e) {
+            // Any other synchronous failure (e.g. channel creation failing because the maker
+            // profile is gone) must release this attempt like the named business exceptions do,
+            // so the aborted attempt cannot fire the timeout later or stack observers on retry.
+            // The trade may already be persisted at this point; that residue is protocol-level
+            // and surfaces like any other failed take attempt.
+            if (timeoutScheduler != null) {
+                timeoutScheduler.stop();
+            }
+            if (errorMessagePin != null) {
+                errorMessagePin.unbind();
+                errorMessagePin = null;
+            }
+            if (peersErrorMessagePin != null) {
+                peersErrorMessagePin.unbind();
+                peersErrorMessagePin = null;
+            }
+            throw e;
         }
     }
 
