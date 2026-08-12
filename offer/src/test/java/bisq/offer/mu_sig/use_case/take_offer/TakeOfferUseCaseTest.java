@@ -732,6 +732,47 @@ public class TakeOfferUseCaseTest {
     }
 
     @Test
+    public void altcoinRangeCollapsingOnlyOnTheDerivedSideStillShowsTheAmountStep() {
+        TakeOfferUseCase useCase = createUseCase();
+        MuSigOffer offer = validXmrOffer();
+        // 1.100000 and 1.100001 XMR both convert to 276_357 sats (truncated). The derived BTC
+        // side is equal, but the stored XMR bounds differ, so the range must not collapse.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_100_000_000_000L, 1_100_001_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+
+        useCase.initialize(offer);
+
+        assertTrue(useCase.shouldShowAmountStep());
+        TradeAmountRange limits = useCase.getAmountService().getTradeAmountLimits();
+        assertEquals(276_357L, limits.getMin().getQuoteSideAmount().getValue());
+        assertEquals(276_357L, limits.getMax().getQuoteSideAmount().getValue());
+        assertEquals(1_100_000_000_000L, limits.getMin().getBaseSideAmount().getValue());
+        assertEquals(1_100_001_000_000L, limits.getMax().getBaseSideAmount().getValue());
+    }
+
+    @Test
+    public void backgroundRefreshDoesNotSnapTheMaxEndpointToTheMinViaTheDerivedSide() {
+        TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
+        when(cookieStore.getUseBaseCurrencyForAmountInput(xmrMarket)).thenReturn(true);
+        TakeOfferUseCase useCase = createUseCase(cookieStore);
+        MuSigOffer offer = validXmrOffer();
+        // Both endpoints share the derived value 276_357 sats but differ on the stored XMR side.
+        when(offer.getAmountSpec()).thenReturn(new BaseSideRangeAmountSpec(1_100_000_000_000L, 1_100_001_000_000L));
+        when(offer.hasAmountRange()).thenReturn(true);
+        useCase.initialize(offer);
+
+        // Select the maximum, then refresh at the unchanged price. Aligning on the shared BTC
+        // value would identify the max as the min and collapse the selection to 1.100000 XMR.
+        useCase.setFixTradeAmountFromSliderValue(1.0);
+        assertEquals(1_100_001_000_000L, useCase.getAmountService().getFixTradeAmount().getBaseSideAmount().getValue());
+
+        fireXmrMarketPriceUpdate(xmrPriceQuote);
+
+        assertEquals(1_100_001_000_000L, useCase.getAmountService().getFixTradeAmount().getBaseSideAmount().getValue());
+        assertTrue(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
     public void backgroundRefreshKeepsEndpointAmountValid() {
         TakeOfferDraftCookieStore cookieStore = mock(TakeOfferDraftCookieStore.class);
         when(cookieStore.getUseBaseCurrencyForAmountInput(xmrMarket)).thenReturn(true);

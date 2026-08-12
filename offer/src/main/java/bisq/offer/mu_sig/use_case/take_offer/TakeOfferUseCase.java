@@ -557,7 +557,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         // Collapse rule: a point intersection, or bounds indistinguishable at the display
         // precision of the non-Bitcoin side in Bitcoin-Fiat markets, leaves nothing to select;
         // the amount is treated as fixed and the amount step is skipped.
-        rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
+        rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket(), isQuoteSideStored(offer));
         if (!publishAmountConstraints(constraints)) {
             throw new TakeOfferValidationException(Reason.AMOUNT_OUTSIDE_LIMITS,
                     "The amounts of offer " + offer.getId() + " convert to a non-positive amount at the resolved price");
@@ -616,7 +616,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         // limits read shouldShowAmountStep (dependencies before triggers). Background updates
         // deliberately never change the step structure of an open flow.
         if (offer.hasAmountRange() && userInitiated) {
-            rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket());
+            rangeCollapsed = isCollapsed(effectiveRange, offer.getMarket(), isQuoteSideStored(offer));
         }
         if (!publishAmountConstraints(constraints)) {
             return;
@@ -658,7 +658,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // invalid without any change.
             TradeAmount refreshed = alignToRangeEndpoints(
                     refreshPassiveSideExact(current, resolvedQuote, amountService.getUseBaseCurrencyForAmountInput()),
-                    effectiveRange);
+                    effectiveRange, isQuoteSideStored(offer));
             boolean published = publishFixTradeAmount(refreshed);
             amountService.setAmountValid(published && isWithinRangeOnStoredSide(offer, refreshed, effectiveRange));
         }
@@ -738,11 +738,20 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     // Collapse test: a point intersection, or bounds indistinguishable at the display precision
     // of the non-Bitcoin side in Bitcoin-Fiat markets.
-    private static boolean isCollapsed(TradeAmountRange effectiveRange, Market market) {
+    private static boolean isCollapsed(TradeAmountRange effectiveRange, Market market, boolean quoteSideStored) {
+        // A point intersection is judged on the offer's stored side: the derived side is lossy,
+        // so two distinct stored amounts can share a derived value (e.g. 1.100000 and 1.100001
+        // XMR both convert to 276_357 sats), which must not be treated as collapsed.
+        Monetary minStored = quoteSideStored ? effectiveRange.getMin().getQuoteSideAmount() : effectiveRange.getMin().getBaseSideAmount();
+        Monetary maxStored = quoteSideStored ? effectiveRange.getMax().getQuoteSideAmount() : effectiveRange.getMax().getBaseSideAmount();
+        if (minStored.getValue() == maxStored.getValue()) {
+            return true;
+        }
+        // Bitcoin-Fiat markets additionally collapse when the fiat (non-Bitcoin, quote) bounds
+        // are indistinguishable at the fiat display precision.
         Monetary minQuote = effectiveRange.getMin().getQuoteSideAmount();
         Monetary maxQuote = effectiveRange.getMax().getQuoteSideAmount();
-        return minQuote.getValue() == maxQuote.getValue()
-                || (market.isBtcFiatMarket() && minQuote.isEqual(maxQuote, minQuote.getLowPrecision()));
+        return market.isBtcFiatMarket() && minQuote.isEqual(maxQuote, minQuote.getLowPrecision());
     }
 
     /**
@@ -844,7 +853,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private static TradeAmount clampToRangeOnStoredSide(boolean quoteSideStored,
                                                         TradeAmount amount,
                                                         TradeAmountRange range) {
-        TradeAmount aligned = alignToRangeEndpoints(amount, range);
+        TradeAmount aligned = alignToRangeEndpoints(amount, range, quoteSideStored);
         if (aligned != amount) {
             return aligned;
         }
@@ -860,19 +869,21 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     // An amount matching an endpoint on either side is that endpoint. The match window is one
     // rounding unit of the other side, economically negligible on both regimes.
-    private static TradeAmount alignToRangeEndpoints(TradeAmount amount, TradeAmountRange range) {
-        if (matchesOnEitherSide(amount, range.getMin())) {
+    private static TradeAmount alignToRangeEndpoints(TradeAmount amount, TradeAmountRange range, boolean quoteSideStored) {
+        // Identify an endpoint by its stored side only: the derived side is lossy and can
+        // coincide between distinct endpoints (two XMR amounts sharing a sat value), which would
+        // otherwise snap a selected maximum onto the minimum.
+        if (matchesOnStoredSide(amount, range.getMin(), quoteSideStored)) {
             return range.getMin();
         }
-        if (matchesOnEitherSide(amount, range.getMax())) {
+        if (matchesOnStoredSide(amount, range.getMax(), quoteSideStored)) {
             return range.getMax();
         }
         return amount;
     }
 
-    private static boolean matchesOnEitherSide(TradeAmount amount, TradeAmount endpoint) {
-        return amount.getBaseSideAmount().getValue() == endpoint.getBaseSideAmount().getValue()
-                || amount.getQuoteSideAmount().getValue() == endpoint.getQuoteSideAmount().getValue();
+    private static boolean matchesOnStoredSide(TradeAmount amount, TradeAmount endpoint, boolean quoteSideStored) {
+        return storedSideValue(quoteSideStored, amount) == storedSideValue(quoteSideStored, endpoint);
     }
 
     private static TradeAmount resolveFixedTradeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
