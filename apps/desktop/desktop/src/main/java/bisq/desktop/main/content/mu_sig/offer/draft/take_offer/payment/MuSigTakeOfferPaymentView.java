@@ -251,13 +251,17 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             button.setOnAction(() -> {
                 // An inadmissible chip is dimmed but stays mouse-interactive so its tooltip
                 // shows; a click must neither select it nor disturb an existing selection,
-                // so the toggle visuals are restored to the model state instead.
+                // so the toggle visuals are restored to the model state instead. The actual
+                // selection is re-selected first: the toggle group then deselects the clicked
+                // chip without passing through a no-selection state, which would clear the
+                // account labels.
                 if (model.getInadmissiblePaymentMethods().contains(paymentMethod)) {
-                    button.setSelected(false);
                     PaymentMethodSpec<?> selectedSpec = model.getSelectedPaymentMethodSpec().get();
                     if (selectedSpec != null) {
                         findPaymentMethodChipButton(selectedSpec.getPaymentMethod())
                                 .ifPresent(selected -> selected.setSelected(true));
+                    } else {
+                        button.setSelected(false);
                     }
                     return;
                 }
