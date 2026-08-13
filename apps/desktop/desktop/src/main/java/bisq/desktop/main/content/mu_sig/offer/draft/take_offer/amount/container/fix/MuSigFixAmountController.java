@@ -80,11 +80,14 @@ public class MuSigFixAmountController implements Controller {
             UIThread.run(this::applyAllAmounts);
         }));
 
-        subscriptions.add(EasyBind.subscribe(amountTextInputController.amountProperty(),
-                amount -> {
-                    takeOfferService.setFixTradeAmountFromInputAmount(amount);
-                    applyInputAmount();
-                }));
+        // Origin separation: only user-typed edits feed the domain. The component's programmatic
+        // setAmount() (from applyInputAmount/applyAllAmounts) and EasyBind's at-registration
+        // fire never reach this handler, so a lossy display value cannot be converted back and
+        // replace the stored-side amount.
+        amountTextInputController.setUserEditHandler(userAmount -> {
+            takeOfferService.setFixTradeAmountFromInputAmount(userAmount.orElse(null));
+            applyInputAmount();
+        });
 
         // UI specific
         subscriptions.add(EasyBind.subscribe(amountTextInputController.inputTextProperty(),
@@ -109,6 +112,7 @@ public class MuSigFixAmountController implements Controller {
         pins.forEach(Pin::unbind);
         pins.clear();
         model.getIsTextInputFocused().unbind();
+        amountTextInputController.setUserEditHandler(null);
     }
 
 
