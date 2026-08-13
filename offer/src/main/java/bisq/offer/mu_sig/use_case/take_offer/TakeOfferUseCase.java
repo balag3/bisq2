@@ -109,6 +109,12 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     // True while the published amount constraints could not be refreshed (empty intersection or
     // incomputable limits): user edits must not re-validate against the stale published ranges.
     private boolean amountConstraintsStale;
+    // The published amount validity has two independent causes: the constraints cause is owned
+    // by initialization and recomputation, the user-input cause solely by the input entry
+    // points. Splitting them keeps a cleared or unapplicable input blocking across background
+    // recomputations that would otherwise re-validate the retained pair.
+    private boolean amountConstraintsCauseValid = true;
+    private boolean userAmountInputCauseValid = true;
 
 
     /* --------------------------------------------------------------------- */
@@ -230,6 +236,8 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         priceService.setPriceDeviation(null);
         paymentMethodService.reset();
         amountService.reset();
+        amountConstraintsCauseValid = true;
+        userAmountInputCauseValid = true;
         feeService.reset();
         rangeCollapsed = false;
         amountConstraintsStale = false;
@@ -486,6 +494,11 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private void initializeAmount(MuSigOffer offer, PriceQuote resolvedQuote) {
         rangeCollapsed = false;
         amountConstraintsStale = false;
+        // A fresh initialization publishes a fresh selection; a cleared-input cause from a
+        // previously initialized offer must not survive it - a fixed offer skips the amount
+        // step and would stay blocked with no field to recover from.
+        userAmountInputCauseValid = true;
+        amountConstraintsCauseValid = true;
         // The persisted input-side preference (shared with the create-offer flow) must be
         // restored before any input-side range or slider value is published, as those are
         // denominated in the input side.
@@ -552,7 +565,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             }
             boolean published = publishFixTradeAmount(fixTradeAmount);
             applyTradeFee(fixTradeAmount);
-            amountService.setAmountValid(published);
+            setConstraintsCauseValid(published);
             return;
         }
         // Collapse rule: a point intersection, or bounds indistinguishable at the display
@@ -568,7 +581,21 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                 : publishFixTradeAmount(midpointOf(offer, effectiveRange, resolvedQuote));
         // The mocked fee keys off the maximum takeable trade amount (take-offer.md, "Review").
         applyTradeFee(effectiveRange.getMax());
-        amountService.setAmountValid(published);
+        setConstraintsCauseValid(published);
+    }
+
+    private void setConstraintsCauseValid(boolean value) {
+        amountConstraintsCauseValid = value;
+        publishAmountValid();
+    }
+
+    private void setUserAmountInputCauseValid(boolean value) {
+        userAmountInputCauseValid = value;
+        publishAmountValid();
+    }
+
+    private void publishAmountValid() {
+        amountService.setAmountValid(amountConstraintsCauseValid && userAmountInputCauseValid);
     }
 
     private void applyTradeFee(TradeAmount maxTradeAmount) {
@@ -597,7 +624,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // The block lifts with the next successful recomputation.
             log.warn("Amount recomputation failed, blocking confirmation: {}", e.getMessage());
             amountConstraintsStale = true;
-            amountService.setAmountValid(false);
+            setConstraintsCauseValid(false);
         } finally {
             // Published projections stay equal on many recomputations (equal values are
             // suppressed, an empty intersection publishes nothing) while derived state such as
@@ -618,7 +645,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // The flow is never closed and nothing is clamped: the previously published ranges
             // stay visible and confirmation is blocked until a later update restores validity.
             amountConstraintsStale = true;
-            amountService.setAmountValid(false);
+            setConstraintsCauseValid(false);
             return;
         }
         // The collapse state must be current before the ranges are published: observers of the
@@ -639,7 +666,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // A fixed offer's max takeable amount is the fixed amount itself, not the effective
             // range max; keep the fee consistent with it across recomputations.
             applyTradeFee(fixTradeAmount);
-            amountService.setAmountValid(published && isWithinRangeOnStoredSide(offer, fixTradeAmount, effectiveRange));
+            setConstraintsCauseValid(published && isWithinRangeOnStoredSide(offer, fixTradeAmount, effectiveRange));
             return;
         }
         // Range offers: the fee tracks the current effective max, so a method switch or price
@@ -647,17 +674,22 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         applyTradeFee(effectiveRange.getMax());
         TradeAmount current = amountService.getFixTradeAmount();
         if (current == null) {
-            amountService.setAmountValid(
+            setConstraintsCauseValid(
                     publishFixTradeAmount(midpointOf(offer, effectiveRange, resolvedQuote)));
             return;
         }
         if (userInitiated) {
             // User-initiated changes clamp the selection visibly into the new effective range;
-            // a collapsed range is treated as fixed at its single value.
-            amountService.setAmountValid(
-                    publishFixTradeAmount(rangeCollapsed
-                            ? effectiveRange.getMax()
-                            : clampToRangeOnStoredSide(isQuoteSideStored(offer), current, effectiveRange)));
+            // a collapsed range is treated as fixed at its single value. The published value is
+            // a visible fresh selection, so it supersedes a previously cleared input field -
+            // which may no longer exist when the collapse removed the amount step.
+            boolean publishedSelection = publishFixTradeAmount(rangeCollapsed
+                    ? effectiveRange.getMax()
+                    : clampToRangeOnStoredSide(isQuoteSideStored(offer), current, effectiveRange));
+            setConstraintsCauseValid(publishedSelection);
+            if (publishedSelection) {
+                setUserAmountInputCauseValid(true);
+            }
         } else {
             // Background changes keep the input side stable, recompute the passive side from the
             // resolved quote and re-validate without clamping.
@@ -673,7 +705,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                     : current;
             TradeAmount refreshed = alignToRangeEndpoints(basis, effectiveRange, isQuoteSideStored(offer));
             boolean published = publishFixTradeAmount(refreshed);
-            amountService.setAmountValid(published && isWithinRangeOnStoredSide(offer, refreshed, effectiveRange));
+            setConstraintsCauseValid(published && isWithinRangeOnStoredSide(offer, refreshed, effectiveRange));
         }
     }
 
@@ -947,7 +979,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                 || !hasPositiveSides(preUserRange.getMin()) || !hasPositiveSides(preUserRange.getMax())) {
             log.warn("Refusing to publish amount limits with a non-positive side, blocking confirmation");
             amountConstraintsStale = true;
-            amountService.setAmountValid(false);
+            setConstraintsCauseValid(false);
             return false;
         }
         amountService.setTradeAmountLimits(effectiveRange);
@@ -965,7 +997,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         if (!hasPositiveSides(tradeAmount)) {
             log.warn("Refusing to publish a non-positive trade amount, blocking confirmation: {}", tradeAmount);
             amountConstraintsStale = true;
-            amountService.setAmountValid(false);
+            setConstraintsCauseValid(false);
             return false;
         }
         amountService.setFixTradeAmount(tradeAmount);
@@ -991,7 +1023,12 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     /* --------------------------------------------------------------------- */
 
     public synchronized void setFixTradeAmountFromInputAmount(@Nullable Monetary amount) {
-        // The desktop text input publishes null while empty; there is nothing to apply then.
+        // Every edit re-derives the user-input cause: it turns valid only when the input could
+        // actually be applied. Empty input (null), an overflowing conversion and missing
+        // limits or price all leave it false with the previous pair retained, so a cleared or
+        // unapplicable field can never hand off the invisible previous amount - and a later
+        // background recomputation only refreshes the constraints cause, never this one.
+        setUserAmountInputCauseValid(false);
         if (amount == null) {
             return;
         }
@@ -1005,19 +1042,23 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             tradeAmount = TradeAmountConversion.toTradeAmountExact(getMarket(), resolvedQuote, amount);
         } catch (ArithmeticException e) {
             // A wrapped conversion followed by the clamp would publish a base and quote side
-            // that no longer belong to the same price; such input is ignored like empty input.
-            log.warn("Ignoring an amount input whose conversion overflows: {}", amount);
+            // that no longer belong to the same price.
+            log.warn("Blocking an amount input whose conversion overflows: {}", amount);
             return;
         }
-        publishFixTradeAmount(clampToRangeOnStoredSide(isQuoteSideStored(muSigOffer), tradeAmount, effectiveRange));
+        if (!publishFixTradeAmount(clampToRangeOnStoredSide(isQuoteSideStored(muSigOffer), tradeAmount, effectiveRange))) {
+            return;
+        }
         // A clamp against stale published limits proves nothing; the block stays until the
         // limits could be recomputed.
-        amountService.setAmountValid(!amountConstraintsStale);
+        setConstraintsCauseValid(!amountConstraintsStale);
+        setUserAmountInputCauseValid(true);
     }
 
     public synchronized void setFixTradeAmountFromSliderValue(double sliderValue) {
         checkArgument(sliderValue >= 0 && sliderValue <= 1,
                 "sliderValue must be within [0, 1] but was %s", sliderValue);
+        setUserAmountInputCauseValid(false);
         MonetaryRange inputAmountLimits = amountService.getInputAmountLimits();
         TradeAmountRange effectiveRange = amountService.getTradeAmountLimits();
         PriceQuote resolvedQuote = priceService.getPriceQuote();
@@ -1037,8 +1078,12 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         }
         // The slider spans the pre-user range; the clamp caps the value at the user-specific
         // limit (snapping to the endpoint pair) and the corrected slider value is re-emitted.
-        publishFixTradeAmount(clampToRangeOnStoredSide(isQuoteSideStored(muSigOffer), tradeAmount, effectiveRange));
-        amountService.setAmountValid(!amountConstraintsStale);
+        if (!publishFixTradeAmount(clampToRangeOnStoredSide(isQuoteSideStored(muSigOffer), tradeAmount, effectiveRange))) {
+            setUserAmountInputCauseValid(false);
+            return;
+        }
+        setConstraintsCauseValid(!amountConstraintsStale);
+        setUserAmountInputCauseValid(true);
     }
 
 

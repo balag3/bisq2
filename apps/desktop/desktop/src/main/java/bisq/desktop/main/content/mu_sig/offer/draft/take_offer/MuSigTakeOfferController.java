@@ -319,6 +319,16 @@ public class MuSigTakeOfferController extends NavigationController implements In
                     return;
                 }
             }
+            if (model.getSelectedChildTarget().get() == NavigationTarget.MU_SIG_TAKE_OFFER_AMOUNT
+                    && !takeOfferService.getAmountService().isAmountValid()) {
+                // A cleared or unapplicable amount input blocks advancing, not only final
+                // confirmation; this also covers Enter, which the parent key handler routes
+                // here regardless of which control owns the focus.
+                new Popup().warning(Res.get("muSig.takeOffer.validation.invalidAmountInput"))
+                        .owner(view.getRoot())
+                        .show();
+                return;
+            }
             model.setAnimateRightOut(false);
             model.getCurrentIndex().set(nextIndex);
             NavigationTarget nextTarget = model.getChildTargets().get(nextIndex);

@@ -956,6 +956,111 @@ public class TakeOfferUseCaseTest {
         useCase.setFixTradeAmountFromInputAmount(Coin.asBtcFromValue(1_844_674_407_371_955_162L));
 
         assertEquals(midpoint, useCase.getAmountService().getFixTradeAmount());
+        // The pair is kept for recovery, but input that could not be applied must not leave the
+        // previous - now invisible - amount confirmable.
+        assertFalse(useCase.getAmountService().isAmountValid());
+    }
+
+    @Test
+    public void clearedAmountInputBlocksUntilValidInput() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        var pairBefore = useCase.getAmountService().getFixTradeAmount();
+
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        assertEquals(pairBefore, useCase.getAmountService().getFixTradeAmount());
+        assertFalse(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isEmpty());
+    }
+
+    @Test
+    public void backgroundRecomputationDoesNotResurrectAClearedInput() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        // A benign update at the unchanged quote recomputes the constraints successfully; the
+        // stored pair is still inside the range, but the cleared field must keep blocking.
+        fireMarketPriceUpdate(marketPriceQuote);
+
+        assertFalse(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isEmpty());
+    }
+
+    @Test
+    public void validTypedInputRestoresValidityAfterClearing() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        useCase.setFixTradeAmountFromInputAmount(usd(2000));
+
+        assertEquals(usd(2000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isPresent());
+    }
+
+    @Test
+    public void sliderInputRestoresValidityAfterClearing() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offer = validOffer();
+        applyRangeAmount(offer, 1000, 3000);
+        useCase.initialize(offer);
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        useCase.setFixTradeAmountFromSliderValue(0.5);
+
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isPresent());
+    }
+
+    @Test
+    public void reinitializationResetsAClearedInputCause() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount));
+        MuSigOffer offerA = validOffer();
+        applyRangeAmount(offerA, 1000, 3000);
+        useCase.initialize(offerA);
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        // A fixed offer skips the amount step, so a stale cleared-input cause from the previous
+        // offer would leave the fresh initialization blocked with no field to recover from.
+        MuSigOffer offerB = validOffer();
+        applyFixedAmount(offerB, 2000);
+        useCase.initialize(offerB);
+
+        assertTrue(useCase.getAmountService().isAmountValid());
+        assertTrue(useCase.getHandoff().isPresent());
+    }
+
+    @Test
+    public void userInitiatedCollapseSupersedesAClearedInput() {
+        Account<?, ?> wiseAccount = accountFor(wiseMethod);
+        Account<?, ?> acAccount = accountFor(advancedCashMethod);
+        TakeOfferUseCase useCase = createUseCase(market -> List.of(wiseAccount, acAccount));
+        MuSigOffer offer = offerWithMethods(Direction.BUY, wiseMethod, advancedCashMethod);
+        applyRangeAmount(offer, 5000, 8000);
+        useCase.initialize(offer);
+        useCase.setFixTradeAmountFromInputAmount(null);
+
+        // WISE's limit collapses the range to a point; the domain publishes the forced value
+        // and the amount step disappears, so the cleared field no longer exists to correct.
+        // The visible forced selection supersedes the cleared input.
+        useCase.getPaymentMethodService().onPaymentMethodSelected(wiseMethod);
+
+        assertFalse(useCase.shouldShowAmountStep());
+        assertEquals(usd(5000), useCase.getAmountService().getFixTradeAmount().getQuoteSideAmount());
         assertTrue(useCase.getAmountService().isAmountValid());
     }
 
