@@ -236,9 +236,14 @@ public class MuSigTakeOfferPaymentController implements Controller {
         if (paymentMethod == null) {
             return;
         }
-        if (model.getInadmissiblePaymentMethods().contains(paymentMethod)) {
-            // Not selectable; the chip carries the reason as tooltip. The view already rejects
-            // the click and restores the toggle visuals - an existing selection stays untouched.
+        if (!takeOfferService.isPaymentMethodAdmissible(paymentMethod)) {
+            // Not selectable; the chip carries the reason as tooltip. The view rejects these
+            // clicks against its model projection, but the projection refreshes through a
+            // queued UI task and can lag a recomputation triggered by a background price
+            // update within the current event, so the domain is queried directly here. An
+            // existing selection stays untouched; the rejection re-syncs the projection and
+            // makes the view reconcile the toggle visuals the stale projection let move.
+            rejectInadmissibleSelection();
             return;
         }
         if (isSelected) {
@@ -277,6 +282,12 @@ public class MuSigTakeOfferPaymentController implements Controller {
 
     void onSelectAccount(Account<? extends PaymentMethod<?>, ?> account) {
         if (account != null) {
+            if (!takeOfferService.isPaymentMethodAdmissible(account.getPaymentMethod())) {
+                // The account combos bypass the chip grid, so the admissibility rejection must
+                // hold here too, against the domain for the same reason as the chip guard.
+                rejectInadmissibleSelection();
+                return;
+            }
             model.getSelectedAccount().set(account);
             model.getPaymentMethodWithMultipleAccounts().set(null);
         }
@@ -344,16 +355,26 @@ public class MuSigTakeOfferPaymentController implements Controller {
     // The taker has accounts for the method but none passed the offer's AccountOption
     // restrictions; explain the first mismatch so the prompt is actionable. Deterministic
     // pick: alphabetically first account name, country mismatch before bank.
-    private void refreshInadmissiblePaymentMethods() {
+    private boolean refreshInadmissiblePaymentMethods() {
         Set<PaymentMethod<?>> inadmissible = model.getOfferedPaymentMethods().stream()
                 .filter(method -> !takeOfferService.isPaymentMethodAdmissible(method))
                 .collect(Collectors.toSet());
         if (inadmissible.equals(model.getInadmissiblePaymentMethods())) {
-            return;
+            return false;
         }
         model.getInadmissiblePaymentMethods().clear();
         model.getInadmissiblePaymentMethods().addAll(inadmissible);
         model.getPaymentMethodAdmissibilityVersion().set(model.getPaymentMethodAdmissibilityVersion().get() + 1);
+        return true;
+    }
+
+    // Called when a selection attempt reaches the controller through a stale projection:
+    // sync the projection to the domain; when the projection was already current the version
+    // is bumped anyway, as the rejected attempt may have moved toggle state in the view.
+    private void rejectInadmissibleSelection() {
+        if (!refreshInadmissiblePaymentMethods()) {
+            model.getPaymentMethodAdmissibilityVersion().set(model.getPaymentMethodAdmissibilityVersion().get() + 1);
+        }
     }
 
     private String buildNoAccountReason(PaymentMethod<?> paymentMethod) {

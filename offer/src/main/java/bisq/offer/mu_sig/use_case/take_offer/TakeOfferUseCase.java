@@ -785,7 +785,7 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
      * selectability). Methods that cannot be evaluated count as admissible - the confirmation
      * gate covers them.
      */
-    public boolean isPaymentMethodAdmissible(PaymentMethod<?> paymentMethod) {
+    public synchronized boolean isPaymentMethodAdmissible(PaymentMethod<?> paymentMethod) {
         MuSigOffer offer = this.muSigOffer;
         PriceQuote resolvedQuote = priceService.getPriceQuote();
         if (offer == null || resolvedQuote == null) {

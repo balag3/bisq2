@@ -153,8 +153,11 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             }
         });
 
-        paymentMethodAdmissibilityPin = EasyBind.subscribe(model.getPaymentMethodAdmissibilityVersion(), version ->
-                paymentMethodChipButtons.forEach(this::applyAdmissibility));
+        paymentMethodAdmissibilityPin = EasyBind.subscribe(model.getPaymentMethodAdmissibilityVersion(), version -> {
+            paymentMethodChipButtons.forEach(this::applyAdmissibility);
+            applySinglePaymentMethodComboAdmissibility();
+            reconcileSelectionVisuals();
+        });
 
         createAccountButton.setOnAction(e -> controller.onOpenCreateAccountScreen());
         noAccountOverlayCloseButton.setOnAction(e -> controller.onCloseNoAccountOverlay());
@@ -170,6 +173,8 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
             singlePaymentMethodAccountSelection.setOnChangeConfirmed(e -> {
                 Account<?, ?> account = singlePaymentMethodAccountSelection.getSelectionModel().getSelectedItem();
                 if (account != null) {
+                    // Admissibility is decided by the controller against the domain; on a
+                    // rejected pick the version signal reconciles the label and the combo.
                     findPaymentMethodChipButton(account.getPaymentMethod())
                             .ifPresent(button -> button.setAccountName(account.getAccountName()));
                     controller.onSelectAccount(account);
@@ -250,21 +255,8 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
 
             button.setOnAction(() -> {
                 // An inadmissible chip is dimmed but stays mouse-interactive so its tooltip
-                // shows; a click must neither select it nor disturb an existing selection,
-                // so the toggle visuals are restored to the model state instead. The actual
-                // selection is re-selected first: the toggle group then deselects the clicked
-                // chip without passing through a no-selection state, which would clear the
-                // account labels.
-                if (model.getInadmissiblePaymentMethods().contains(paymentMethod)) {
-                    PaymentMethodSpec<?> selectedSpec = model.getSelectedPaymentMethodSpec().get();
-                    if (selectedSpec != null) {
-                        findPaymentMethodChipButton(selectedSpec.getPaymentMethod())
-                                .ifPresent(selected -> selected.setSelected(true));
-                    } else {
-                        button.setSelected(false);
-                    }
-                    return;
-                }
+                // shows; the controller rejects the toggle against the domain, and the
+                // version signal restores the toggle visuals and account labels.
                 controller.onTogglePaymentMethod(paymentMethod, button.isSelected());
             });
 
@@ -290,6 +282,57 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
                 ? null
                 : new BisqTooltip(Res.get("muSig.offer.taker.payment.methodNotAdmissible",
                         paymentMethod.getShortDisplayString())));
+    }
+
+    // Single-method offers show the account combo instead of the chip grid, so it has to
+    // mirror the chip treatment when the method is inadmissible: dimmed, reason as tooltip,
+    // still mouse-interactive (a disabled node would not show the tooltip). Picks are
+    // rejected in the change-confirmed handler and in the controller.
+    private void applySinglePaymentMethodComboAdmissibility() {
+        if (!model.isSinglePaymentMethod() || model.getOfferedPaymentMethods().isEmpty()) {
+            return;
+        }
+        PaymentMethod<?> paymentMethod = model.getOfferedPaymentMethods().get(0);
+        boolean isAdmissible = !model.getInadmissiblePaymentMethods().contains(paymentMethod);
+        singlePaymentMethodAccountSelection.setOpacity(isAdmissible ? 1 : 0.4);
+        singlePaymentMethodAccountSelection.setTooltip(isAdmissible
+                ? null
+                : new BisqTooltip(Res.get("muSig.offer.taker.payment.methodNotAdmissible",
+                        paymentMethod.getShortDisplayString())));
+    }
+
+    // The version signal also fires when the controller rejects a selection attempt that
+    // this view let through on a stale projection; the selection visuals are re-derived
+    // from the model so a rejected attempt cannot leave a toggle, account label or combo
+    // showing a selection that was never applied. Idempotent when visuals already match.
+    private void reconcileSelectionVisuals() {
+        PaymentMethodSpec<?> selectedSpec = model.getSelectedPaymentMethodSpec().get();
+        PaymentMethod<?> selectedMethod = selectedSpec != null ? selectedSpec.getPaymentMethod() : null;
+        Account<?, ?> selectedAccount = model.getSelectedAccount().get();
+        paymentMethodChipButtons.forEach(button -> {
+            PaymentMethod<?> paymentMethod = button.getPaymentMethod();
+            boolean isSelected = paymentMethod.equals(selectedMethod);
+            button.setSelected(isSelected);
+            List<Account<?, ?>> accounts = model.getAccountsByPaymentMethod().get(paymentMethod);
+            boolean showAccountName = isSelected && selectedAccount != null
+                    && accounts != null && accounts.size() > 1
+                    && selectedAccount.getPaymentMethod().equals(paymentMethod);
+            button.setAccountName(showAccountName ? selectedAccount.getAccountName() : null);
+        });
+        if (model.isSinglePaymentMethod()) {
+            // Deferred: a synchronous programmatic change inside the combo's own
+            // change-confirmed handler must be avoided. The model is read at execution
+            // time - a selection accepted between the version bump and this frame must
+            // not be overwritten by a value captured earlier.
+            UIThread.runOnNextRenderFrame(() -> {
+                Account<?, ?> currentAccount = model.getSelectedAccount().get();
+                if (currentAccount != null) {
+                    singlePaymentMethodAccountSelection.getSelectionModel().select(currentAccount);
+                } else {
+                    singlePaymentMethodAccountSelection.getSelectionModel().clearSelection();
+                }
+            });
+        }
     }
 
     private void updateSelectionsState() {
@@ -350,6 +393,9 @@ public class MuSigTakeOfferPaymentView extends View<StackPane, MuSigTakeOfferPay
         PaymentMethod<?> paymentMethod = model.getPaymentMethodWithMultipleAccounts().get();
         Account<?, ?> account = accountSelection.getSelectionModel().getSelectedItem();
         if (paymentMethod != null && account != null) {
+            // Admissibility is decided by the controller against the domain. On a rejected
+            // pick the controller leaves the overlay open and the version signal reconciles
+            // the chip label the optimistic set below applied.
             findPaymentMethodChipButton(paymentMethod)
                     .ifPresent(button -> button.setAccountName(account.getAccountName()));
             controller.onSelectAccount(account);
