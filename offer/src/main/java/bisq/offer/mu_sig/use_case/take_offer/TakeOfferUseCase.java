@@ -437,28 +437,16 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         CollateralOption collateralOption = collateralOptions.get(0);
         double buyerSecurityDeposit = collateralOption.getBuyerSecurityDeposit();
         double sellerSecurityDeposit = collateralOption.getSellerSecurityDeposit();
-        if (!Double.isFinite(buyerSecurityDeposit) || !Double.isFinite(sellerSecurityDeposit)) {
-            // NaN compares equal to itself with Double.compare and every bound comparison on it
-            // is false; without this gate a NaN pair would pass and throw downstream in the
-            // percentage formatter, outside the validation catch.
-            throw new TakeOfferValidationException(Reason.INVALID_OFFER_OPTIONS,
-                    "Offer " + offer.getId() + " has non-finite security deposit percentages: buyer="
-                            + buyerSecurityDeposit + ", seller=" + sellerSecurityDeposit);
-        }
+        // Finiteness, the 0-1 range and canonical zero are intrinsic invariants enforced by
+        // CollateralOption.verify() at construction and deserialization; only the take-specific
+        // requirements are checked here.
         if (Double.compare(buyerSecurityDeposit, sellerSecurityDeposit) != 0) {
             // Asymmetric deposits are not supported by the current protocol
-            // (OfferOptionUtil.findSymmetricSecurityDepositPercent throws downstream). The
-            // comparison must match that helper's Double.compare semantics: a wire-supplied
-            // +0.0/-0.0 pair passes a plain inequality check but throws downstream, outside
-            // the validation catch.
+            // (OfferOptionUtil.findSymmetricSecurityDepositPercent throws downstream); the
+            // comparison matches that helper's Double.compare semantics.
             throw new TakeOfferValidationException(Reason.INVALID_OFFER_OPTIONS,
                     "Offer " + offer.getId() + " has asymmetric security deposit percentages: buyer="
                             + buyerSecurityDeposit + ", seller=" + sellerSecurityDeposit);
-        }
-        if (Double.compare(buyerSecurityDeposit, 0) < 0 || buyerSecurityDeposit > 1) {
-            throw new TakeOfferValidationException(Reason.INVALID_OFFER_OPTIONS,
-                    "Offer " + offer.getId() + " has a security deposit percentage outside 0-100%: "
-                            + buyerSecurityDeposit);
         }
         // Count on the raw list: OfferOptionUtil.findAccountOptions returns a Set, which would
         // collapse exactly equal duplicates before they can be rejected.

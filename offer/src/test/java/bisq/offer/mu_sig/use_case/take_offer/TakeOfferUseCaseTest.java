@@ -255,16 +255,6 @@ public class TakeOfferUseCaseTest {
     }
 
     @Test
-    public void securityDepositOutsideSaneBoundsIsRejected() {
-        TakeOfferUseCase useCase = createUseCase();
-        MuSigOffer offer = validOffer();
-        List<OfferOption> options = List.of(new CollateralOption(1.5, 1.5), accountOption(wiseMethod));
-        when(offer.getOfferOptions()).thenReturn(options);
-
-        assertRejected(useCase, offer, Reason.INVALID_OFFER_OPTIONS);
-    }
-
-    @Test
     public void everyMarketPriceUpdateBumpsTheConstraintsRecomputeRevision() {
         TakeOfferUseCase useCase = createUseCase();
         MuSigOffer offer = validOffer();
@@ -279,42 +269,6 @@ public class TakeOfferUseCaseTest {
 
         assertEquals(revisionAfterInit + 1,
                 useCase.getAmountService().constraintsRecomputeRevisionObservable().get());
-    }
-
-    @Test
-    public void signedZeroSecurityDepositPairIsRejectedAsAsymmetric() {
-        TakeOfferUseCase useCase = createUseCase();
-        MuSigOffer offer = validOffer();
-        // +0.0 != -0.0 is false for doubles, so a plain inequality check accepts the pair,
-        // while the symmetric-deposit helper compares with Double.compare and throws on it
-        // outside the validation catch - the pair must already die at the trust boundary.
-        List<OfferOption> options = List.of(new CollateralOption(0.0, -0.0), accountOption(wiseMethod));
-        when(offer.getOfferOptions()).thenReturn(options);
-
-        assertRejected(useCase, offer, Reason.INVALID_OFFER_OPTIONS);
-    }
-
-    @Test
-    public void nanSecurityDepositsAreRejected() {
-        TakeOfferUseCase useCase = createUseCase();
-        MuSigOffer offer = validOffer();
-        // NaN compares equal to itself with Double.compare and every bound comparison on it is
-        // false, so only an explicit finiteness gate rejects it; downstream the percentage
-        // formatter throws on NaN, outside the validation catch.
-        List<OfferOption> options = List.of(new CollateralOption(Double.NaN, Double.NaN), accountOption(wiseMethod));
-        when(offer.getOfferOptions()).thenReturn(options);
-
-        assertRejected(useCase, offer, Reason.INVALID_OFFER_OPTIONS);
-    }
-
-    @Test
-    public void negativeZeroSecurityDepositsAreRejected() {
-        TakeOfferUseCase useCase = createUseCase();
-        MuSigOffer offer = validOffer();
-        List<OfferOption> options = List.of(new CollateralOption(-0.0, -0.0), accountOption(wiseMethod));
-        when(offer.getOfferOptions()).thenReturn(options);
-
-        assertRejected(useCase, offer, Reason.INVALID_OFFER_OPTIONS);
     }
 
     @Test

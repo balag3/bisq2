@@ -218,7 +218,7 @@ class MuSigContractTest {
                 null,
                 null,
                 paymentMethods,
-                offerOptions,
+                withCollateral(offerOptions),
                 "1.0.0");
     }
 
@@ -245,4 +245,12 @@ class MuSigContractTest {
     private Market createCryptoBtcMarket() {
         return new Market("XMR", "BTC", "Monero", "Bitcoin");
     }
+
+    private static java.util.List<bisq.offer.options.OfferOption> withCollateral(java.util.List<? extends bisq.offer.options.OfferOption> options) {
+        java.util.List<bisq.offer.options.OfferOption> result = new java.util.ArrayList<>(options.size() + 1);
+        result.add(new bisq.offer.options.CollateralOption(0.25, 0.25));
+        result.addAll(options);
+        return result;
+    }
+
 }
