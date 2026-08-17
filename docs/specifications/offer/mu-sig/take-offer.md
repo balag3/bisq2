@@ -420,23 +420,17 @@ The review step summarizes the trade before confirmation:
 * the resolved price and its details
 * the taker's payment method and account
 * the security deposit derived from the offer's collateral option
-* the fee description: the trade fee and the mining-fee facts (the seller pays the
-  mining fee); which is shown as headline vs detail depends on the taker direction
-  (the taker's own cost first)
+* the trade-fee status and the mining-fee payer (the Bitcoin seller pays the mining
+  fee)
 
-MuSig trades carry a trade fee; the `noTradeFees` i18n values in the create and take
-review screens are a Bisq Easy leftover (literal TODO placeholders in the English
-source, while translations still carry older "no trade fees" copy). The fee amount
-comes from a dedicated trade-fee domain service (to be introduced; mocked until the
-fee schedule is decided). The mocked service takes the maximum trade amount as input;
-whether the final schedule keys the fee off that maximum or off the actual trade
-amount (relevant for range offers) is settled together with the schedule. The service
-is the single source for both the review display and the protocol's fee amount (today
-a hard-coded placeholder in the nonce-shares setup; receiver selection stays a
-protocol concern), so review shows the same fee the protocol will request from it;
-whether the fee is persisted in the contract and how the peers agree on it are
-trade-protocol concerns outside this use case. The fee
-schedule itself and the final fee wording remain open.
+MuSig trades carry a trade fee, but the review does not show a numeric amount until
+the review and protocol consume the same authoritative fee policy. The protocol
+currently uses a hard-coded placeholder during nonce-shares setup; presenting either
+that placeholder or a separate UI estimate as the user-facing fee would be
+misleading. The review therefore shows `N/A` for the fee and still identifies the
+mining-fee payer. Defining the shared fee schedule, deciding whether it keys off the
+maximum or actual trade amount for range offers, and agreeing or persisting the fee
+are trade-protocol follow-ups outside this use case.
 
 The confirm action starts the trade. The review step owns the take-offer outcome
 handling: send timeout, success state, error and peer-error reporting, and the expected
@@ -473,5 +467,5 @@ validated input set:
 These guarantees are established at the use-case boundary; the trade protocol and the
 musigd backend are outside the scope of the take-offer process and must not need to
 re-derive or correct any of these values. The trade fee is not part of the handoff
-data; the protocol obtains it from the same trade-fee domain service that feeds the
-review display (see Review).
+data. Defining and wiring the shared fee policy across the review and protocol is
+outside this use case (see Review).

@@ -21,7 +21,6 @@ import bisq.account.accounts.Account;
 import bisq.account.payment_method.PaymentMethodSpec;
 import bisq.common.market.Market;
 import bisq.common.monetary.Monetary;
-import bisq.common.monetary.Coin;
 import bisq.common.monetary.PriceQuote;
 import bisq.network.identity.NetworkId;
 import bisq.common.monetary.TradeAmount;
@@ -83,7 +82,6 @@ public class MuSigTakeOfferReviewController implements Controller {
     private Pin priceQuotePin;
     private Pin priceDeviationPin;
     private Pin fixTradeAmountPin;
-    private Pin tradeFeePin;
     private final UserIdentityService userIdentityService;
     private final BannedUserService bannedUserService;
     private final MuSigReviewDataDisplay muSigReviewDataDisplay;
@@ -454,12 +452,6 @@ public class MuSigTakeOfferReviewController implements Controller {
         // and background passive-side refreshes; fires at registration for the initial state.
         fixTradeAmountPin = takeOfferService.getAmountService().fixTradeAmountObservable().addObserver(tradeAmount ->
                 UIThread.run(this::applyTakersAmountsFromDomain));
-        // The fee tracks the effective max, which can move (method or background price change)
-        // while the selected amount stays byte-equal and its observer is suppressed; observe the
-        // fee directly so the display never lags.
-        tradeFeePin = takeOfferService.getFeeService().tradeFeeObservable().addObserver(tradeFee ->
-                UIThread.run(() -> model.setFee(formattedTradeFee())));
-
         applyAmountsAndDisplay();
     }
 
@@ -486,7 +478,10 @@ public class MuSigTakeOfferReviewController implements Controller {
             toReceiveCode = fixBaseSideAmount.getCode();
         }
 
-        model.setFee(formattedTradeFee());
+        // The review deliberately omits a numeric trade fee until the UI and protocol share an
+        // authoritative fee policy. Showing the protocol placeholder or a separate UI estimate
+        // would present a value that the trade does not consistently enforce.
+        model.setFee(Res.get("data.na"));
         // The mining fee is charged to the Bitcoin seller. The display direction is
         // altcoin-denominated in Altcoin-Bitcoin markets, so the fee note keys on the
         // Bitcoin-side taker direction (the mirror of the Bitcoin-side offer direction).
@@ -525,10 +520,6 @@ public class MuSigTakeOfferReviewController implements Controller {
             fixTradeAmountPin.unbind();
             fixTradeAmountPin = null;
         }
-        if (tradeFeePin != null) {
-            tradeFeePin.unbind();
-            tradeFeePin = null;
-        }
         if (errorMessagePin != null) {
             errorMessagePin.unbind();
         }
@@ -557,17 +548,6 @@ public class MuSigTakeOfferReviewController implements Controller {
         applyPriceDetails(model.getMuSigOffer().getPriceSpec(), model.getMuSigOffer().getMarket());
         applySecurityDepositAsBtc();
         applyAmountsAndDisplay();
-    }
-
-    // The domain publishes trade amounts with the passive side already refreshed from the
-    // resolved quote, so display and handoff stay consistent with the shown price.
-    // The trade fee comes from the single fee domain service; the schedule is a mock until it is
-    // decided, and the protocol still uses a hard-coded placeholder (take-offer.md, "Review").
-    private String formattedTradeFee() {
-        Coin tradeFee = takeOfferService.getFeeService().getTradeFee();
-        return tradeFee != null
-                ? AmountFormatter.formatAmountWithCode(tradeFee, false)
-                : Res.get("data.na");
     }
 
     private void applyTakersAmountsFromDomain() {

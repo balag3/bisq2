@@ -211,7 +211,6 @@ class MuSigTakeOfferReviewView extends View<StackPane, MuSigTakeOfferReviewModel
         securityDeposit.setText(model.getFormattedSecurityDepositAsPercent());
         securityDepositDetails.setText(model.getSecurityDepositAsBtc());
 
-        // Bound, not one-shot: a background limit change can move the fee while the review is open.
         fee.textProperty().bind(model.getFee());
         feeDetails.textProperty().bind(model.getFeeDetails());
 

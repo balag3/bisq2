@@ -60,7 +60,6 @@ import bisq.offer.mu_sig.use_case.dependencies.DefaultAccountsProvider;
 import bisq.offer.mu_sig.use_case.dependencies.DefaultTakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.dependencies.TakeOfferDraftCookieStore;
 import bisq.offer.mu_sig.use_case.take_offer.amount.TakeOfferAmountService;
-import bisq.offer.mu_sig.use_case.take_offer.fee.TakeOfferFeeService;
 import bisq.offer.mu_sig.use_case.take_offer.direction.TakeOfferDirectionService;
 import bisq.offer.mu_sig.use_case.take_offer.market.TakeOfferMarketService;
 import bisq.offer.mu_sig.use_case.take_offer.payment_method.TakeOfferPaymentMethodService;
@@ -93,9 +92,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
     private final TakeOfferPriceService priceService;
     @Getter
     private final TakeOfferAmountService amountService;
-    @Getter
-    private final TakeOfferFeeService feeService;
-
     private final TakeOfferDraftCookieStore cookieStore;
     @Getter
     private final TakeOfferPaymentMethodService paymentMethodService;
@@ -139,8 +135,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         directionService = new TakeOfferDirectionService();
         priceService = new TakeOfferPriceService();
         amountService = new TakeOfferAmountService();
-        feeService = new TakeOfferFeeService();
-
         this.cookieStore = checkNotNull(cookieStore, "cookieStore must not be null");
         checkNotNull(accountsProvider, "accountsProvider must not be null");
         this.marketPriceService = checkNotNull(marketPriceService, "marketPriceService must not be null");
@@ -238,7 +232,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         amountService.reset();
         amountConstraintsCauseValid = true;
         userAmountInputCauseValid = true;
-        feeService.reset();
         rangeCollapsed = false;
         amountConstraintsStale = false;
         if (marketPricePin != null) {
@@ -564,7 +557,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
                         "The amounts of offer " + offer.getId() + " convert to a non-positive amount at the resolved price");
             }
             boolean published = publishFixTradeAmount(fixTradeAmount);
-            applyTradeFee(fixTradeAmount);
             setConstraintsCauseValid(published);
             return;
         }
@@ -579,8 +571,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
         boolean published = rangeCollapsed
                 ? publishFixTradeAmount(effectiveRange.getMax())
                 : publishFixTradeAmount(midpointOf(offer, effectiveRange, resolvedQuote));
-        // The mocked fee keys off the maximum takeable trade amount (take-offer.md, "Review").
-        applyTradeFee(effectiveRange.getMax());
         setConstraintsCauseValid(published);
     }
 
@@ -596,10 +586,6 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
 
     private void publishAmountValid() {
         amountService.setAmountValid(amountConstraintsCauseValid && userAmountInputCauseValid);
-    }
-
-    private void applyTradeFee(TradeAmount maxTradeAmount) {
-        feeService.applyMaxTradeAmount(maxTradeAmount.getBitcoinSideAmount().getValue());
     }
 
     private synchronized void recalculateAmountConstraints(boolean userInitiated, boolean quoteChanged) {
@@ -663,15 +649,9 @@ public class TakeOfferUseCase extends DraftOfferUseCase {
             // background updates and for a later payment method selection.
             TradeAmount fixTradeAmount = resolveFixedTradeAmount(offer, resolvedQuote);
             boolean published = publishFixTradeAmount(fixTradeAmount);
-            // A fixed offer's max takeable amount is the fixed amount itself, not the effective
-            // range max; keep the fee consistent with it across recomputations.
-            applyTradeFee(fixTradeAmount);
             setConstraintsCauseValid(published && isWithinRangeOnStoredSide(offer, fixTradeAmount, effectiveRange));
             return;
         }
-        // Range offers: the fee tracks the current effective max, so a method switch or price
-        // update that moves the max keeps the review fee consistent with the limits.
-        applyTradeFee(effectiveRange.getMax());
         TradeAmount current = amountService.getFixTradeAmount();
         if (current == null) {
             setConstraintsCauseValid(
